@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -276,26 +277,100 @@ func (g gatedFS) ReadDir(name string) ([]fs.DirEntry, error) {
 }
 
 // TestAListingThatArrivesLateIsDroppedWhenThePersonHasMovedOn: the person
-// opens a slow directory, gives up and opens another; when the slow one
-// arrives it must not replace what is on the screen.
+// opens a slow directory, gives up and goes back along the path bar; when the
+// slow one arrives it must not replace what is on the screen.
 func TestAListingThatArrivesLateIsDroppedWhenThePersonHasMovedOn(t *testing.T) {
 	var o outcome
-	g := gatedFS{FS: testFS(), slow: "Zeta", gate: make(chan struct{})}
-	h := mountPicker(t, New(g, o.pick, o.cancel))
+	g := gatedFS{FS: testFS(), slow: "alpha/sub", gate: make(chan struct{})}
+	h := mountPicker(t, New(g, o.pick, o.cancel).Start("alpha"))
 
-	h.Find(gifttest.ByText("Zeta")).Tap()
+	h.Find(gifttest.ByText("sub")).Tap()
 	h.Settle()
 	h.AssertExists(gifttest.ByKey("loading"))
-	h.Find(gifttest.ByText("alpha")).Tap()
-	waitListed(t, h)
-	h.Find(gifttest.ByText("two.txt")).AssertVisible()
+	tapKey(t, h, "crumb0")
+	h.Find(gifttest.ByText("b.txt")).AssertVisible()
 
 	close(g.gate)
 	time.Sleep(20 * time.Millisecond)
 	h.Settle()
 	h.Settle()
-	h.Find(gifttest.ByText("two.txt")).AssertVisible()
-	h.AssertNone(gifttest.ByText("one.txt"))
+	h.Find(gifttest.ByText("b.txt")).AssertVisible()
+	h.AssertNone(gifttest.ByText("x.jpg"))
+}
+
+// TestRowsCannotBeTappedWhileADirectoryIsRead is the review finding behind
+// the rule in tap: a file selected in the listing that is about to go away
+// either vanished from the pick, so that onPick got nothing, or named the
+// file of the same name in the directory that arrived.
+func TestRowsCannotBeTappedWhileADirectoryIsRead(t *testing.T) {
+	fsys := testFS()
+	fsys["Zeta/b.txt"] = &fstest.MapFile{Data: []byte("same name")}
+	g := gatedFS{FS: fsys, slow: "Zeta", gate: make(chan struct{})}
+	var o outcome
+	h := mountPicker(t, New(g, o.pick, o.cancel).Mode(OpenMulti))
+
+	h.Find(gifttest.ByText("Zeta")).Tap()
+	h.Settle()
+	h.Find(gifttest.ByText("b.txt")).Tap()
+	h.Settle()
+	close(g.gate)
+	waitListed(t, h)
+
+	h.Find(gifttest.ByText("one.txt")).AssertVisible()
+	h.Find(gifttest.ByKey("primary")).AssertDisabled()
+	h.Find(gifttest.ByKey("primary")).Tap()
+	h.Settle()
+	if len(o.picked) != 0 {
+		t.Fatalf("a tap made while Zeta was read led to the pick %v", o.picked)
+	}
+}
+
+func TestSaveCannotSaveIntoAStartDirectoryThatCannotBeRead(t *testing.T) {
+	var o outcome
+	h := mountPicker(t, New(lockedFS{testFS(), "Zeta"}, o.pick, o.cancel).
+		Mode(Save).Start("Zeta").SuggestedName("new.txt"))
+	h.Find(gifttest.ByKey("error")).AssertVisible()
+	h.Find(gifttest.ByKey("primary")).AssertDisabled()
+	h.Find(gifttest.ByKey("name")).Focus()
+	h.Key(gift.KeyEnter)
+	h.Settle()
+	if len(o.picked) != 0 {
+		t.Fatalf("saved into an unreadable directory: %v", o.picked)
+	}
+}
+
+func TestEscapeCancelsWithNothingFocused(t *testing.T) {
+	var o outcome
+	h := mountPicker(t, New(testFS(), o.pick, o.cancel))
+	h.AssertNoFocus()
+	h.Key(gift.KeyEscape)
+	h.Settle()
+	if o.cancelled != 1 {
+		t.Fatalf("escape with nothing focused cancelled %d times, want 1", o.cancelled)
+	}
+}
+
+func TestAModeOutOfRangeIsRefusedByName(t *testing.T) {
+	defer func() {
+		r := recover()
+		if msg, _ := r.(string); msg == "" || !strings.Contains(msg, "Mode(9)") {
+			t.Fatalf("Mode(9) panicked with %v, want a message that names it", r)
+		}
+	}()
+	New(testFS(), func([]string) {}, nil).Mode(Mode(9))
+}
+
+func TestANameIsCheckedAgainstTheIndexOfTheListing(t *testing.T) {
+	l, _ := listDir(testFS(), ".", rules{})
+	if isDir, ok := l.index["alpha"]; !ok || !isDir {
+		t.Error("alpha is not indexed as a directory")
+	}
+	if isDir, ok := l.index["b.txt"]; !ok || isDir {
+		t.Error("b.txt is not indexed as a file")
+	}
+	if _, ok := l.index[".hidden"]; ok {
+		t.Error("a hidden entry that is not listed is indexed")
+	}
 }
 
 func TestTheFilterNarrowsTheListAndSaysWhenNothingMatches(t *testing.T) {

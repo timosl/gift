@@ -51,6 +51,10 @@ type entry struct {
 type listing struct {
 	dir     string
 	entries []entry
+	// index maps every name to whether it is a directory, so that a name
+	// typed in Save mode is checked without walking the entries on every
+	// keystroke. It is built with the listing, off the UI goroutine.
+	index map[string]bool
 }
 
 // rules is the part of the picker's declaration the listing depends on.
@@ -98,7 +102,11 @@ func listDir(fsys fs.FS, dir string, r rules) (listing, error) {
 		out = append(out, e)
 	}
 	slices.SortFunc(out, compareEntries)
-	return listing{dir: dir, entries: out}, nil
+	index := make(map[string]bool, len(out))
+	for _, e := range out {
+		index[e.name] = e.dir
+	}
+	return listing{dir: dir, entries: out, index: index}, nil
 }
 
 // fileAllowed reports whether a file may be picked under r.

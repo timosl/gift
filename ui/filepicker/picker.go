@@ -87,7 +87,13 @@ func New(fsys fs.FS, onPick func(paths []string), onCancel func()) PickerView {
 }
 
 // Mode sets what the picker picks; see [Mode].
-func (p PickerView) Mode(m Mode) PickerView { p.mode = m; return p }
+func (p PickerView) Mode(m Mode) PickerView {
+	if m > Save {
+		panic("gift/ui/filepicker: Mode(" + strconv.Itoa(int(m)) + ") is not one of Open, OpenMulti, Directory and Save")
+	}
+	p.mode = m
+	return p
+}
 
 // Start sets the directory the picker opens in, as an fs.FS path. It applies
 // when the picker is mounted. The default is the root, ".".
@@ -149,6 +155,12 @@ func (p PickerView) ViewType() gift.TypeID { return pickerType }
 func (p PickerView) Build(bc *gift.BuildContext) gift.Element {
 	e := ui.ZStack(gift.Component("filepicker", p.body)).Key(p.key).Flex(p.flex).Build(bc)
 	e.Interactor = escapeKey{onCancel: p.onCancel}
+	// Escape arrives here on a touchscreen too, where nothing is focused;
+	// see gift.Element.KeyFallback. Inside a ui.Sheet the picker is later
+	// in document order than the sheet's panel, so the picker's cancel wins
+	// over the sheet's dismiss, and the application closes the sheet from
+	// onCancel.
+	e.KeyFallback = true
 	return e
 }
 
@@ -293,6 +305,11 @@ func (p PickerView) load(ctx *gift.Context, pk *picker, sl slots, dir string) {
 				sl.touch()
 				return
 			}
+			if dir != pk.listing.dir {
+				// The selection names files of the directory it was made
+				// in, and this is another one.
+				clear(pk.selected)
+			}
 			pk.loaded, pk.listing, pk.err, pk.failed = dir, l, "", false
 			sl.touch()
 		})
@@ -328,8 +345,12 @@ func (p PickerView) open(pk *picker, sl slots, dir string) {
 // The entries are those of pk.listing, which while another directory is being
 // read is still the previous one, so every path is joined onto the
 // directory of the listing and not onto the directory being read.
+//
+// Nothing happens while a directory is being read. The rows still on the
+// screen are about to be replaced, and a selection made in them would either
+// be lost or, worse, name a file of the same name in the directory arriving.
 func (p PickerView) tap(pk *picker, sl slots, i int) {
-	if i < 0 || i >= len(pk.shown) {
+	if pk.loading != "" || i < 0 || i >= len(pk.shown) {
 		return
 	}
 	e := pk.shown[i]
@@ -383,6 +404,10 @@ func (p PickerView) primary(pk *picker, sl slots) {
 				out = append(out, path.Join(dir, e.name))
 			}
 		}
+		if len(out) == 0 {
+			// New promises never to report an empty pick.
+			return
+		}
 		p.onPick(out)
 	}
 }
@@ -396,7 +421,7 @@ func (p PickerView) canPick(pk *picker) bool {
 	case Directory:
 		return pk.loaded != "" && !pk.failed
 	case Save:
-		return pk.reason == ""
+		return !pk.failed && pk.reason == ""
 	default:
 		return len(pk.selected) > 0
 	}
@@ -409,22 +434,16 @@ func (p PickerView) nameProblem(pk *picker) string {
 	if err := validateName(pk.listing.dir, name); err != nil {
 		return err.Error()
 	}
-	for _, e := range pk.listing.entries {
-		if e.name == name && e.dir {
-			return errNameIsFolder.Error()
-		}
+	if isDir, ok := pk.listing.index[name]; ok && isDir {
+		return errNameIsFolder.Error()
 	}
 	return ""
 }
 
 // exists reports whether a file called name is in the listing.
 func (p PickerView) exists(pk *picker, name string) bool {
-	for _, e := range pk.listing.entries {
-		if e.name == name && !e.dir {
-			return true
-		}
-	}
-	return false
+	isDir, ok := pk.listing.index[name]
+	return ok && !isDir
 }
 
 // --- the parts ---------------------------------------------------------------
