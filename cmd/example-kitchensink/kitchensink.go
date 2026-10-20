@@ -86,6 +86,7 @@ func Screen(ctx *gift.Context) gift.View {
 		progress: ctx.State("progress", 0.35),
 		busy:     ctx.State("busy", false),
 		saved:    ctx.State("saved", ""),
+		virtual:  ctx.State("virtual", 0),
 	}
 	// The two the root itself decides with, and nothing else; see above.
 	ctx.Read(st.tab)
@@ -147,6 +148,7 @@ func Screen(ctx *gift.Context) gift.View {
 // without the root having to thread one through.
 type state struct {
 	tab, depth, quality *gift.State[int]
+	virtual             *gift.State[int]
 	alert, on, notify   *gift.State[bool]
 	busy                *gift.State[bool]
 	volume, progress    *gift.State[float64]
@@ -170,9 +172,10 @@ type state struct {
 //     write invalidates screens that do not depend on it. Everything looks
 //     right and the frame costs an order of magnitude more than it should.
 //
-// The list tab reads nothing at all, and that is not an oversight: it only
-// *writes* the saved slot, which the form tab displays. It is therefore built
-// once and never rebuilt, which is the right answer for two hundred rows.
+// The list tab reads only which of its two lists is showing, and that is not an
+// oversight: otherwise it only *writes* the saved slot, which the form tab
+// displays. It is therefore built once per switch and never otherwise, which is
+// the right answer for two hundred rows.
 func (s state) tabComponent(which string) gift.View {
 	return gift.Component(which, func(ctx *gift.Context) gift.View {
 		switch which {
@@ -189,6 +192,7 @@ func (s state) tabComponent(which string) gift.View {
 			ctx.Read(s.busy)
 			return s.settings()
 		case "list":
+			ctx.Read(s.virtual)
 			return s.longList()
 		case "form":
 			ctx.Read(s.saved)
@@ -458,7 +462,35 @@ func busyBar(on bool) gift.View {
 // would be worse than no demo.
 const longListRows = 200
 
+// virtualRows is the item count of the list tab's second list: far past both
+// limits of ui.ListView, which is the point of ui.VirtualList.
+const virtualRows = 100000
+
+// bigList is the retained half of that list. A package variable for the
+// reason nameEditor is one: a program with one window keeps one.
+var bigList = ui.NewListState()
+
 func (s state) longList() gift.View {
+	pick := ui.SegmentedControl(s.virtual.Get(), []string{"200 rows", "100 000 rows"}, s.virtual.Set).
+		Key("which")
+	if s.virtual.Get() == 1 {
+		return ui.VStack(
+			ui.VStack(pick).Padding(12),
+			ui.Text("A ui.VirtualList has nodes for the visible rows only, so it scrolls "+
+				"the same at a hundred thousand rows as at a hundred.").
+				FontSize(12).Foreground(ui.ColorSecondaryLabel).PaddingInsets(geom.Insets{Left: 12, Right: 12, Bottom: 12}),
+			ui.VirtualList(bigList, virtualRows, func(i int) ui.ListRow {
+				id := strconv.Itoa(i)
+				return ui.ListRow{
+					Title:    "Item " + id,
+					Subtitle: "row " + id,
+					Value:    durationish(i),
+					Chevron:  outline.AngleRight,
+				}
+			}).OnTap(func(i int) { s.saved.Set("you tapped item " + strconv.Itoa(i)) }).
+				Key("virtual").Flex(1),
+		)
+	}
 	items := make([]gift.View, 0, longListRows+8)
 	items = append(items, ui.Section("Two hundred rows").Key("head"))
 	for i := range longListRows {
@@ -478,9 +510,10 @@ func (s state) longList() gift.View {
 		items = append(items, row)
 	}
 	return ui.VStack(
+		ui.VStack(pick).Padding(12),
 		ui.Text("Scrolling this list rebuilds nothing: the offset lives in the "+
 			"retained node. Fling it.").
-			FontSize(12).Foreground(ui.ColorSecondaryLabel).Padding(12),
+			FontSize(12).Foreground(ui.ColorSecondaryLabel).PaddingInsets(geom.Insets{Left: 12, Right: 12, Bottom: 12}),
 		ui.VScroll(ui.List(items...).SeparatorInsets(ui.RowPadding, 0)).Flex(1),
 	)
 }

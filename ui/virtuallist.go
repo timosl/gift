@@ -833,7 +833,9 @@ func (r *listRowNode) Paint(ctx *gift.PaintContext) {
 		top, th := snapHairline(b.Max.Y-1, 1, b.Min.Y, dev.Min.Y, s.density)
 		ctx.Add(render.Op{
 			Kind:   render.OpFillRect,
-			Bounds: geom.Rc(b.Min.X+ListSeparatorInset, top, b.Max.X, top+th),
+			// From where the labels start, so that a list of rows with icons
+			// has its hairlines under the text and not under the icons.
+			Bounds: geom.Rc(b.Min.X+sl.titleAt.Min.X, top, b.Max.X, top+th),
 			Color:  lk.sep,
 		})
 	}

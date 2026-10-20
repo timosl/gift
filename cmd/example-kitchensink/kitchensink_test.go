@@ -848,3 +848,19 @@ func TestATapOnASettingsRowDoesNotRebuildTheOtherThreeTabs(t *testing.T) {
 			"scope in Screen.", rebuild, root)
 	}
 }
+
+// TestTheHundredThousandRowListScrollsAndTaps switches the list tab to its
+// virtual list, jumps far into it and taps a row there: the row that answers
+// to "Item 73000" is the one that reports it.
+func TestTheHundredThousandRowListScrollsAndTaps(t *testing.T) {
+	h := mount(t, geom.Sz(900, 760))
+	tabButton(h, "List").Click()
+	h.Find(gifttest.ByText("100 000 rows")).Click()
+	h.Settle()
+
+	bigList.Reveal(73000)
+	h.Settle()
+	h.Find(gifttest.ByText("Item 73000")).AssertVisible().Click()
+	tabButton(h, "Form").Click()
+	h.Find(gifttest.ByText("you tapped item 73000")).AssertVisible()
+}

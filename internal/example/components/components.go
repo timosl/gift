@@ -1,5 +1,5 @@
 // Package components holds one small, deterministic scene per component of
-// the ui package: a list, a row, a card, a badge, a divider, a toggle, a
+// the ui package: a list, a virtual list, a row, a card, a badge, a divider, a toggle, a
 // slider, a segmented control and a progress bar.
 //
 // The golden tests of the ui package compare these scenes pixel by pixel in
@@ -57,6 +57,7 @@ var scenes = map[string]func() Scene{
 	"slider":    sliderScene,
 	"segmented": segmentedScene,
 	"progress":  progressScene,
+	"vlist":     virtualListScene,
 }
 
 // Names returns the scene names in sorted order.
@@ -139,6 +140,25 @@ func rowScene() Scene {
 			Subtitle("takes no tap, and says so").
 			Disabled(true).
 			Key("disabled"),
+	)
+}
+
+// virtualListRows are the rows of [virtualListScene]: the four shapes a row of
+// a file list takes.
+var virtualListRows = []ui.ListRow{
+	{Icon: outline.Folder, Title: "Pictures", Chevron: outline.AngleRight},
+	{Icon: outline.FileImage, Title: "beach.jpg", Subtitle: "2.4 MB, 12 Aug 2026", Selected: true},
+	{Icon: outline.FileLines, Title: "notes.txt", Subtitle: "4 KB", Value: "today"},
+	{Icon: outline.Lock, Title: "private", Subtitle: "no permission", Disabled: true},
+}
+
+func virtualListScene() Scene {
+	return page(geom.Sz(360, 300),
+		ui.Card(
+			ui.VirtualList(ui.NewListState(), len(virtualListRows), func(i int) ui.ListRow {
+				return virtualListRows[i]
+			}).SelectedIcon(outline.Check).Flex(1).Key("list"),
+		).Padding(0).Flex(1).Key("card"),
 	)
 }
 
