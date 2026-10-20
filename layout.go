@@ -149,6 +149,23 @@ func (l *LayoutContext) ChildFlex(child int) float32 {
 	return l.app.data(l.nd.children[child]).flex
 }
 
+// SetChildLabel replaces [Element.Label] of the given child until that child
+// is built again. The index must be in [0, ChildCount).
+//
+// It exists for a virtualising container whose pooled children are bound to
+// items during layout rather than during build: a row of ui.VirtualList that
+// scrolls from item 3 to item 40 is not rebuilt, so without this its label
+// would keep naming item 3 and a test or an accessibility bridge would find
+// the wrong row. The container's next build has to declare the same label
+// again, or the build resets it; ui.VirtualList does so from its bindings.
+//
+// Like the label itself it is read by nothing in the frame path and costs a
+// string header.
+func (l *LayoutContext) SetChildLabel(child int, s string) {
+	l.check(child)
+	l.app.data(l.nd.children[child]).label = s
+}
+
 func (l *LayoutContext) check(child int) {
 	if child < 0 || child >= len(l.nd.children) {
 		panic(fmt.Sprintf("gift: child index %d out of range, the node has %d children", child, len(l.nd.children)))

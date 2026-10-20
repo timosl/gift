@@ -133,6 +133,13 @@ var views = []struct {
 			"ignored would be exactly the lie variant A exists to avoid. See SpacerView.",
 	},
 	{name: "ui.List", set: setStyled, v: ui.List()},
+	{name: "ui.VirtualList", set: setStyled, v: ui.VirtualList(ui.NewListState(), 0, nil)},
+	{
+		name: "ui.VirtualListRow", set: setInternal,
+		why: "a row is one slot of the virtual list's recycled pool, bound to an item " +
+			"during layout. What it shows is ui.ListRow, returned by the row function, " +
+			"because a per row modifier would have nowhere to be written.",
+	},
 	{
 		name: "ui.Row", set: setMinimal, v: ui.Row("x"),
 		why: "a row is the standard row of a ui.List, and its height, its horizontal inset " +
