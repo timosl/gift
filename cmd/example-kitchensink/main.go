@@ -86,6 +86,10 @@ func run() error {
 		return err
 	}
 
+	if home, err := os.UserHomeDir(); err == nil {
+		Files = os.DirFS(home)
+	}
+
 	app := gift.New(gift.Options{Root: Screen})
 	App = app
 

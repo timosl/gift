@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/worldiety/gift"
@@ -887,4 +888,38 @@ func TestTheFormTabOpensASheetAndEscapeSendsItBack(t *testing.T) {
 	h.Find(gifttest.ByKey("sheet-done")).AssertVisible().Click()
 	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
 	h.Find(gifttest.ByKey("sheet-done")).AssertNotVisible()
+}
+
+// TestTheFormTabPicksFilesInASheet runs the file picker the form tab offers
+// over a file system of the test's own: two files picked, and the sheet gone.
+func TestTheFormTabPicksFilesInASheet(t *testing.T) {
+	Files = fstest.MapFS{
+		"a.jpg":      {Data: []byte("a")},
+		"b.jpg":      {Data: []byte("b")},
+		"docs/c.txt": {Data: []byte("c")},
+		".invisible": {Data: []byte("d")},
+	}
+	t.Cleanup(func() { Files = nil })
+	h := mount(t, geom.Sz(900, 760))
+	tabButton(h, "Form").Click()
+	h.Find(gifttest.ByText("Pick files")).Click()
+	listed := func() {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for h.Settle(); h.Exists(gifttest.ByKey("loading")); h.Settle() {
+			if time.Now().After(deadline) {
+				t.Fatal("the picker's listing did not arrive")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	listed()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+
+	h.Find(gifttest.ByText("a.jpg")).Click()
+	h.Find(gifttest.ByText("b.jpg")).Click()
+	h.Find(gifttest.ByKey("primary")).Click()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.AssertNone(gifttest.ByKey("primary").And(gifttest.Visible()))
+	h.Find(gifttest.ByText("you picked a.jpg, b.jpg")).AssertVisible()
 }

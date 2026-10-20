@@ -329,3 +329,28 @@ func TestAHundredThousandFilesAreListedWithoutOverflowOrAFullPool(t *testing.T) 
 	h.Settle()
 	h.AssertNoOverflow()
 }
+
+// TestThePickerLooksTheWayItLooks is the picture of the picker in both
+// themes: a directory with folders, files of several kinds, one selected file
+// and one that the extensions rule out. It only compares under the giftgpu
+// build tag.
+func TestThePickerLooksTheWayItLooks(t *testing.T) {
+	for _, theme := range []struct {
+		name string
+		t    ui.Theme
+	}{{"light", ui.LightTheme()}, {"dark", ui.DarkTheme()}} {
+		var o outcome
+		h := gifttest.New(t, gifttest.Options{
+			View: ui.Window(New(testFS(), o.pick, o.cancel).
+				Mode(OpenMulti).
+				Extensions(".jpg", ".png")),
+			Size:  geom.Sz(420, 720),
+			Theme: theme.t,
+			Font:  ui.MustFont(ui.FontQuery{Family: inter.Family}),
+		})
+		waitListed(t, h)
+		tapRow(t, h, "A.JPG")
+		h.AssertNoOverflow()
+		h.AssertGolden("picker-" + theme.name)
+	}
+}

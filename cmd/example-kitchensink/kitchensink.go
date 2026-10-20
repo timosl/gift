@@ -7,9 +7,11 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/worldiety/gift"
@@ -18,6 +20,7 @@ import (
 	"github.com/worldiety/gift/icon/outline"
 	"github.com/worldiety/gift/icon/solid"
 	"github.com/worldiety/gift/ui"
+	"github.com/worldiety/gift/ui/filepicker"
 )
 
 // App is the application the theme switch asks to rebuild.
@@ -35,6 +38,11 @@ var App *gift.App
 // after start-up: the command fills them in before the window opens and a test
 // fills them in before it mounts.
 var Pictures []asset.Source
+
+// Files is what the form tab's file picker browses. The command sets it to the
+// home directory; a test sets it to a file system of its own. Nil leaves the
+// picker's button disabled.
+var Files fs.FS
 
 // --- the application state ----------------------------------------------------
 
@@ -80,6 +88,7 @@ func Screen(ctx *gift.Context) gift.View {
 		depth:    ctx.State("depth", 0),
 		alert:    ctx.State("alert", false),
 		sheet:    ctx.State("sheet", false),
+		picking:  ctx.State("picking", false),
 		on:       ctx.State("on", true),
 		notify:   ctx.State("notify", false),
 		volume:   ctx.State("volume", 0.62),
@@ -93,6 +102,7 @@ func Screen(ctx *gift.Context) gift.View {
 	ctx.Read(st.tab)
 	ctx.Read(st.alert)
 	ctx.Read(st.sheet)
+	ctx.Read(st.picking)
 
 	body := ui.TabBar(st.tab.Get(), st.tab.Set,
 		ui.Tab("Home", outline.Home, st.tabComponent("home")).SelectedIcon(solid.Home),
@@ -146,8 +156,8 @@ func Screen(ctx *gift.Context) gift.View {
 				OnDismiss(func() { st.alert.Set(false) }),
 			st.sheetContent(),
 		).
-			Presented(st.sheet.Get()).
-			OnDismiss(func() { st.sheet.Set(false) }),
+			Presented(st.sheet.Get() || st.picking.Get()).
+			OnDismiss(func() { st.sheet.Set(false); st.picking.Set(false) }),
 		ui.OnScreenKeyboard(),
 	).Align(geom.Bottom)
 }
@@ -159,7 +169,7 @@ type state struct {
 	tab, depth, quality *gift.State[int]
 	virtual             *gift.State[int]
 	alert, on, notify   *gift.State[bool]
-	sheet               *gift.State[bool]
+	sheet, picking      *gift.State[bool]
 	busy                *gift.State[bool]
 	volume, progress    *gift.State[float64]
 	saved               *gift.State[string]
@@ -536,9 +546,19 @@ func durationish(i int) string {
 
 // --- tab four: the text field, the keyboard and the alert -----------------------
 
-// sheetContent is what the form tab's sheet shows. It is built whether or not
-// the sheet is up, for the reason the alert is; see Screen.
+// sheetContent is what the form tab's sheet shows: the file picker, or a few
+// words about sheets. It is built whether or not the sheet is up, for the
+// reason the alert is; see Screen.
 func (s state) sheetContent() gift.View {
+	if s.picking.Get() && Files != nil {
+		return filepicker.New(Files,
+			func(paths []string) {
+				s.picking.Set(false)
+				s.saved.Set("you picked " + strings.Join(paths, ", "))
+			},
+			func() { s.picking.Set(false) },
+		).Mode(filepicker.OpenMulti).RootLabel("Home").Key("picker")
+	}
 	return ui.VStack(
 		ui.HStack(
 			ui.Text("A sheet").FontSize(20),
@@ -578,8 +598,11 @@ func (s state) form() gift.View {
 			ui.HStack(
 				ui.Button(ui.Text("Show a sheet"), func() { s.sheet.Set(true) }).
 					MinHeight(ui.ControlHitTarget),
+				ui.Button(ui.Text("Pick files"), func() { s.picking.Set(true) }).
+					Disabled(Files == nil).
+					MinHeight(ui.ControlHitTarget),
 				ui.Spacer(),
-			),
+			).Gap(8),
 			ui.Text(orDash(s.saved.Get())).FontSize(13).Foreground(ui.ColorSecondaryLabel),
 		).Header("Type something"),
 
