@@ -1888,6 +1888,44 @@ Verbindlich fuer jedes dieser Steuerelemente:
 Liquid Glass mit Animation, Persistenz mit Eingabefeld. HEIF nach
 Abschnitt 22 ist unabhaengig und kann jederzeit vorgezogen werden.
 
+## 24. Dateiauswahl, virtuelle Liste und Sheet
+
+Angefordert nach der zweiten Lieferung: eine Dateiauswahl. Wie in
+Abschnitt 14 wird das Wachstum hier festgehalten und begruendet, statt nur
+im Code zu passieren. Der Arbeitsplan steht in docs/file-picker-plan.md.
+
+Kein nativer Dialog. Ebitengine hat keinen, ein Kiosk im Vollbild hat oft
+keinen Desktop, der einen liefern koennte, und ein nativer Dialog laesst
+sich nicht headless testen. Die Auswahl besteht deshalb aus gift-Views und
+liest ueber ein `fs.FS`, das die Anwendung uebergibt. Damit bestimmt die
+Anwendung, was sichtbar ist, und ein Test reicht ein `fstest.MapFS` herein.
+Geschrieben wird nie.
+
+Drei Bausteine, in dieser Reihenfolge:
+
+- `ui.VirtualList`. `ui.List` baut jede Zeile und hat die in seiner
+  Dokumentation gemessene Grenze von etwa 280 Zeilen auf dem Pi 4. Ein
+  Verzeichnis mit zehntausend Dateien braucht dasselbe, was die Galerie aus
+  Abschnitt 10 fuer Bilder hat: einen Pool, der beim Layout an Eintraege
+  gebunden wird. Zeilen sind deshalb Daten (`ui.ListRow`) und keine Views,
+  denn ein View wird nur durch einen Build zu einem Knoten. Gemessen: ein
+  Scroll-Frame kostet 2,3 µs und alloziert nichts, bei tausend wie bei
+  hunderttausend Eintraegen. Dafuer kam `LayoutContext.SetChildLabel` in den
+  Kern, damit ein recycelter Knoten den Namen des Eintrags traegt, den er
+  gerade zeigt.
+- `ui.Sheet`, aus den Teilen von `ui.Modal`: Scrim, Fokusfalle, Ebene, dazu
+  ein Panel, das von der Unterkante hereinfaehrt. Escape kommt ueber
+  `KeyFallback` an, auch wenn auf dem Touchscreen nichts fokussiert ist.
+  Ziehen zum Schliessen gibt es nicht.
+- `ui/filepicker` mit den Modi Open, OpenMulti, Directory und Save. Ein
+  Verzeichnis wird ausserhalb der UI-Goroutine gelesen. Dafuer kam
+  `Token.Post` in den Kern, das Muster aus Abschnitt 5 in einem Aufruf. Eine
+  Liste, die ankommt, nachdem die Person weitergegangen ist, wird verworfen.
+
+Bewusst nicht enthalten: Vorschaubilder in der Dateiliste, eine Liste von
+Orten wie Laufwerken, das Beobachten eines Verzeichnisses und eine
+Auswahl ueber mehrere Verzeichnisse hinweg.
+
 ## Quellen der Architekturpruefung
 
 - Nago, untersuchter Stand: https://github.com/worldiety/nago/tree/76fb9e89b1169c9f6bc020a5b31971422898479c
