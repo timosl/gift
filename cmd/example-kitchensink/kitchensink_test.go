@@ -919,7 +919,12 @@ func TestTheFormTabPicksFilesInASheet(t *testing.T) {
 	h.Find(gifttest.ByText("a.jpg")).Click()
 	h.Find(gifttest.ByText("b.jpg")).Click()
 	h.Find(gifttest.ByKey("primary")).Click()
-	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	// Halfway out the sheet still shows the picker, and not the words about
+	// sheets the other button opens it with.
+	h.Advance(60 * time.Millisecond)
+	h.AssertExists(gifttest.ByKey("primary"))
+	h.AssertNone(gifttest.ByKey("sheet-done"))
+	h.Advance(ui.ControlAnimation)
 	h.AssertNone(gifttest.ByKey("primary").And(gifttest.Visible()))
 	h.Find(gifttest.ByText("you picked a.jpg, b.jpg")).AssertVisible()
 }

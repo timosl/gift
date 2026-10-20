@@ -160,8 +160,8 @@ func Screen(ctx *gift.Context) gift.View {
 				OnDismiss(func() { st.alert.Set(false) }),
 			st.sheetContent(),
 		).
-			Presented(st.sheet.Get() || st.picking.Get()).
-			OnDismiss(func() { st.sheet.Set(false); st.picking.Set(false) }),
+			Presented(st.sheet.Get()).
+			OnDismiss(func() { st.sheet.Set(false) }),
 		ui.OnScreenKeyboard(),
 	).Align(geom.Bottom)
 }
@@ -551,16 +551,24 @@ func durationish(i int) string {
 // --- tab four: the text field, the keyboard and the alert -----------------------
 
 // sheetContent is what the form tab's sheet shows: the file picker, or a few
-// words about sheets. It is built whether or not the sheet is up, for the
-// reason the alert is; see Screen.
+// words about sheets. Which one is decided when the sheet is opened and not
+// when it is closed, so the sheet leaves showing what it showed; closing
+// writes only the sheet slot. The picker stays mounted between two openings
+// and opens again in the directory it was left in.
+//
+// It used to be one flag for both, cleared on close, and the picker turned
+// into the words about sheets while it slid away.
+//
+// It is built whether or not the sheet is up, for the reason the alert is;
+// see Screen.
 func (s state) sheetContent() gift.View {
 	if s.picking.Get() && Files != nil {
 		return filepicker.New(Files,
 			func(paths []string) {
-				s.picking.Set(false)
+				s.sheet.Set(false)
 				s.saved.Set("you picked " + strings.Join(paths, ", "))
 			},
-			func() { s.picking.Set(false) },
+			func() { s.sheet.Set(false) },
 		).Mode(filepicker.OpenMulti).Start(FilesStart).RootLabel("/").Key("picker")
 	}
 	return ui.VStack(
@@ -600,9 +608,9 @@ func (s state) form() gift.View {
 				ui.Spacer(),
 			).Gap(8),
 			ui.HStack(
-				ui.Button(ui.Text("Show a sheet"), func() { s.sheet.Set(true) }).
+				ui.Button(ui.Text("Show a sheet"), func() { s.picking.Set(false); s.sheet.Set(true) }).
 					MinHeight(ui.ControlHitTarget),
-				ui.Button(ui.Text("Pick files"), func() { s.picking.Set(true) }).
+				ui.Button(ui.Text("Pick files"), func() { s.picking.Set(true); s.sheet.Set(true) }).
 					Disabled(Files == nil).
 					MinHeight(ui.ControlHitTarget),
 				ui.Spacer(),
