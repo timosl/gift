@@ -1892,7 +1892,7 @@ Abschnitt 22 ist unabhaengig und kann jederzeit vorgezogen werden.
 
 Angefordert nach der zweiten Lieferung: eine Dateiauswahl. Wie in
 Abschnitt 14 wird das Wachstum hier festgehalten und begruendet, statt nur
-im Code zu passieren. Der Arbeitsplan steht in docs/file-picker-plan.md.
+im Code zu passieren.
 
 Kein nativer Dialog. Ebitengine hat keinen, ein Kiosk im Vollbild hat oft
 keinen Desktop, der einen liefern koennte, und ein nativer Dialog laesst
