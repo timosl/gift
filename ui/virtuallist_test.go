@@ -285,3 +285,41 @@ func TestVirtualListScrollFrameIsAllocationFree(t *testing.T) {
 		t.Fatalf("a recycling scroll frame allocated %v times per run, want 0", got)
 	}
 }
+
+// BenchmarkVirtualListScroll is one frame of a scrolling list: a wheel notch,
+// an update and a paint of the visible rows, at two item counts that must cost
+// the same.
+//
+//	go test ./ui -run x -bench VirtualListScroll -benchmem
+func BenchmarkVirtualListScroll(b *testing.B) {
+	for _, n := range []int{1000, 100000} {
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			a, node, s := vlistApp(b, n)
+			dir := 1.0
+			step := func() {
+				if info, _ := a.ScrollInfo(node); info.Offset >= info.MaxOffset-1 || info.Offset >= 20000 {
+					dir = -1
+				} else if info.Offset <= 1 {
+					dir = 1
+				}
+				a.ScrollBy(node, 48*dir)
+				if err := a.Update(geom.Sz(400, 600)); err != nil {
+					b.Fatal(err)
+				}
+				a.Paint()
+			}
+			// Shape every title on the way once, so the loop measures the
+			// list and not the shaper's first encounter with a string.
+			for range 1000 {
+				step()
+			}
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				step()
+			}
+			b.StopTimer()
+			b.ReportMetric(float64(s.PoolSize()), "rows")
+		})
+	}
+}

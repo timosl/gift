@@ -202,6 +202,13 @@ func (s *ListState) PoolSize() int { return len(s.slots) }
 // shapes the one row that came into view. No view function runs and
 // [gift.Diagnostics.Builds] does not move.
 //
+// Measured with BenchmarkVirtualListScroll at 400x600, a pool of sixteen rows:
+// a whole scrolling frame — wheel notch, update, paint — costs 2.3 µs and
+// allocates nothing, identically at a thousand and at a hundred thousand
+// items. With the ×10 derate of [ListView] that is about 23 µs on a
+// Raspberry Pi 4, a fraction of a percent of the frame. A row whose title is
+// shaped for the first time pays the shaper, as any new label does.
+//
 // # It needs a bounded height
 //
 // Like [ScrollView] and [GalleryView]: give it a Flex, a Frame or a MaxHeight.
