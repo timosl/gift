@@ -923,3 +923,39 @@ func TestTheFormTabPicksFilesInASheet(t *testing.T) {
 	h.AssertNone(gifttest.ByKey("primary").And(gifttest.Visible()))
 	h.Find(gifttest.ByText("you picked a.jpg, b.jpg")).AssertVisible()
 }
+
+// TestThePickerOpensInItsStartDirectoryAndCanGoAboveIt is the reason the
+// command roots the picker at the disk and starts it at home: Up has to be
+// able to leave the start directory.
+func TestThePickerOpensInItsStartDirectoryAndCanGoAboveIt(t *testing.T) {
+	Files = fstest.MapFS{
+		"top.jpg":           {Data: []byte("a")},
+		"Users/me/mine.jpg": {Data: []byte("b")},
+		"Users/other/x.jpg": {Data: []byte("c")},
+	}
+	FilesStart = "Users/me"
+	t.Cleanup(func() { Files, FilesStart = nil, "." })
+	h := mount(t, geom.Sz(900, 760))
+	tabButton(h, "Form").Click()
+	h.Find(gifttest.ByText("Pick files")).Click()
+	listed := func() {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for h.Settle(); h.Exists(gifttest.ByKey("loading")); h.Settle() {
+			if time.Now().After(deadline) {
+				t.Fatal("the picker's listing did not arrive")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	listed()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByText("mine.jpg")).AssertVisible()
+
+	h.Find(gifttest.ByKey("up")).Click()
+	listed()
+	h.Find(gifttest.ByText("other")).AssertVisible()
+	h.Find(gifttest.ByKey("up")).Click()
+	listed()
+	h.Find(gifttest.ByText("top.jpg")).AssertVisible()
+}

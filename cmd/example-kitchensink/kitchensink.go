@@ -39,10 +39,14 @@ var App *gift.App
 // fills them in before it mounts.
 var Pictures []asset.Source
 
-// Files is what the form tab's file picker browses. The command sets it to the
-// home directory; a test sets it to a file system of its own. Nil leaves the
-// picker's button disabled.
-var Files fs.FS
+// Files is what the form tab's file picker browses, and FilesStart the
+// directory in it the picker opens in. The command sets them to the whole disk
+// and the home directory; a test sets a file system of its own. A nil Files
+// leaves the picker's button disabled.
+var (
+	Files      fs.FS
+	FilesStart = "."
+)
 
 // --- the application state ----------------------------------------------------
 
@@ -557,7 +561,7 @@ func (s state) sheetContent() gift.View {
 				s.saved.Set("you picked " + strings.Join(paths, ", "))
 			},
 			func() { s.picking.Set(false) },
-		).Mode(filepicker.OpenMulti).RootLabel("Home").Key("picker")
+		).Mode(filepicker.OpenMulti).Start(FilesStart).RootLabel("/").Key("picker")
 	}
 	return ui.VStack(
 		ui.HStack(
