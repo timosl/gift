@@ -101,6 +101,16 @@ var views = []struct {
 		why: navigationWhy,
 	},
 	{
+		name: "ui.Sheet", set: setMinimal, v: ui.Sheet(ui.Box(), nil),
+		why: navigationWhy,
+	},
+	{
+		name: "ui.sheetPanel", set: setInternal,
+		why: "the node a presented sheet hangs under: it sizes the panel from the window " +
+			"and is the thing that moves. Its settings are SheetView.Height and " +
+			"SheetView.MaxWidth. See ui/sheet.go.",
+	},
+	{
 		name: "ui.Alert", set: setMinimal, v: ui.Alert("a", "b"),
 		why: "an alert is a card with a fixed width, a fixed radius and the surface " +
 			"colour, because those three are what makes it recognisable as an alert " +
