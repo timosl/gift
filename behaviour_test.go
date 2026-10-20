@@ -524,6 +524,36 @@ func TestStaleAsyncResultOfAnOlderGenerationIsRejected(t *testing.T) {
 	}
 }
 
+// TestTokenPostAppliesOnlyTheNewestResult is the same race through
+// [gift.Token.Post], which does the validity check itself, from goroutines.
+func TestTokenPostAppliesOnlyTheNewestResult(t *testing.T) {
+	var tokens []gift.Token
+	var st *gift.State[int]
+	root := func(ctx *gift.Context) gift.View {
+		st = ctx.State("v", 0)
+		_ = ctx.Read(st)
+		tokens = append(tokens, ctx.Request())
+		return box{w: 1, h: 1}
+	}
+	a := gift.New(gift.Options{Root: root})
+	mustUpdate(t, a)
+	a.Invalidate()
+	mustUpdate(t, a)
+
+	done := make(chan struct{})
+	go func() {
+		tokens[0].Post(func() { st.Set(1) })
+		tokens[1].Post(func() { st.Set(2) })
+		(gift.Token{}).Post(func() { st.Set(3) })
+		close(done)
+	}()
+	<-done
+	mustUpdate(t, a)
+	if got := st.Get(); got != 2 {
+		t.Fatalf("state = %d, want the newest result only", got)
+	}
+}
+
 // --- concurrency ------------------------------------------------------------
 
 // TestDiagnosticsIsRaceFree runs under -race and is the point of the

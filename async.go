@@ -98,10 +98,22 @@ func (a *App) drainPosts() {
 //	    })
 //	}()
 //
+// [Token.Post] is the same pattern in one call, for a component that does not
+// hold the App:
+//
+//	tok := ctx.Request()
+//	go func() {
+//	    v := expensive()
+//	    tok.Post(func() { state.Set(v) })
+//	}()
+//
 // The zero Token is never valid.
 type Token struct {
 	sc  *scope
 	gen uint64
+	// app is copied out of the scope when the token is made, so that
+	// [Token.Post] reads nothing shared from the goroutine it is called on.
+	app *App
 }
 
 // Valid reports whether the result of this request may still be applied: the
@@ -122,5 +134,21 @@ func (t Token) Valid() bool {
 func (c *Context) Request() Token {
 	c.assertBuilding("Context.Request")
 	c.scope.gen++
-	return Token{sc: c.scope, gen: c.scope.gen}
+	return Token{sc: c.scope, gen: c.scope.gen, app: c.app}
+}
+
+// Post hands fn to the UI executor, like [App.Post], and runs it there only if
+// the token is still [Token.Valid] by then: the result of a request that was
+// replaced, or whose component was unmounted, is dropped.
+//
+// It may be called from any goroutine. For the zero Token it does nothing.
+func (t Token) Post(fn func()) {
+	if t.app == nil {
+		return
+	}
+	t.app.Post(func() {
+		if t.Valid() {
+			fn()
+		}
+	})
 }

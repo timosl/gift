@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"testing"
+	"testing/fstest"
 	"time"
 
+	"github.com/worldiety/gift"
 	backend "github.com/worldiety/gift/backend/ebiten"
 	"github.com/worldiety/gift/font/inter"
 	"github.com/worldiety/gift/geom"
@@ -847,4 +849,118 @@ func TestATapOnASettingsRowDoesNotRebuildTheOtherThreeTabs(t *testing.T) {
 			"that the Read calls in state.tabComponent have not migrated back to the root "+
 			"scope in Screen.", rebuild, root)
 	}
+}
+
+// TestTheHundredThousandRowListScrollsAndTaps switches the list tab to its
+// virtual list, jumps far into it and taps a row there: the row that answers
+// to "Item 73000" is the one that reports it.
+func TestTheHundredThousandRowListScrollsAndTaps(t *testing.T) {
+	h := mount(t, geom.Sz(900, 760))
+	tabButton(h, "List").Click()
+	h.Find(gifttest.ByText("100 000 rows")).Click()
+	h.Settle()
+
+	bigList.Reveal(73000)
+	h.Settle()
+	h.Find(gifttest.ByText("Item 73000")).AssertVisible().Click()
+	tabButton(h, "Form").Click()
+	h.Find(gifttest.ByText("you tapped item 73000")).AssertVisible()
+}
+
+// TestTheFormTabOpensASheetAndEscapeSendsItBack runs the sheet the form tab
+// offers through its three exits' most common one, escape, and checks that
+// the screen underneath is out of reach while it is up.
+func TestTheFormTabOpensASheetAndEscapeSendsItBack(t *testing.T) {
+	h := mount(t, geom.Sz(900, 760))
+	tabButton(h, "Form").Click()
+	h.Find(gifttest.ByText("Show a sheet")).Click()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByKey("sheet-done")).AssertVisible()
+	if h.At(h.Find(gifttest.ByText("Show a sheet")).Center()).Text() == "Show a sheet" {
+		t.Fatal("the button that opened the sheet is still the hit target under the scrim")
+	}
+
+	h.Key(gift.KeyEscape)
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByKey("sheet-done")).AssertNotVisible()
+	h.Find(gifttest.ByText("Show a sheet")).Click()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByKey("sheet-done")).AssertVisible().Click()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByKey("sheet-done")).AssertNotVisible()
+}
+
+// TestTheFormTabPicksFilesInASheet runs the file picker the form tab offers
+// over a file system of the test's own: two files picked, and the sheet gone.
+func TestTheFormTabPicksFilesInASheet(t *testing.T) {
+	Files = fstest.MapFS{
+		"a.jpg":      {Data: []byte("a")},
+		"b.jpg":      {Data: []byte("b")},
+		"docs/c.txt": {Data: []byte("c")},
+		".invisible": {Data: []byte("d")},
+	}
+	t.Cleanup(func() { Files = nil })
+	h := mount(t, geom.Sz(900, 760))
+	tabButton(h, "Form").Click()
+	h.Find(gifttest.ByText("Pick files")).Click()
+	listed := func() {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for h.Settle(); h.Exists(gifttest.ByKey("loading")); h.Settle() {
+			if time.Now().After(deadline) {
+				t.Fatal("the picker's listing did not arrive")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	listed()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+
+	h.Find(gifttest.ByText("a.jpg")).Click()
+	h.Find(gifttest.ByText("b.jpg")).Click()
+	h.Find(gifttest.ByKey("primary")).Click()
+	// Halfway out the sheet still shows the picker, and not the words about
+	// sheets the other button opens it with.
+	h.Advance(60 * time.Millisecond)
+	h.AssertExists(gifttest.ByKey("primary"))
+	h.AssertNone(gifttest.ByKey("sheet-done"))
+	h.Advance(ui.ControlAnimation)
+	h.AssertNone(gifttest.ByKey("primary").And(gifttest.Visible()))
+	h.Find(gifttest.ByText("you picked a.jpg, b.jpg")).AssertVisible()
+}
+
+// TestThePickerOpensInItsStartDirectoryAndCanGoAboveIt is the reason the
+// command roots the picker at the disk and starts it at home: Up has to be
+// able to leave the start directory.
+func TestThePickerOpensInItsStartDirectoryAndCanGoAboveIt(t *testing.T) {
+	Files = fstest.MapFS{
+		"top.jpg":           {Data: []byte("a")},
+		"Users/me/mine.jpg": {Data: []byte("b")},
+		"Users/other/x.jpg": {Data: []byte("c")},
+	}
+	FilesStart = "Users/me"
+	t.Cleanup(func() { Files, FilesStart = nil, "." })
+	h := mount(t, geom.Sz(900, 760))
+	tabButton(h, "Form").Click()
+	h.Find(gifttest.ByText("Pick files")).Click()
+	listed := func() {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for h.Settle(); h.Exists(gifttest.ByKey("loading")); h.Settle() {
+			if time.Now().After(deadline) {
+				t.Fatal("the picker's listing did not arrive")
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	listed()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByText("mine.jpg")).AssertVisible()
+
+	h.Find(gifttest.ByKey("up")).Click()
+	listed()
+	h.Find(gifttest.ByText("other")).AssertVisible()
+	h.Find(gifttest.ByKey("up")).Click()
+	listed()
+	h.Find(gifttest.ByText("top.jpg")).AssertVisible()
 }

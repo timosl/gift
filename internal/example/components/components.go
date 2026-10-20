@@ -1,5 +1,5 @@
 // Package components holds one small, deterministic scene per component of
-// the ui package: a list, a row, a card, a badge, a divider, a toggle, a
+// the ui package: a list, a virtual list, a sheet, a row, a card, a badge, a divider, a toggle, a
 // slider, a segmented control and a progress bar.
 //
 // The golden tests of the ui package compare these scenes pixel by pixel in
@@ -57,6 +57,8 @@ var scenes = map[string]func() Scene{
 	"slider":    sliderScene,
 	"segmented": segmentedScene,
 	"progress":  progressScene,
+	"vlist":     virtualListScene,
+	"sheet":     sheetScene,
 }
 
 // Names returns the scene names in sorted order.
@@ -140,6 +142,45 @@ func rowScene() Scene {
 			Disabled(true).
 			Key("disabled"),
 	)
+}
+
+// virtualListRows are the rows of [virtualListScene]: the four shapes a row of
+// a file list takes.
+var virtualListRows = []ui.ListRow{
+	{Icon: outline.Folder, Title: "Pictures", Chevron: outline.AngleRight},
+	{Icon: outline.FileImage, Title: "beach.jpg", Subtitle: "2.4 MB, 12 Aug 2026", Selected: true},
+	{Icon: outline.FileLines, Title: "notes.txt", Subtitle: "4 KB", Value: "today"},
+	{Icon: outline.Lock, Title: "private", Subtitle: "no permission", Disabled: true},
+}
+
+func virtualListScene() Scene {
+	return page(geom.Sz(360, 300),
+		ui.Card(
+			ui.VirtualList(ui.NewListState(), len(virtualListRows), func(i int) ui.ListRow {
+				return virtualListRows[i]
+			}).SelectedIcon(outline.Check).Flex(1).Key("list"),
+		).Padding(0).Flex(1).Key("card"),
+	)
+}
+
+// sheetScene is a sheet at rest over a screen it dims. It is presented from
+// the first frame, which mounts it in place rather than sliding it in, so the
+// golden is of the settled picture.
+func sheetScene() Scene {
+	size := geom.Sz(360, 420)
+	behind := ui.VStack(
+		ui.Text("The screen underneath").FontSize(22),
+		ui.Text("dimmed by the scrim, and out of reach").Foreground(ui.ColorSecondaryLabel),
+	).Gap(6).Padding(16)
+	panel := ui.VStack(
+		ui.Text("A sheet").FontSize(17),
+		ui.Text("anchored to the bottom edge, rounded at the top").
+			FontSize(13).Foreground(ui.ColorSecondaryLabel),
+	).Gap(6).Padding(16)
+	return Scene{
+		View: ui.Window(ui.Sheet(behind, panel).Height(0.6).Key("sheet")),
+		Size: size,
+	}
 }
 
 func cardScene() Scene {

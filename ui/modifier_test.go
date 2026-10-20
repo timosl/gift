@@ -101,6 +101,16 @@ var views = []struct {
 		why: navigationWhy,
 	},
 	{
+		name: "ui.Sheet", set: setMinimal, v: ui.Sheet(ui.Box(), nil),
+		why: navigationWhy,
+	},
+	{
+		name: "ui.sheetPanel", set: setInternal,
+		why: "the node a presented sheet hangs under: it sizes the panel from the window " +
+			"and is the thing that moves. Its settings are SheetView.Height and " +
+			"SheetView.MaxWidth. See ui/sheet.go.",
+	},
+	{
 		name: "ui.Alert", set: setMinimal, v: ui.Alert("a", "b"),
 		why: "an alert is a card with a fixed width, a fixed radius and the surface " +
 			"colour, because those three are what makes it recognisable as an alert " +
@@ -133,6 +143,13 @@ var views = []struct {
 			"ignored would be exactly the lie variant A exists to avoid. See SpacerView.",
 	},
 	{name: "ui.List", set: setStyled, v: ui.List()},
+	{name: "ui.VirtualList", set: setStyled, v: ui.VirtualList(ui.NewListState(), 0, nil)},
+	{
+		name: "ui.VirtualListRow", set: setInternal,
+		why: "a row is one slot of the virtual list's recycled pool, bound to an item " +
+			"during layout. What it shows is ui.ListRow, returned by the row function, " +
+			"because a per row modifier would have nowhere to be written.",
+	},
 	{
 		name: "ui.Row", set: setMinimal, v: ui.Row("x"),
 		why: "a row is the standard row of a ui.List, and its height, its horizontal inset " +

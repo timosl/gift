@@ -7,9 +7,11 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/worldiety/gift"
@@ -18,6 +20,7 @@ import (
 	"github.com/worldiety/gift/icon/outline"
 	"github.com/worldiety/gift/icon/solid"
 	"github.com/worldiety/gift/ui"
+	"github.com/worldiety/gift/ui/filepicker"
 )
 
 // App is the application the theme switch asks to rebuild.
@@ -35,6 +38,15 @@ var App *gift.App
 // after start-up: the command fills them in before the window opens and a test
 // fills them in before it mounts.
 var Pictures []asset.Source
+
+// Files is what the form tab's file picker browses, and FilesStart the
+// directory in it the picker opens in. The command sets them to the whole disk
+// and the home directory; a test sets a file system of its own. A nil Files
+// leaves the picker's button disabled.
+var (
+	Files      fs.FS
+	FilesStart = "."
+)
 
 // --- the application state ----------------------------------------------------
 
@@ -79,6 +91,8 @@ func Screen(ctx *gift.Context) gift.View {
 		tab:      ctx.State("tab", 0),
 		depth:    ctx.State("depth", 0),
 		alert:    ctx.State("alert", false),
+		sheet:    ctx.State("sheet", false),
+		picking:  ctx.State("picking", false),
 		on:       ctx.State("on", true),
 		notify:   ctx.State("notify", false),
 		volume:   ctx.State("volume", 0.62),
@@ -86,10 +100,13 @@ func Screen(ctx *gift.Context) gift.View {
 		progress: ctx.State("progress", 0.35),
 		busy:     ctx.State("busy", false),
 		saved:    ctx.State("saved", ""),
+		virtual:  ctx.State("virtual", 0),
 	}
 	// The two the root itself decides with, and nothing else; see above.
 	ctx.Read(st.tab)
 	ctx.Read(st.alert)
+	ctx.Read(st.sheet)
+	ctx.Read(st.picking)
 
 	body := ui.TabBar(st.tab.Get(), st.tab.Set,
 		ui.Tab("Home", outline.Home, st.tabComponent("home")).SelectedIcon(solid.Home),
@@ -134,10 +151,17 @@ func Screen(ctx *gift.Context) gift.View {
 	// the cards are transparent black — which is what this demo shipped as,
 	// on thirty to forty per cent of its pixels, while every golden of it
 	// looked right because the harness cleared its own canvas. See ui.Window.
+	// The sheet is outside the modal host, so an alert opened from inside the
+	// sheet would come up over it rather than under it.
 	return ui.Window(
-		ui.Modal(body, alert).
-			Presented(st.alert.Get()).
-			OnDismiss(func() { st.alert.Set(false) }),
+		ui.Sheet(
+			ui.Modal(body, alert).
+				Presented(st.alert.Get()).
+				OnDismiss(func() { st.alert.Set(false) }),
+			st.sheetContent(),
+		).
+			Presented(st.sheet.Get()).
+			OnDismiss(func() { st.sheet.Set(false) }),
 		ui.OnScreenKeyboard(),
 	).Align(geom.Bottom)
 }
@@ -147,7 +171,9 @@ func Screen(ctx *gift.Context) gift.View {
 // without the root having to thread one through.
 type state struct {
 	tab, depth, quality *gift.State[int]
+	virtual             *gift.State[int]
 	alert, on, notify   *gift.State[bool]
+	sheet, picking      *gift.State[bool]
 	busy                *gift.State[bool]
 	volume, progress    *gift.State[float64]
 	saved               *gift.State[string]
@@ -170,9 +196,10 @@ type state struct {
 //     write invalidates screens that do not depend on it. Everything looks
 //     right and the frame costs an order of magnitude more than it should.
 //
-// The list tab reads nothing at all, and that is not an oversight: it only
-// *writes* the saved slot, which the form tab displays. It is therefore built
-// once and never rebuilt, which is the right answer for two hundred rows.
+// The list tab reads only which of its two lists is showing, and that is not an
+// oversight: otherwise it only *writes* the saved slot, which the form tab
+// displays. It is therefore built once per switch and never otherwise, which is
+// the right answer for two hundred rows.
 func (s state) tabComponent(which string) gift.View {
 	return gift.Component(which, func(ctx *gift.Context) gift.View {
 		switch which {
@@ -189,6 +216,7 @@ func (s state) tabComponent(which string) gift.View {
 			ctx.Read(s.busy)
 			return s.settings()
 		case "list":
+			ctx.Read(s.virtual)
 			return s.longList()
 		case "form":
 			ctx.Read(s.saved)
@@ -458,7 +486,35 @@ func busyBar(on bool) gift.View {
 // would be worse than no demo.
 const longListRows = 200
 
+// virtualRows is the item count of the list tab's second list: far past both
+// limits of ui.ListView, which is the point of ui.VirtualList.
+const virtualRows = 100000
+
+// bigList is the retained half of that list. A package variable for the
+// reason nameEditor is one: a program with one window keeps one.
+var bigList = ui.NewListState()
+
 func (s state) longList() gift.View {
+	pick := ui.SegmentedControl(s.virtual.Get(), []string{"200 rows", "100 000 rows"}, s.virtual.Set).
+		Key("which")
+	if s.virtual.Get() == 1 {
+		return ui.VStack(
+			ui.VStack(pick).Padding(12),
+			ui.Text("A ui.VirtualList has nodes for the visible rows only, so it scrolls "+
+				"the same at a hundred thousand rows as at a hundred.").
+				FontSize(12).Foreground(ui.ColorSecondaryLabel).PaddingInsets(geom.Insets{Left: 12, Right: 12, Bottom: 12}),
+			ui.VirtualList(bigList, virtualRows, func(i int) ui.ListRow {
+				id := strconv.Itoa(i)
+				return ui.ListRow{
+					Title:    "Item " + id,
+					Subtitle: "row " + id,
+					Value:    durationish(i),
+					Chevron:  outline.AngleRight,
+				}
+			}).OnTap(func(i int) { s.saved.Set("you tapped item " + strconv.Itoa(i)) }).
+				Key("virtual").Flex(1),
+		)
+	}
 	items := make([]gift.View, 0, longListRows+8)
 	items = append(items, ui.Section("Two hundred rows").Key("head"))
 	for i := range longListRows {
@@ -478,9 +534,10 @@ func (s state) longList() gift.View {
 		items = append(items, row)
 	}
 	return ui.VStack(
+		ui.VStack(pick).Padding(12),
 		ui.Text("Scrolling this list rebuilds nothing: the offset lives in the "+
 			"retained node. Fling it.").
-			FontSize(12).Foreground(ui.ColorSecondaryLabel).Padding(12),
+			FontSize(12).Foreground(ui.ColorSecondaryLabel).PaddingInsets(geom.Insets{Left: 12, Right: 12, Bottom: 12}),
 		ui.VScroll(ui.List(items...).SeparatorInsets(ui.RowPadding, 0)).Flex(1),
 	)
 }
@@ -492,6 +549,41 @@ func durationish(i int) string {
 }
 
 // --- tab four: the text field, the keyboard and the alert -----------------------
+
+// sheetContent is what the form tab's sheet shows: the file picker, or a few
+// words about sheets. Which one is decided when the sheet is opened and not
+// when it is closed, so the sheet leaves showing what it showed; closing
+// writes only the sheet slot. The picker stays mounted between two openings
+// and opens again in the directory it was left in.
+//
+// It used to be one flag for both, cleared on close, and the picker turned
+// into the words about sheets while it slid away.
+//
+// It is built whether or not the sheet is up, for the reason the alert is;
+// see Screen.
+func (s state) sheetContent() gift.View {
+	if s.picking.Get() && Files != nil {
+		return filepicker.New(Files,
+			func(paths []string) {
+				s.sheet.Set(false)
+				s.saved.Set("you picked " + strings.Join(paths, ", "))
+			},
+			func() { s.sheet.Set(false) },
+		).Mode(filepicker.OpenMulti).Start(FilesStart).RootLabel("/").Key("picker")
+	}
+	return ui.VStack(
+		ui.HStack(
+			ui.Text("A sheet").FontSize(20),
+			ui.Spacer(),
+			ui.Button(ui.Text("Done"), func() { s.sheet.Set(false) }).
+				MinHeight(ui.ControlHitTarget).Key("sheet-done"),
+		).Align(geom.Center),
+		ui.Text("It slides up from the bottom edge and takes the input of everything "+
+			"underneath. Tap the dimmed screen above it, press escape or tap Done to "+
+			"send it back.").
+			FontSize(13).Foreground(ui.ColorSecondaryLabel),
+	).Gap(12).Padding(16)
+}
 
 func (s state) form() gift.View {
 	ed := nameEditor
@@ -512,6 +604,14 @@ func (s state) form() gift.View {
 					Style(ui.ButtonStyle{Background: ui.ColorAccent, CornerRadius: 9}).
 					MinHeight(ui.ControlHitTarget),
 				ui.Button(ui.Text("Reset everything"), func() { s.alert.Set(true) }).
+					MinHeight(ui.ControlHitTarget),
+				ui.Spacer(),
+			).Gap(8),
+			ui.HStack(
+				ui.Button(ui.Text("Show a sheet"), func() { s.picking.Set(false); s.sheet.Set(true) }).
+					MinHeight(ui.ControlHitTarget),
+				ui.Button(ui.Text("Pick files"), func() { s.picking.Set(true); s.sheet.Set(true) }).
+					Disabled(Files == nil).
 					MinHeight(ui.ControlHitTarget),
 				ui.Spacer(),
 			).Gap(8),

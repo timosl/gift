@@ -87,6 +87,24 @@ animation runs, or the renderer still has pictures to upload; every other
 display refresh keeps the previous frame. On an idle screen that is a few
 frames a minute instead of sixty a second.
 
+### Picking Files
+
+There is no native file dialog on a fullscreen kiosk, so gift brings its own,
+made of its own views. `ui/filepicker` opens one or several files, chooses a
+folder or picks a path to save to, through an `fs.FS` you choose — the
+application decides what may be browsed. Present it in a `ui.Sheet`:
+
+```go
+ui.Sheet(screen, filepicker.New(os.DirFS("/media/usb"), open, cancel).
+    Mode(filepicker.OpenMulti).
+    Extensions(".jpg", ".png")).
+    Presented(picking).
+    OnDismiss(cancel)
+```
+
+Directories are read off the UI goroutine and listed with `ui.VirtualList`, so
+a folder of a hundred thousand files scrolls like one of a hundred.
+
 ### Camera Photos
 
 Galleries of 12–50 megapixel camera JPEGs thumbnail several times faster with

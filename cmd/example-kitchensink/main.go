@@ -52,8 +52,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/asset"
@@ -84,6 +86,17 @@ func run() error {
 	}
 	if Pictures, err = Samples(filepath.Join(base, "gift", "kitchensink")); err != nil {
 		return err
+	}
+
+	// The whole disk, opened in the home directory. An fs.FS path cannot
+	// climb above the root it was made from, so rooting the picker at the
+	// home directory would make "Up" stop there; a kiosk that wants exactly
+	// that roots it at /media/usb instead.
+	Files, FilesStart = os.DirFS("/"), "."
+	if home, err := os.UserHomeDir(); err == nil {
+		if rel := strings.TrimPrefix(filepath.ToSlash(home), "/"); fs.ValidPath(rel) {
+			FilesStart = rel
+		}
 	}
 
 	app := gift.New(gift.Options{Root: Screen})
