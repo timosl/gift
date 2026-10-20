@@ -79,6 +79,7 @@ func Screen(ctx *gift.Context) gift.View {
 		tab:      ctx.State("tab", 0),
 		depth:    ctx.State("depth", 0),
 		alert:    ctx.State("alert", false),
+		sheet:    ctx.State("sheet", false),
 		on:       ctx.State("on", true),
 		notify:   ctx.State("notify", false),
 		volume:   ctx.State("volume", 0.62),
@@ -91,6 +92,7 @@ func Screen(ctx *gift.Context) gift.View {
 	// The two the root itself decides with, and nothing else; see above.
 	ctx.Read(st.tab)
 	ctx.Read(st.alert)
+	ctx.Read(st.sheet)
 
 	body := ui.TabBar(st.tab.Get(), st.tab.Set,
 		ui.Tab("Home", outline.Home, st.tabComponent("home")).SelectedIcon(solid.Home),
@@ -135,10 +137,17 @@ func Screen(ctx *gift.Context) gift.View {
 	// the cards are transparent black — which is what this demo shipped as,
 	// on thirty to forty per cent of its pixels, while every golden of it
 	// looked right because the harness cleared its own canvas. See ui.Window.
+	// The sheet is outside the modal host, so an alert opened from inside the
+	// sheet would come up over it rather than under it.
 	return ui.Window(
-		ui.Modal(body, alert).
-			Presented(st.alert.Get()).
-			OnDismiss(func() { st.alert.Set(false) }),
+		ui.Sheet(
+			ui.Modal(body, alert).
+				Presented(st.alert.Get()).
+				OnDismiss(func() { st.alert.Set(false) }),
+			st.sheetContent(),
+		).
+			Presented(st.sheet.Get()).
+			OnDismiss(func() { st.sheet.Set(false) }),
 		ui.OnScreenKeyboard(),
 	).Align(geom.Bottom)
 }
@@ -150,6 +159,7 @@ type state struct {
 	tab, depth, quality *gift.State[int]
 	virtual             *gift.State[int]
 	alert, on, notify   *gift.State[bool]
+	sheet               *gift.State[bool]
 	busy                *gift.State[bool]
 	volume, progress    *gift.State[float64]
 	saved               *gift.State[string]
@@ -526,6 +536,23 @@ func durationish(i int) string {
 
 // --- tab four: the text field, the keyboard and the alert -----------------------
 
+// sheetContent is what the form tab's sheet shows. It is built whether or not
+// the sheet is up, for the reason the alert is; see Screen.
+func (s state) sheetContent() gift.View {
+	return ui.VStack(
+		ui.HStack(
+			ui.Text("A sheet").FontSize(20),
+			ui.Spacer(),
+			ui.Button(ui.Text("Done"), func() { s.sheet.Set(false) }).
+				MinHeight(ui.ControlHitTarget).Key("sheet-done"),
+		).Align(geom.Center),
+		ui.Text("It slides up from the bottom edge and takes the input of everything "+
+			"underneath. Tap the dimmed screen above it, press escape or tap Done to "+
+			"send it back.").
+			FontSize(13).Foreground(ui.ColorSecondaryLabel),
+	).Gap(12).Padding(16)
+}
+
 func (s state) form() gift.View {
 	ed := nameEditor
 	return ui.VScroll(
@@ -548,6 +575,11 @@ func (s state) form() gift.View {
 					MinHeight(ui.ControlHitTarget),
 				ui.Spacer(),
 			).Gap(8),
+			ui.HStack(
+				ui.Button(ui.Text("Show a sheet"), func() { s.sheet.Set(true) }).
+					MinHeight(ui.ControlHitTarget),
+				ui.Spacer(),
+			),
 			ui.Text(orDash(s.saved.Get())).FontSize(13).Foreground(ui.ColorSecondaryLabel),
 		).Header("Type something"),
 

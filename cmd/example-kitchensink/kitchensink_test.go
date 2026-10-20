@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/worldiety/gift"
 	backend "github.com/worldiety/gift/backend/ebiten"
 	"github.com/worldiety/gift/font/inter"
 	"github.com/worldiety/gift/geom"
@@ -863,4 +864,27 @@ func TestTheHundredThousandRowListScrollsAndTaps(t *testing.T) {
 	h.Find(gifttest.ByText("Item 73000")).AssertVisible().Click()
 	tabButton(h, "Form").Click()
 	h.Find(gifttest.ByText("you tapped item 73000")).AssertVisible()
+}
+
+// TestTheFormTabOpensASheetAndEscapeSendsItBack runs the sheet the form tab
+// offers through its three exits' most common one, escape, and checks that
+// the screen underneath is out of reach while it is up.
+func TestTheFormTabOpensASheetAndEscapeSendsItBack(t *testing.T) {
+	h := mount(t, geom.Sz(900, 760))
+	tabButton(h, "Form").Click()
+	h.Find(gifttest.ByText("Show a sheet")).Click()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByKey("sheet-done")).AssertVisible()
+	if h.At(h.Find(gifttest.ByText("Show a sheet")).Center()).Text() == "Show a sheet" {
+		t.Fatal("the button that opened the sheet is still the hit target under the scrim")
+	}
+
+	h.Key(gift.KeyEscape)
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByKey("sheet-done")).AssertNotVisible()
+	h.Find(gifttest.ByText("Show a sheet")).Click()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByKey("sheet-done")).AssertVisible().Click()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Find(gifttest.ByKey("sheet-done")).AssertNotVisible()
 }
