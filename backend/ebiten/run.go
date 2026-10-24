@@ -20,6 +20,21 @@ type Config struct {
 	// Title is the window title.
 	Title string
 
+	// X11ClassName and X11InstanceName are the class and instance names in
+	// the ICCCM WM_CLASS property of the window on Linux and other X11
+	// systems, including XWayland. Empty selects Ebitengine's defaults,
+	// "Ebitengine-Application" and "ebitengine-application".
+	//
+	// # Why this exists
+	//
+	// Desktop shells such as GNOME and KDE match a window to its desktop
+	// entry by WM_CLASS against the entry's StartupWMClass. With the
+	// defaults every gift application carries the same class, so two of them
+	// running at once are grouped as one application in the panel, under
+	// whichever desktop entry the shell found first. Set both to something
+	// unique per application and put the class into StartupWMClass.
+	X11ClassName, X11InstanceName string
+
 	// Width and Height are the initial window size in logical pixels. Zero
 	// or less selects 1280x720.
 	Width, Height int
@@ -361,12 +376,16 @@ func Run(app *gift.App, cfg Config) error {
 			slog.Int("tps", tps), slog.Int("idle_tps", cfg.IdleTPS))
 	}
 
+	opts := &eb.RunGameOptions{
+		X11ClassName:    cfg.X11ClassName,
+		X11InstanceName: cfg.X11InstanceName,
+	}
 	if cfg.DirectToScreen {
 		// Ebitengine asks for the interface when RunGame is called; only a
 		// game that has the method gets the final screen.
-		err = eb.RunGame(directGame{g})
+		err = eb.RunGameWithOptions(directGame{g}, opts)
 	} else {
-		err = eb.RunGame(g)
+		err = eb.RunGameWithOptions(g, opts)
 	}
 	if cfg.Logger != nil {
 		// Skipped refreshes are the evidence that DrawOnDemand works: on an
