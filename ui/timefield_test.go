@@ -458,3 +458,48 @@ func TestTheFieldIsNamedAndDisabledLikeAnyControl(t *testing.T) {
 	f.h.Tab()
 	f.h.AssertFocus(gifttest.ByKey("next"))
 }
+
+// --- colours ---------------------------------------------------------------------
+
+// paints reports whether the frame has an operation of kind k in colour c.
+func paints(h *gifttest.Harness, k render.OpKind, c ui.Color) bool {
+	for _, op := range h.Ops() {
+		if op.Kind == k && op.Color == c {
+			return true
+		}
+	}
+	return false
+}
+
+func TestThePlaceholderAndTheActivePartTakeTheirColours(t *testing.T) {
+	ph := ui.RGB(10, 200, 30)
+	bg, fg := ui.RGB(200, 20, 40), ui.RGB(250, 240, 5)
+	f := newTimeField(t, ui.TimeOfDay{}, func(v ui.TimeFieldView) ui.TimeFieldView {
+		return v.PlaceholderColor(ph).ActivePartColor(bg, fg)
+	})
+	if !paints(f.h, render.OpGlyphs, ph) {
+		t.Fatal("the placeholders of an empty field are not drawn in the placeholder colour")
+	}
+	if paints(f.h, render.OpFillRoundRect, bg) {
+		t.Fatal("an unfocused field highlights a part")
+	}
+	f.focus()
+	if !paints(f.h, render.OpFillRoundRect, bg) || !paints(f.h, render.OpGlyphs, fg) {
+		t.Fatal("the active part is not drawn in the colours given")
+	}
+}
+
+func TestATransparentActivePartIsMarkedByItsForegroundAlone(t *testing.T) {
+	fg := ui.RGB(250, 240, 5)
+	f := newTimeField(t, ui.TimeOf(9, 30), func(v ui.TimeFieldView) ui.TimeFieldView {
+		return v.ActivePartColor(ui.RGBA(0, 0, 0, 0), fg)
+	}).focus()
+	for _, op := range f.h.Ops() {
+		if op.Kind == render.OpFillRoundRect && op.Color.IsTransparent() {
+			t.Fatal("a transparent highlight is still filled")
+		}
+	}
+	if !paints(f.h, render.OpGlyphs, fg) {
+		t.Fatal("the active part is not drawn in its foreground")
+	}
+}

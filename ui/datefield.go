@@ -175,6 +175,20 @@ func (v DateFieldView) FontSize(s float32) DateFieldView { v.setFontSize("DateFi
 // Foreground sets the colour of the digits.
 func (v DateFieldView) Foreground(c Color) DateFieldView { v.fg, v.hasFG = c, true; return v }
 
+// PlaceholderColor sets the colour of the placeholders; see
+// [TimeFieldView.PlaceholderColor].
+func (v DateFieldView) PlaceholderColor(c Color) DateFieldView {
+	v.placeholderFG, v.hasPlaceholderFG = c, true
+	return v
+}
+
+// ActivePartColor sets the highlight of the part that has the keyboard and the
+// colour of its digits; see [TimeFieldView.ActivePartColor].
+func (v DateFieldView) ActivePartColor(background, foreground Color) DateFieldView {
+	v.activeBG, v.activeFG, v.hasActive = background, foreground, true
+	return v
+}
+
 // FocusRing sets the border drawn while the field holds the keyboard focus. A
 // zero width border removes it.
 func (v DateFieldView) FocusRing(b Border) DateFieldView {

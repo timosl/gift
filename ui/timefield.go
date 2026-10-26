@@ -219,6 +219,23 @@ func (v TimeFieldView) FontSize(s float32) TimeFieldView { v.setFontSize("TimeFi
 // Foreground sets the colour of the digits.
 func (v TimeFieldView) Foreground(c Color) TimeFieldView { v.fg, v.hasFG = c, true; return v }
 
+// PlaceholderColor sets the colour of the placeholder of an empty part, and of
+// the separator while the whole field is empty, replacing
+// [ColorSecondaryLabel].
+func (v TimeFieldView) PlaceholderColor(c Color) TimeFieldView {
+	v.placeholderFG, v.hasPlaceholderFG = c, true
+	return v
+}
+
+// ActivePartColor sets the highlight behind the part that has the keyboard
+// and the colour of its digits, replacing [ColorAccent] and [ColorOnAccent].
+// They are set together because each is chosen to be read on the other. A
+// transparent background leaves the foreground alone to mark the part.
+func (v TimeFieldView) ActivePartColor(background, foreground Color) TimeFieldView {
+	v.activeBG, v.activeFG, v.hasActive = background, foreground, true
+	return v
+}
+
 // FocusRing sets the border drawn while the field holds the keyboard focus. A
 // zero width border removes it.
 func (v TimeFieldView) FocusRing(b Border) TimeFieldView {
@@ -301,6 +318,12 @@ type entryLook struct {
 	fg    Color
 	hasFG bool
 
+	placeholderFG    Color
+	hasPlaceholderFG bool
+
+	activeBG, activeFG Color
+	hasActive          bool
+
 	focusRing    Border
 	hasFocusRing bool
 	hasPadding   bool
@@ -342,8 +365,14 @@ func (l entryLook) build(n *entryNode, b base, name string) gift.Element {
 		n.fg = ResolveColor(l.fg)
 	}
 	n.placeholderFG = ResolveColor(ColorSecondaryLabel)
+	if l.hasPlaceholderFG {
+		n.placeholderFG = ResolveColor(l.placeholderFG)
+	}
 	n.activeBG = ResolveColor(defaultSegmentBackground)
 	n.activeFG = ResolveColor(defaultSegmentForeground)
+	if l.hasActive {
+		n.activeBG, n.activeFG = ResolveColor(l.activeBG), ResolveColor(l.activeFG)
+	}
 	n.disabledFG = ResolveColor(Fade(ColorLabel, 0.4))
 	n.disabledBG = ResolveColor(ColorControlDisabled)
 	n.focusRing = resolveBorder(defaultFieldFocusRing)

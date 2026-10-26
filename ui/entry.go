@@ -572,13 +572,15 @@ func (n *entryNode) paintParts(ctx *gift.PaintContext, b geom.Rect, ia gift.Inte
 		if es.Filled&bit(i) == 0 && !ia.Disabled {
 			c = n.placeholderFG
 		}
-		if active && int(es.Part) == i && !n.activeBG.IsTransparent() {
-			ctx.Add(render.Op{
-				Kind:         render.OpFillRoundRect,
-				Bounds:       geom.Rc(roundf(x), top, roundf(x+n.slot[i]), bottom),
-				Color:        n.activeBG,
-				CornerRadius: 4,
-			})
+		if active && int(es.Part) == i {
+			if !n.activeBG.IsTransparent() {
+				ctx.Add(render.Op{
+					Kind:         render.OpFillRoundRect,
+					Bounds:       geom.Rc(roundf(x), top, roundf(x+n.slot[i]), bottom),
+					Color:        n.activeBG,
+					CornerRadius: 4,
+				})
+			}
 			c = n.activeFG
 		}
 		s := n.partText(i, es)
