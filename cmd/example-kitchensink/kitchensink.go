@@ -101,6 +101,9 @@ func Screen(ctx *gift.Context) gift.View {
 		busy:     ctx.State("busy", false),
 		saved:    ctx.State("saved", ""),
 		virtual:  ctx.State("virtual", 0),
+		from:     ctx.State("from", ui.TimeOf(9, 0)),
+		to:       ctx.State("to", ui.TimeOf(10, 30)),
+		day:      ctx.State("day", ui.DateFrom(time.Now())),
 	}
 	// The two the root itself decides with, and nothing else; see above.
 	ctx.Read(st.tab)
@@ -177,6 +180,8 @@ type state struct {
 	busy                *gift.State[bool]
 	volume, progress    *gift.State[float64]
 	saved               *gift.State[string]
+	from, to            *gift.State[ui.TimeOfDay]
+	day                 *gift.State[ui.Date]
 }
 
 // tabComponent wraps one tab's screen in a [gift.Component], which is what
@@ -220,6 +225,9 @@ func (s state) tabComponent(which string) gift.View {
 			return s.longList()
 		case "form":
 			ctx.Read(s.saved)
+			ctx.Read(s.from)
+			ctx.Read(s.to)
+			ctx.Read(s.day)
 			return s.form()
 		}
 		panic("no such tab: " + which)
@@ -588,6 +596,8 @@ func (s state) sheetContent() gift.View {
 func (s state) form() gift.View {
 	ed := nameEditor
 	return ui.VScroll(
+		s.timeCard(),
+
 		ui.Card(
 			ui.Text("Tap the field. gift's own on-screen keyboard comes up, because "+
 				"ui.SetOnScreenKeyboard is on; the field asks for it when it takes the "+
@@ -629,6 +639,59 @@ func (s state) form() gift.View {
 				FontSize(12).Foreground(ui.ColorSecondaryLabel),
 		).Padding(12).Header("Divider"),
 	).Gap(16).Padding(16).Flex(1)
+}
+
+// timeCard is a time span on a day: two ui.TimeField and a ui.DateField, with
+// the quick picks a time tracker puts next to them. Click into a part and
+// type, or step it with the arrows and the wheel; the end is drawn as invalid
+// while it is before the start.
+func (s state) timeCard() gift.View {
+	from, to := s.from.Get(), s.to.Get()
+	span := "—"
+	backwards := !from.IsZero() && !to.IsZero() && to.Minutes() < from.Minutes()
+	if !from.IsZero() && !to.IsZero() && !backwards {
+		d := to.Duration() - from.Duration()
+		span = fmt.Sprintf("%d:%02d h", int(d.Hours()), int(d.Minutes())%60)
+	}
+	pick := func(label string, d time.Duration) gift.View {
+		return ui.Button(ui.Text(label).FontSize(13), func() {
+			start := s.from.Get()
+			if start.IsZero() {
+				return
+			}
+			end := start.Duration() + d
+			if end >= 24*time.Hour {
+				end = 24*time.Hour - time.Minute
+			}
+			s.to.Set(ui.TimeOfDayFrom(end))
+		}).Key("pick-" + label)
+	}
+	return ui.Card(
+		ui.Text("Click a part and type — 0930, 9:30 or 930 — or step it with the arrows "+
+			"and the wheel. Shift steps the hours; the minutes move in quarters.").
+			FontSize(12).Foreground(ui.ColorSecondaryLabel),
+		ui.HStack(
+			ui.DateField().Bind(s.day.Binding()).Label("Day").Key("day"),
+			ui.Button(ui.Text("Today").FontSize(13), func() { s.day.Set(ui.DateFrom(time.Now())) }).
+				Key("today"),
+			ui.Spacer(),
+		).Gap(8).Align(geom.Center),
+		ui.HStack(
+			ui.TimeField().Bind(s.from.Binding()).Step(15*time.Minute).Label("From").Key("from"),
+			ui.Text("–"),
+			ui.TimeField().Bind(s.to.Binding()).Step(15*time.Minute).Invalid(backwards).
+				Label("To").Key("to"),
+			ui.Text(span).FontSize(13).Foreground(ui.ColorSecondaryLabel).Key("span"),
+			ui.Spacer(),
+		).Gap(8).Align(geom.Center),
+		ui.HStack(
+			pick("15 min", 15*time.Minute),
+			pick("30 min", 30*time.Minute),
+			pick("1 h", time.Hour),
+			pick("2 h", 2*time.Hour),
+			ui.Spacer(),
+		).Gap(8),
+	).Header("Time and date")
 }
 
 func orDash(s string) string {

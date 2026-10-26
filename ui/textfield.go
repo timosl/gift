@@ -662,9 +662,16 @@ func (n *textFieldNode) paintContent(ctx *gift.PaintContext, b geom.Rect, ia gif
 }
 
 // paintLine copies the glyphs of the single line of req into the display list
-// at the given origin. It is [textNode.paintGlyphs] for one line and with a
-// horizontal offset, and it emits one operation for the whole run.
+// at the given origin; see [paintShapedLine].
 func (n *textFieldNode) paintLine(ctx *gift.PaintContext, b geom.Rect, req text.Request, fg Color, x, baseline float32) {
+	paintShapedLine(ctx, b, req, fg, x, baseline)
+}
+
+// paintShapedLine copies the glyphs of the single line of req into the display
+// list at the given origin. It is [textNode.paintGlyphs] for one line and with
+// a horizontal offset, and it emits one operation for the whole run. The
+// caller has gated fg; this function draws whatever it is given.
+func paintShapedLine(ctx *gift.PaintContext, b geom.Rect, req text.Request, fg Color, x, baseline float32) {
 	p := text.Default().Layout(req)
 	if len(p.Lines) == 0 {
 		return
@@ -697,6 +704,10 @@ func (n *textFieldNode) paintLine(ctx *gift.PaintContext, b geom.Rect, req text.
 }
 
 // --- input -------------------------------------------------------------------
+
+// AccessibleValue implements [gift.ValueReporter]: the text of the field, which
+// is what giftauto reports as its value.
+func (n *textFieldNode) AccessibleValue(gift.ControlState) string { return n.ed.Text() }
 
 // HandleEvent implements gift.Interactor.
 //

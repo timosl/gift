@@ -67,6 +67,12 @@ func TestTheGateInventoryIsComplete(t *testing.T) {
 		"buttonNode.Paint":           "guarded: assertResolvedBorder on the focus ring of a Button, the first statement",
 		"textFieldNode.Paint": "guarded: assertResolvedBorder on the focus ring of a TextField, the " +
 			"first statement",
+		"entryNode.Paint": "guarded: assertResolvedBorder on the focus ring and the invalid border of " +
+			"a TimeField or DateField, the first two statements",
+		"entryNode.paintParts": "guarded: five assertResolved calls, the first five statements of the " +
+			"function",
+		"entryNode.paintText": "guarded by its only caller, entryNode.paintParts, which asserts every " +
+			"colour it passes in",
 		"toggleNode.Paint": "guarded: five assertResolved calls, the first five statements of the " +
 			"function",
 		"sliderNode.Paint": "guarded: five assertResolved calls, the first five statements of the " +
@@ -281,6 +287,54 @@ func TestEveryVisibilityGateIsGuarded(t *testing.T) {
 					paintContent(nil, geom.Rect{}, gift.Interaction{Focused: true})
 			},
 			want: "the caret colour of a TextField",
+		},
+		{
+			name: "the entry field focus ring",
+			call: func() { (&entryNode{focusRing: Border{Width: 2, Color: ColorAccent}}).Paint(nil) },
+			want: "the focus ring of an entry field",
+		},
+		{
+			name: "the entry field invalid border",
+			call: func() { (&entryNode{invalidBorder: Border{Width: 1, Color: ColorDanger}}).Paint(nil) },
+			want: "the invalid border of an entry field",
+		},
+		{
+			name: "the entry field foreground",
+			call: func() {
+				(&entryNode{fg: ColorLabel}).paintParts(nil, geom.Rect{}, gift.Interaction{}, gift.EntryState{})
+			},
+			want: "the foreground of an entry field",
+		},
+		{
+			name: "the entry field placeholder",
+			call: func() {
+				(&entryNode{placeholderFG: ColorSecondaryLabel}).
+					paintParts(nil, geom.Rect{}, gift.Interaction{}, gift.EntryState{})
+			},
+			want: "the placeholder colour of an entry field",
+		},
+		{
+			name: "the entry field active part",
+			call: func() {
+				(&entryNode{activeBG: ColorAccent}).paintParts(nil, geom.Rect{}, gift.Interaction{}, gift.EntryState{})
+			},
+			want: "the active part of an entry field",
+		},
+		{
+			name: "the entry field active text",
+			call: func() {
+				(&entryNode{activeFG: ColorOnAccent}).
+					paintParts(nil, geom.Rect{}, gift.Interaction{}, gift.EntryState{})
+			},
+			want: "the text of the active part of an entry field",
+		},
+		{
+			name: "the entry field disabled foreground",
+			call: func() {
+				(&entryNode{disabledFG: Fade(ColorLabel, 0.4)}).
+					paintParts(nil, geom.Rect{}, gift.Interaction{}, gift.EntryState{})
+			},
+			want: "the foreground of a disabled entry field",
 		},
 		{
 			name: "the keyboard key face",

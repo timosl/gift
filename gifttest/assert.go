@@ -30,6 +30,18 @@ func (n Node) AssertText(want string) Node {
 	return n
 }
 
+// AssertValue fails unless the value the node's control reports is exactly
+// want; see [Node.Value].
+func (n Node) AssertValue(want string) Node {
+	n.h.t.Helper()
+	n.check("AssertValue")
+	if got := n.Value(); got != want {
+		n.h.t.Errorf("gifttest: %s\n  value = %q\n  want    %q",
+			n.describe(), got, want)
+	}
+	return n
+}
+
 // AssertKey fails unless the node's reconciliation key is want.
 func (n Node) AssertKey(want string) Node {
 	n.h.t.Helper()

@@ -3,6 +3,7 @@ package ui
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/worldiety/gift/asset"
 	"github.com/worldiety/gift/geom"
@@ -147,4 +148,13 @@ func SemanticColorsForTest() []struct {
 		}{c.Name, c.Color})
 	}
 	return out
+}
+
+// SetEntryClockForTest replaces the clock an empty part of a time or date
+// field starts from when it is stepped, and returns the function that puts
+// the real one back.
+func SetEntryClockForTest(f func() time.Time) (restore func()) {
+	prev := entryClock
+	entryClock = f
+	return func() { entryClock = prev }
 }

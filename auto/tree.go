@@ -28,9 +28,12 @@ type Node struct {
 	// that a second request can talk about the same node.
 	Path string `json:"path"`
 
-	Type  string `json:"type"`
-	Key   string `json:"key,omitempty"`
-	Text  string `json:"text,omitempty"`
+	Type string `json:"type"`
+	Key  string `json:"key,omitempty"`
+	Text string `json:"text,omitempty"`
+	// Value is what a control that edits a value holds, as it shows it: the
+	// text of a field, "09:30" of a time field. See [gift.ValueReporter].
+	Value string `json:"value,omitempty"`
 	Depth int    `json:"depth"`
 
 	// Bounds is the device-space rectangle in logical pixels: x, y, width,
@@ -107,6 +110,7 @@ func buildNode(app *gift.App, r gift.NodeRef, path string, depth, maxDepth int) 
 	n.Type = gift.TypeName(app.NodeType(r))
 	n.Key = app.NodeKey(r)
 	n.Text = app.NodeLabel(r)
+	n.Value = app.NodeValue(r)
 	b := app.NodeDeviceBounds(r)
 	n.Bounds = [4]float32{b.Min.X, b.Min.Y, b.Width(), b.Height()}
 	n.Centre = [2]float32{b.Min.X + b.Width()/2, b.Min.Y + b.Height()/2}

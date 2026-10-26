@@ -76,6 +76,51 @@ type ControlState struct {
 	// built yet", and without it every control that is born switched on would
 	// animate from off to on in the first frames of the application.
 	Armed bool
+
+	// Entry is the editing state of a control that is typed into one part at
+	// a time; see [EntryState]. Every other control leaves it zero.
+	Entry EntryState
+}
+
+// EntryState is the retained state of a control whose value is entered part
+// by part: the hour and the minute of a ui.TimeField, the day, the month and
+// the year of a ui.DateField.
+//
+// It lives in [ControlState] for the reason the grab offset does. Every digit
+// such a control accepts is a change of its value, a change of its value is a
+// rebuild, and a rebuild replaces the node object — so the part that has the
+// keyboard and the first digit of a number still being typed would be gone
+// before the second digit arrived. The draft has to be here as well, because
+// a value with an empty part is no value at all and cannot be handed to the
+// application to keep.
+//
+// The fields are named for what an entry control does and not for one
+// widget, like the rest of [ControlState]; three parts is the most any of
+// them needs. The zero value is a control with every part empty and the first
+// one active.
+type EntryState struct {
+	// Part is the index of the part that has the keyboard.
+	Part int8
+
+	// Digits is how many digits have been typed into Part since it became
+	// active, and TypedAt when the last one was. A digit that arrives while
+	// Digits is not zero continues the number; zero starts it afresh.
+	Digits  int8
+	TypedAt time.Duration
+
+	// Values holds the parts as they are on screen, and Filled which of them
+	// hold anything, one bit per part. A part the user cleared is not filled.
+	Values [3]int32
+	Filled uint8
+
+	// Advanced reports that Part became active because the part before it
+	// was full. A separator typed next is the one that would have ended that
+	// part, and moves nowhere.
+	Advanced bool
+
+	// Wheel is the part of the wheel movement that has not yet amounted to a
+	// whole step.
+	Wheel float32
 }
 
 // Now returns the timestamp of the event being dispatched, on the clock
