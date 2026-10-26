@@ -31,14 +31,20 @@ func TimeOf(hour, minute int) TimeOfDay {
 	return TimeOfDay{hour: int8(hour), minute: int8(minute), set: true}
 }
 
-// TimeOfDayFrom returns the time d after midnight, truncated to the minute.
+// TimeOfDayAfter returns the time d after midnight, truncated to the minute.
 // It panics on a duration outside [0, 24h), for the reason [TimeOf] does.
-func TimeOfDayFrom(d time.Duration) TimeOfDay {
+func TimeOfDayAfter(d time.Duration) TimeOfDay {
 	if d < 0 || d >= 24*time.Hour {
-		panic(fmt.Sprintf("gift/ui: TimeOfDayFrom(%v) is not within one day", d))
+		panic(fmt.Sprintf("gift/ui: TimeOfDayAfter(%v) is not within one day", d))
 	}
 	m := int(d / time.Minute)
 	return TimeOf(m/60, m%60)
+}
+
+// TimeOfDayFrom returns the time of day of t on the clock of t's own
+// location, truncated to the minute, as [DateFrom] returns its day.
+func TimeOfDayFrom(t time.Time) TimeOfDay {
+	return TimeOf(t.Hour(), t.Minute())
 }
 
 // IsZero reports whether t is no time at all.
@@ -77,6 +83,32 @@ func ParseTimeOfDay(s string) (TimeOfDay, error) {
 		return TimeOfDay{}, fmt.Errorf("gift/ui: %q is not a time of day", s)
 	}
 	return TimeOf(int(vals[0]), int(vals[1])), nil
+}
+
+// MarshalText implements [encoding.TextMarshaler] with [TimeOfDay.String]:
+// "09:30", and "" for the zero value, so that a time kept in JSON or a form
+// survives the round trip and an empty field stays empty.
+func (t TimeOfDay) MarshalText() ([]byte, error) { return []byte(t.String()), nil }
+
+// UnmarshalText implements [encoding.TextUnmarshaler]. It takes exactly what
+// [TimeOfDay.MarshalText] writes, "hh:mm" or "", and not the looser spellings
+// of [ParseTimeOfDay]: those are for a user at the keyboard, and stored data
+// in any other shape is a mistake to report.
+func (t *TimeOfDay) UnmarshalText(b []byte) error {
+	s := string(b)
+	if s == "" {
+		*t = TimeOfDay{}
+		return nil
+	}
+	if len(s) == 5 && s[2] == ':' {
+		h, ok1 := digits(s[:2], 2)
+		m, ok2 := digits(s[3:], 2)
+		if ok1 && ok2 && h <= 23 && m <= 59 {
+			*t = TimeOf(int(h), int(m))
+			return nil
+		}
+	}
+	return fmt.Errorf("gift/ui: %q is not a time of day of the form hh:mm", s)
 }
 
 // Date is a day in the proleptic Gregorian calendar, without a time and
@@ -125,6 +157,20 @@ func (d Date) Time(loc *time.Location) time.Time {
 	return time.Date(int(d.year), time.Month(d.month), int(d.day), 0, 0, 0, 0, loc)
 }
 
+// At returns the instant d at the time of day t in loc, which is how the value
+// of a [DateFieldView] and a [TimeFieldView] next to it become one
+// [time.Time]. The zero TimeOfDay is midnight, as in [Date.Time], and the zero
+// Date returns the zero time.Time.
+//
+// On a day the clocks change, a time that does not exist in loc — 02:30 when
+// they jump from two to three — is normalised by [time.Date], to 03:30.
+func (d Date) At(t TimeOfDay, loc *time.Location) time.Time {
+	if d.IsZero() {
+		return time.Time{}
+	}
+	return time.Date(int(d.year), time.Month(d.month), int(d.day), t.Hour(), t.Minute(), 0, 0, loc)
+}
+
 // String formats d as "YYYY-MM-DD", the order that sorts, and the zero value
 // as "". A field shows it as "DD.MM.YYYY"; see [DateFieldView].
 func (d Date) String() string {
@@ -151,6 +197,31 @@ func ParseDate(s string) (Date, error) {
 		return Date{}, fmt.Errorf("gift/ui: %q is not a date", s)
 	}
 	return DateOf(int(vals[2]), time.Month(vals[1]), int(vals[0])), nil
+}
+
+// MarshalText implements [encoding.TextMarshaler] with [Date.String]:
+// "2026-10-26", and "" for the zero value.
+func (d Date) MarshalText() ([]byte, error) { return []byte(d.String()), nil }
+
+// UnmarshalText implements [encoding.TextUnmarshaler]. It takes exactly what
+// [Date.MarshalText] writes, "YYYY-MM-DD" or "", for the reason
+// [TimeOfDay.UnmarshalText] gives.
+func (d *Date) UnmarshalText(b []byte) error {
+	s := string(b)
+	if s == "" {
+		*d = Date{}
+		return nil
+	}
+	if len(s) == 10 && s[4] == '-' && s[7] == '-' {
+		y, ok1 := digits(s[:4], 4)
+		m, ok2 := digits(s[5:7], 2)
+		day, ok3 := digits(s[8:], 2)
+		if ok1 && ok2 && ok3 && y >= 1 && m >= 1 && m <= 12 && day >= 1 && day <= daysIn(m, y) {
+			*d = DateOf(int(y), time.Month(m), int(day))
+			return nil
+		}
+	}
+	return fmt.Errorf("gift/ui: %q is not a date of the form YYYY-MM-DD", s)
 }
 
 func pad2(v int) string {

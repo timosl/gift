@@ -663,7 +663,7 @@ func (s state) timeCard() gift.View {
 			if end >= 24*time.Hour {
 				end = 24*time.Hour - time.Minute
 			}
-			s.to.Set(ui.TimeOfDayFrom(end))
+			s.to.Set(ui.TimeOfDayAfter(end))
 		}).Key("pick-" + label)
 	}
 	return ui.Card(
