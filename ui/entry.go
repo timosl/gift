@@ -312,9 +312,11 @@ func (n *entryNode) typeDigit(es gift.EntryState, d int32, now time.Duration) gi
 
 // stepBy moves part i by k steps up (positive) or down, wrapping around at the
 // ends of its range. The minutes of a time move in steps of
-// [TimeFieldView.Step], landing on a multiple of it first. A year does not
-// wrap, because there is nothing after 9999 that anybody means. An empty part
-// starts at today or at now; see [entryClock].
+// [TimeFieldView.Step], landing on a multiple of it first, and carry into the
+// hour: 17:57 up by five minutes is 18:00, and the day wraps around at
+// midnight. The day of a complete date carries into the month and the year the
+// same way. A year does not wrap, because there is nothing after 9999 that
+// anybody means. An empty part starts at today or at now; see [entryClock].
 func (n *entryNode) stepBy(es gift.EntryState, i, k int) gift.EntryState {
 	es = n.finish(es)
 	lo, hi := n.limits(i, es)
@@ -327,6 +329,10 @@ func (n *entryNode) stepBy(es gift.EntryState, i, k int) gift.EntryState {
 		es.Filled |= bit(i)
 		return n.clampDay(es)
 	}
+	if i == 0 && n.kind == entryDate && es.Filled == n.allFilled() {
+		return n.stepDays(es, k)
+	}
+	carry := i == 1 && n.kind == entryTime && es.Filled&bit(0) != 0
 	v := es.Values[i]
 	for ; k > 0; k-- {
 		v = (v/step + 1) * step
@@ -335,6 +341,9 @@ func (n *entryNode) stepBy(es gift.EntryState, i, k int) gift.EntryState {
 				v = hi
 			} else {
 				v = lo
+				if carry {
+					es.Values[0] = (es.Values[0] + 1) % 24
+				}
 			}
 		}
 	}
@@ -345,11 +354,44 @@ func (n *entryNode) stepBy(es gift.EntryState, i, k int) gift.EntryState {
 				v = lo
 			} else {
 				v = hi / step * step
+				if carry {
+					es.Values[0] = (es.Values[0] + 23) % 24
+				}
 			}
 		}
 	}
 	es.Values[i] = v
 	return n.clampDay(es)
+}
+
+// stepDays moves a complete date by k days, across the ends of the months and
+// the years. It stops at the first and the last day of the years a date can
+// have.
+func (n *entryNode) stepDays(es gift.EntryState, k int) gift.EntryState {
+	d, m, y := es.Values[0], es.Values[1], es.Values[2]
+	for ; k > 0; k-- {
+		switch {
+		case d < daysIn(m, y):
+			d++
+		case m < 12:
+			d, m = 1, m+1
+		case y < 9999:
+			d, m, y = 1, 1, y+1
+		}
+	}
+	for ; k < 0; k++ {
+		switch {
+		case d > 1:
+			d--
+		case m > 1:
+			m--
+			d = daysIn(m, y)
+		case y > 1:
+			d, m, y = 31, 12, y-1
+		}
+	}
+	es.Values[0], es.Values[1], es.Values[2] = d, m, y
+	return es
 }
 
 // initial is the first value of an empty part that is stepped.
