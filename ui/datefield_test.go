@@ -108,11 +108,11 @@ func TestTheDayIsKeptWithinTheMonth(t *testing.T) {
 	f.want(t, "28.02.2026", ui.DateOf(2026, time.February, 28))
 }
 
-func TestDayAndMonthWrapAndTheYearStops(t *testing.T) {
+func TestTheDayCarriesTheMonthWrapsAndTheYearStops(t *testing.T) {
 	f := newDateField(t, ui.DateOf(2026, time.December, 31), nil)
 	f.node().Focus()
 	f.h.Key(gift.KeyUp)
-	f.want(t, "01.12.2026", ui.DateOf(2026, time.December, 1))
+	f.want(t, "01.01.2027", ui.DateOf(2027, time.January, 1))
 	f.h.Key(gift.KeyDown)
 	f.want(t, "31.12.2026", ui.DateOf(2026, time.December, 31))
 	f.h.Key(gift.KeyRight)
@@ -122,6 +122,24 @@ func TestDayAndMonthWrapAndTheYearStops(t *testing.T) {
 	f.h.TypeText("9999")
 	f.h.Key(gift.KeyUp)
 	f.want(t, "31.01.9999", ui.DateOf(9999, time.January, 31))
+
+	// The day knows the leap years.
+	f = newDateField(t, ui.DateOf(2028, time.February, 28), nil)
+	f.node().Focus()
+	f.h.Key(gift.KeyUp)
+	f.want(t, "29.02.2028", ui.DateOf(2028, time.February, 29))
+	f.h.Key(gift.KeyUp)
+	f.want(t, "01.03.2028", ui.DateOf(2028, time.March, 1))
+	f.h.Key(gift.KeyDown)
+	f.want(t, "29.02.2028", ui.DateOf(2028, time.February, 29))
+
+	// Without a year the day wraps within its month.
+	f = newDateField(t, ui.Date{}, nil)
+	f.node().Focus()
+	f.h.TypeText("3112")
+	f.h.Key(gift.KeyHome)
+	f.h.Key(gift.KeyUp)
+	f.node().AssertValue("01.12.----")
 }
 
 func TestAnEmptyDateStartsAtToday(t *testing.T) {

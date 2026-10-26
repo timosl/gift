@@ -178,10 +178,52 @@ func TestUpAndDownStepThePartAndWrapAround(t *testing.T) {
 	f.want(t, "23:59", ui.TimeOf(23, 59))
 	f.h.Key(gift.KeyRight)
 	f.h.Key(gift.KeyUp)
-	// The minutes wrap on their own; the hour does not carry.
-	f.want(t, "23:00", ui.TimeOf(23, 0))
+	// The minutes carry into the hour, and the day wraps at midnight.
+	f.want(t, "00:00", ui.TimeOf(0, 0))
 	f.h.Key(gift.KeyDown)
 	f.want(t, "23:59", ui.TimeOf(23, 59))
+	f.h.Key(gift.KeyHome)
+	f.h.TypeText("0959")
+	f.h.Key(gift.KeyUp)
+	f.want(t, "10:00", ui.TimeOf(10, 0))
+	f.h.Key(gift.KeyDown)
+	f.want(t, "09:59", ui.TimeOf(9, 59))
+}
+
+func TestTheMinuteStepCarriesIntoTheHour(t *testing.T) {
+	f := newTimeField(t, ui.TimeOf(17, 57), func(v ui.TimeFieldView) ui.TimeFieldView {
+		return v.Step(5 * time.Minute)
+	}).focus()
+	f.h.Key(gift.KeyRight)
+	f.h.Key(gift.KeyUp)
+	f.want(t, "18:00", ui.TimeOf(18, 0))
+	f.h.Key(gift.KeyDown)
+	f.want(t, "17:55", ui.TimeOf(17, 55))
+	f.h.Key(gift.KeyLeft)
+	f.h.TypeText("1802")
+	f.h.Key(gift.KeyDown)
+	f.want(t, "18:00", ui.TimeOf(18, 0))
+
+	// At the ends of the day the time wraps around.
+	f.h.Key(gift.KeyLeft)
+	f.h.TypeText("2355")
+	f.h.Key(gift.KeyUp)
+	f.want(t, "00:00", ui.TimeOf(0, 0))
+	f.h.Key(gift.KeyDown)
+	f.want(t, "23:55", ui.TimeOf(23, 55))
+
+	// The wheel carries the same way.
+	b := f.node().Bounds()
+	minute := geom.Pt(b.Min.X+b.Width()*0.72, b.Min.Y+b.Height()/2)
+	f.h.Key(gift.KeyLeft)
+	f.h.TypeText("1757")
+	f.h.Wheel(minute, geom.Pt(0, 1))
+	f.want(t, "18:00", ui.TimeOf(18, 0))
+
+	// The hour part steps by itself and leaves the minutes alone.
+	f.h.Key(gift.KeyLeft)
+	f.h.Key(gift.KeyDown)
+	f.want(t, "17:00", ui.TimeOf(17, 0))
 }
 
 func TestTheStepAppliesToTheMinutes(t *testing.T) {
@@ -193,16 +235,17 @@ func TestTheStepAppliesToTheMinutes(t *testing.T) {
 	f.want(t, "09:15", ui.TimeOf(9, 15))
 	f.h.Key(gift.KeyDown)
 	f.want(t, "09:00", ui.TimeOf(9, 0))
+	// Below the full hour the minutes carry into the hour.
 	f.h.Key(gift.KeyDown)
-	f.want(t, "09:45", ui.TimeOf(9, 45))
+	f.want(t, "08:45", ui.TimeOf(8, 45))
 	// From an off-step minute the way down lands on the step below.
 	f.h.TypeText("52")
 	f.h.Key(gift.KeyDown)
-	f.want(t, "09:45", ui.TimeOf(9, 45))
+	f.want(t, "08:45", ui.TimeOf(8, 45))
 	// The hour still steps by one.
 	f.h.Key(gift.KeyLeft)
 	f.h.Key(gift.KeyUp)
-	f.want(t, "10:45", ui.TimeOf(10, 45))
+	f.want(t, "09:45", ui.TimeOf(9, 45))
 }
 
 func TestShiftStepsTheHoursFromTheMinutes(t *testing.T) {

@@ -28,9 +28,13 @@ var timeFieldType = gift.RegisterType("ui.TimeField")
 //     in the hour waits for [SegmentTypingPause] to see whether it becomes 1x.
 //   - ":" or "." moves on to the minutes, left and right move between the
 //     parts, home and end go to the first and the last.
-//   - Up and down step the active part and wrap around, the minutes by
-//     [TimeFieldView.Step]. With shift they step the hours from either part.
-//     An empty part starts at the current time.
+//   - Up and down step the active part, the minutes by [TimeFieldView.Step].
+//     The minutes land on a multiple of the step first and carry into the
+//     hour: with a step of five minutes, up on 17:57 is 18:00 and down on
+//     18:00 is 17:55. The day wraps around, from 23:55 up to 00:00 and back.
+//     With shift they step the hours from either part, and the hour part
+//     steps by itself, wrapping without touching the minutes. An empty part
+//     starts at the current time.
 //   - Backspace and delete empty the active part; backspace in an empty part
 //     goes back to the hour.
 //   - Paste takes "9:30", "09:30", "930" or "0930"; see [ParseTimeOfDay].
@@ -174,8 +178,8 @@ func (v TimeFieldView) Range(min, max TimeOfDay) TimeFieldView {
 }
 
 // Step sets how far the arrows and the wheel move the minutes: a step of 15
-// minutes goes 09:00, 09:15, 09:30, and from 09:07 up to 09:15 first. The
-// default is one minute. Typing is not limited to the step.
+// minutes goes 09:00, 09:15, 09:30, and from 09:07 up to 09:15 first, and
+// from 09:45 on to 10:00. The default is one minute. Typing is not limited to the step.
 //
 // It panics on a step that is not a whole number of minutes between one and
 // sixty.

@@ -30,8 +30,10 @@ var dateFieldType = gift.RegisterType("ui.DateField")
 //     with any of the usual separators lands in the right parts.
 //   - Paste takes "26.10.2026", "26.10.26", "2026-10-26" and "26102026"; see
 //     [ParseDate]. Copy and cut give "26.10.2026".
-//   - Up and down wrap the day and the month and stop at the ends of the
-//     year. An empty part starts at today.
+//   - Up and down step the day of a complete date across the ends of the
+//     months and the years: up on 31.12.2026 is 01.01.2027. The month wraps
+//     on its own, and the year stops at its ends, as does the day of a date
+//     whose month or year is still empty. An empty part starts at today.
 //
 // The order of the parts is fixed. It is the order of the German, and most of
 // the European, spelling of a date; a field in another order is a second
