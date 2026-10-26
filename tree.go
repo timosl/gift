@@ -88,6 +88,36 @@ func (a *App) NodeLabel(r NodeRef) string {
 	return a.data(r.h).label
 }
 
+// ValueReporter is implemented by an [Interactor] whose node edits a value,
+// so that a tool outside the frame path can read what the control holds.
+//
+// [Element.Label] is the name of a control and deliberately not its value; see
+// ui.TextFieldView. The value is asked for here instead, and asked for at the
+// moment somebody wants it rather than copied into the element during a build,
+// because a control that is typed into changes its value between builds: the
+// digits of a half typed time are in [ControlState] and nowhere else. That is
+// also why the control state is passed in.
+type ValueReporter interface {
+	AccessibleValue(st ControlState) string
+}
+
+// NodeValue returns the value the node's control reports, or the empty string
+// for a node whose interactor is not a [ValueReporter] and for a stale
+// reference.
+//
+// Like [App.NodeLabel] it is for tests and for automation, never for the
+// frame path: it calls into the control, and nothing caches the answer.
+func (a *App) NodeValue(r NodeRef) string {
+	if !a.store.Valid(r.h) {
+		return ""
+	}
+	nd := a.data(r.h)
+	if v, ok := nd.interactor.(ValueReporter); ok {
+		return v.AccessibleValue(nd.control)
+	}
+	return ""
+}
+
 // NodeInteractive reports whether the node takes part in hit testing, that is
 // whether its element carried an [Interactor].
 //

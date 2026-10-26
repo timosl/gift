@@ -44,6 +44,11 @@ func (n Node) IsZero() bool { return n.h == nil || n.ref.IsZero() }
 // matches against.
 func (n Node) Text() string { n.check("Text"); return n.h.app.NodeLabel(n.ref) }
 
+// Value returns what the node's control holds, as [gift.App.NodeValue]
+// reports it: the text of a field, "09:30" of a time field, "" for a node
+// that edits no value.
+func (n Node) Value() string { n.check("Value"); return n.h.app.NodeValue(n.ref) }
+
 // Key returns the reconciliation key of the node, or "".
 func (n Node) Key() string { n.check("Key"); return n.h.app.NodeKey(n.ref) }
 
