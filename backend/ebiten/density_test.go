@@ -372,3 +372,43 @@ func TestLayoutFRemembersTheLastUsableSize(t *testing.T) {
 		t.Errorf("a zero sized window gave (%v, %v); the last usable size must be kept", w, h)
 	}
 }
+
+// TestLayoutFFollowsTheSystemScale covers a desktop that changed its scale
+// after start-up, which Ebitengine on X11 does not see. The window keeps its
+// pixels; what changes is how many logical pixels gift lays out in them.
+func TestLayoutFFollowsTheSystemScale(t *testing.T) {
+	for _, c := range []struct {
+		name                 string
+		raw, system          float64
+		outW, outH           float64
+		wantW, wantH         float64
+		wantViewW, wantViewH int
+		wantDensity          float32
+	}{
+		// Started on a 2x panel, now on a 1x monitor: 1100x800 window pixels,
+		// which Ebitengine reports as 550x400.
+		{"2x to 1x", 2, 1, 550, 400, 1100, 800, 1100, 800, 1},
+		{"1x to 2x", 1, 2, 1600, 1200, 1600, 1200, 800, 600, 2},
+		{"unchanged", 2, 2, 800, 600, 1600, 1200, 800, 600, 2},
+		{"unknown keeps Ebitengine's factor", 2, 0, 800, 600, 1600, 1200, 800, 600, 2},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			app := gift.New(gift.Options{
+				Root: func(*gift.Context) gift.View { return recorderView{app: &keyboardApp{}} },
+			})
+			g := &game{app: app,
+				scale:       func() float64 { return c.raw },
+				systemScale: func() float64 { return c.system },
+			}
+			if w, h := g.LayoutF(c.outW, c.outH); w != c.wantW || h != c.wantH {
+				t.Errorf("LayoutF(%v, %v) = (%v, %v), want (%v, %v)", c.outW, c.outH, w, h, c.wantW, c.wantH)
+			}
+			if g.w != c.wantViewW || g.h != c.wantViewH {
+				t.Errorf("viewport %dx%d, want %dx%d", g.w, g.h, c.wantViewW, c.wantViewH)
+			}
+			if got := app.Density(); got != c.wantDensity {
+				t.Errorf("density %v, want %v", got, c.wantDensity)
+			}
+		})
+	}
+}
