@@ -347,6 +347,8 @@ func Run(app *gift.App, cfg Config) error {
 		direct:    cfg.DirectToScreen,
 		w:         w,
 		h:         h,
+
+		systemScale: newSystemScale(),
 	}
 	if cfg.NoInput {
 		g.input = nil
@@ -469,6 +471,11 @@ type game struct {
 	// [Run] leaves it nil and [game.monitorScale] falls back to the real
 	// reading, so the production path has no indirection to pay for.
 	scale func() float64
+
+	// systemScale is the scale the desktop asks for right now, where that
+	// can differ from [game.scale]; 0 means it is unknown. Nil, as in tests,
+	// means there is nothing to correct. See [newSystemScale].
+	systemScale func() float64
 }
 
 // monitorScale is the density reading LayoutF uses: the seam if a test
@@ -537,11 +544,28 @@ func (g *game) Layout(outsideWidth, outsideHeight int) (int, int) {
 // 1.5 would be, and it costs the fragments of a 2x frame. The plan excludes
 // fractional scaling; this is what "round it and document the result" looks
 // like in pixels.
+//
+// # When Ebitengine's factor is stale
+//
+// On X11 the factor is read once at start-up and never again; see
+// [newSystemScale]. The outside size is the window's pixels divided by that
+// stale factor, so where the desktop's current scale differs, the size is
+// first converted back to pixels and then divided by the current one. The
+// framebuffer Ebitengine scales to is unchanged by this, so the scale it
+// applies stays one.
 func (g *game) LayoutF(outsideWidth, outsideHeight float64) (float64, float64) {
+	raw := g.monitorScale()
+	if g.systemScale != nil {
+		if s := g.systemScale(); s > 0 && raw > 0 && s != raw {
+			outsideWidth *= raw / s
+			outsideHeight *= raw / s
+			raw = s
+		}
+	}
 	if outsideWidth > 0 && outsideHeight > 0 {
 		g.w, g.h = int(outsideWidth), int(outsideHeight)
 	}
-	d := float64(g.app.SetDensity(g.monitorScale()))
+	d := float64(g.app.SetDensity(raw))
 	return float64(g.w) * d, float64(g.h) * d
 }
 
