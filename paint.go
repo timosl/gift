@@ -301,6 +301,14 @@ func (p *PaintContext) AppendGlyph(g render.Glyph) { p.list.AppendGlyph(g) }
 // its placeholder for it rather than skipping the node.
 func (p *PaintContext) Images() render.Images { return p.app.images }
 
+// Videos returns the backend's video picture service, or nil when there is
+// none. It is [PaintContext.Images] for a picture that changes every frame,
+// with the same rule: available in Paint and nowhere else, and nil is normal.
+func (p *PaintContext) Videos() render.Videos { return p.app.videos }
+
+// Audio returns the backend's sound device, or nil when there is none.
+func (p *PaintContext) Audio() render.AudioOutput { return p.app.audio }
+
 // paintNode paints h and, through its painter, its subtree.
 //
 // A node without a painter paints its children and nothing else; see

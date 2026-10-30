@@ -135,6 +135,19 @@ const (
 	// StrokeWidth the scale they were emitted at. [Op.LayerOps] and
 	// [Op.LayerScale] read them under their real names.
 	OpLayer
+
+	// OpVideo draws the current picture of the video resource named by Image
+	// into Bounds, modulated by Color, with its corners rounded by
+	// CornerRadius. It is [OpImage] for a picture that changes every frame:
+	// Bounds, Color, CornerRadius and Fit mean what they mean there, and
+	// Image is an id from [Videos.Resolve] rather than [Images.Resolve].
+	//
+	// A separate kind and not an [OpImage] with a flag, because the pixels
+	// behind the id are YUV and the backend chooses how to draw them per
+	// operation: converted straight into the target when Bounds maps one
+	// picture pixel onto one device pixel, through a converted texture
+	// otherwise. See [Videos].
+	OpVideo
 )
 
 // Op is a single drawing operation.

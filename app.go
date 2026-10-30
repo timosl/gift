@@ -84,6 +84,10 @@ type App struct {
 	// images is the backend's image resource service, or nil when no backend
 	// installed one. See [App.SetImages].
 	images render.Images
+	// videos and audio are the video picture service and the sound device
+	// of the backend, nil without one; see [App.SetVideos].
+	videos render.Videos
+	audio  render.AudioOutput
 
 	viewport geom.Size
 	// density is the integer device density; see [App.SetDensity]. It is 1
@@ -208,6 +212,22 @@ func (a *App) SetImages(im render.Images) { a.images = im }
 
 // Images returns the service installed by [App.SetImages], or nil.
 func (a *App) Images() render.Images { return a.images }
+
+// SetVideos installs the video picture service and the sound device a painter
+// reaches through [PaintContext.Videos] and [PaintContext.Audio].
+//
+// It is [App.SetImages] for moving pictures and their sound, carried the same
+// way and for the same reason: ui/videoplayer draws and plays, the backend
+// owns the textures and the audio device, and gift is the only route between
+// the two. Either may be nil, which is again the headless case: a video then
+// shows no picture, and its clock runs on the wall clock without sound.
+func (a *App) SetVideos(v render.Videos, out render.AudioOutput) { a.videos, a.audio = v, out }
+
+// Videos returns the service installed by [App.SetVideos], or nil.
+func (a *App) Videos() render.Videos { return a.videos }
+
+// Audio returns the sound device installed by [App.SetVideos], or nil.
+func (a *App) Audio() render.AudioOutput { return a.audio }
 
 // Update runs build, reconciliation and layout. The backend calls it once per
 // Ebitengine update.

@@ -213,6 +213,14 @@ func (e *layerEntry) record(r *Renderer, l *render.List, ops []render.Op) {
 		switch op.Kind {
 		case render.OpImage:
 			e.images = append(e.images, r.imageStamp(op.Image))
+		case render.OpVideo:
+			// A video keeps its id and changes its pixels, so its stamp
+			// is the picture and not the texture: a layer with a playing
+			// video is drawn again for every new picture and composited
+			// in between.
+			if r.videos != nil {
+				e.images = append(e.images, r.videos.stamp(op.Image))
+			}
 		}
 	}
 }

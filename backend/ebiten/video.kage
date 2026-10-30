@@ -1,0 +1,109 @@
+//kage:unit pixels
+
+package main
+
+// video.kage converts a YUV picture into an RGB texture of its own size. See
+// [VideoCache] for when this pass runs and videodirect.kage for the pass that
+// converts straight into the frame.
+
+// Layout is 1 for NV12 and 2 for P016, 16 bit samples with U and V
+// interleaved; see render.VideoLayout. Chroma is never planar: one texel
+// fetch then yields both chroma samples, and on the V3D GPU of a Raspberry Pi
+// the fetches and the per pixel branching are what a conversion costs, not
+// the arithmetic.
+var Layout float
+
+// Height is the picture height; chroma rows start below it.
+var Height float
+
+// Field is 0 for a progressive picture, 1 to show the top field of an
+// interlaced one and 2 for the bottom field, each line doubled (bob).
+var Field float
+
+// ChromaLinear interpolates chroma bilinearly when 1, takes the nearest
+// sample when 0.
+var ChromaLinear float
+
+// RowR, RowG and RowB turn (Y, U, V, 1) into R, G and B.
+var RowR vec4
+var RowG vec4
+var RowB vec4
+
+func texel(q, row float) vec4 {
+	return imageSrc0UnsafeAt(imageSrc0Origin() + vec2(q+0.5, row+0.5))
+}
+
+// luma is the luma sample of pixel (x, y), with 10 bit values scaled to
+// where 8 bit ones would be. The component is selected arithmetically: a
+// branch per pixel is what made the first version of this shader too slow.
+func luma(x, y float) float {
+	if Layout > 1.5 {
+		q := floor(x / 2)
+		t := texel(q, y)
+		w := mix(t.rg, t.ba, x-q*2)
+		return (w.x + w.y*256) / 4
+	}
+	q := floor(x / 4)
+	t := texel(q, y)
+	i := x - q*4
+	m := vec4(1) - step(vec4(0.5), abs(vec4(i)-vec4(0, 1, 2, 3)))
+	return dot(t, m)
+}
+
+// chroma is (U, V) of chroma sample (cx, cy).
+func chroma(cx, cy float) vec2 {
+	row := Height + cy
+	if Layout > 1.5 {
+		t := texel(cx, row)
+		return vec2(t.r+t.g*256, t.b+t.a*256) / 4
+	}
+	q := floor(cx / 2)
+	t := texel(q, row)
+	return mix(t.rg, t.ba, cx-q*2)
+}
+
+func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
+	p := floor(dstPos.xy - imageDstOrigin())
+	x := p.x
+	y := p.y
+	cw := ceil(imageDstSize().x / 2)
+	ch := ceil(Height / 2)
+
+	var yv float
+	var uv vec2
+	if Field > 0.5 {
+		// Bob: lines of the shown field are taken as they are, the
+		// others are the mean of their neighbours in that field.
+		f := Field - 1
+		odd := mod(y, 2)
+		a := clamp(y-1, f, Height-2+f)
+		b := clamp(y+1, f, Height-2+f)
+		own := luma(x, y)
+		mean := (luma(x, a) + luma(x, b)) / 2
+		yv = mix(mean, own, 1-step(0.5, abs(odd-f)))
+		// In interlaced 4:2:0 the chroma rows alternate between the
+		// fields as well.
+		uv = chroma(floor(x/2), clamp(floor(y/4)*2+f, 0, ch-1))
+	} else {
+		yv = luma(x, y)
+		if ChromaLinear > 0.5 {
+			// MPEG-2 siting: chroma is cosited with luma horizontally
+			// and sits between two luma rows vertically.
+			fx := x / 2
+			fy := (y - 0.5) / 2
+			x0 := clamp(floor(fx), 0, cw-1)
+			y0 := clamp(floor(fy), 0, ch-1)
+			x1 := min(x0+1, cw-1)
+			y1 := min(y0+1, ch-1)
+			tx := clamp(fx-floor(fx), 0, 1)
+			ty := clamp(fy-floor(fy), 0, 1)
+			top := mix(chroma(x0, y0), chroma(x1, y0), tx)
+			bot := mix(chroma(x0, y1), chroma(x1, y1), tx)
+			uv = mix(top, bot, ty)
+		} else {
+			uv = chroma(floor(x/2), floor(y/2))
+		}
+	}
+	yuv := vec4(yv, uv.x, uv.y, 1)
+	return vec4(clamp(vec3(dot(RowR, yuv), dot(RowG, yuv), dot(RowB, yuv)), 0, 1), 1)
+}

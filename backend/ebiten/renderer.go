@@ -153,6 +153,14 @@ type Renderer struct {
 	roundImageShader *eb.Shader
 	roundImageOpts   eb.DrawTrianglesShaderOptions
 
+	// videos is the video picture service, curVideo the picture of the
+	// MaterialVideo batch under construction and videoOpts its options;
+	// Images[0] and Uniforms are set for one call and cleared again, like
+	// roundImageOpts.
+	videos    *VideoCache
+	curVideo  *videoRec
+	videoOpts eb.DrawTrianglesShaderOptions
+
 	// atlas is the glyph atlas. It is created by NewRenderer and is the only
 	// thing in this package that knows what a glyph looks like.
 	atlas *GlyphAtlas
@@ -253,6 +261,9 @@ type Renderer struct {
 	imageBatches uint64
 	glyphQuads   uint64
 	imageOps     uint64
+	// videoOps counts video operations that produced geometry, and
+	// videoDirectOps the subset converted straight into the target.
+	videoOps, videoDirectOps uint64
 	// roundImageOps is the subset of imageOps drawn with rounded corners.
 	roundImageOps uint64
 
@@ -306,6 +317,10 @@ const (
 	// rounded pictures of the same texture in a row still share a batch. See
 	// [Renderer.appendRoundImage].
 	MaterialRoundImage
+	// MaterialVideo is a video picture converted from YUV in the pass that
+	// draws it, by the direct video shader. Its parameters are the
+	// picture's own, so two videos are two batches; see [VideoCache].
+	MaterialVideo
 )
 
 // String makes a failing test readable.
@@ -321,6 +336,8 @@ func (m Material) String() string {
 		return "glass"
 	case MaterialRoundImage:
 		return "round image"
+	case MaterialVideo:
+		return "video"
 	default:
 		return "none"
 	}
@@ -356,7 +373,12 @@ func NewRenderer() (*Renderer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gift/backend/ebiten: compiling the static glass shader: %w", err)
 	}
+	vc, err := NewVideoCache()
+	if err != nil {
+		return nil, err
+	}
 	r := &Renderer{
+		videos:           vc,
 		shader:           sh,
 		glassShader:      gl,
 		downShader:       down,
@@ -573,6 +595,10 @@ func (r *Renderer) BeginFrame(size geom.Size) {
 // [render.Images].
 func (r *Renderer) Images() render.Images { return r.textures }
 
+// Videos returns the video picture service, which [Run] installs into the app
+// through [gift.App.SetVideos].
+func (r *Renderer) Videos() render.Videos { return r.videos }
+
 // Textures returns the texture cache, for [TextureStats] and for a test that
 // wants a small budget in order to observe admission and eviction.
 func (r *Renderer) Textures() *TextureCache { return r.textures }
@@ -780,6 +806,9 @@ func (r *Renderer) appendOp(l *render.List, op render.Op) {
 	case render.OpImage:
 		r.appendImage(l, op)
 		return
+	case render.OpVideo:
+		r.appendVideo(l, op)
+		return
 	case render.OpMaterial:
 		r.appendMaterial(l, op)
 		return
@@ -944,11 +973,26 @@ func (r *Renderer) appendImage(l *render.List, op render.Op) {
 		return
 	}
 
-	src := op.Fit.Source(b, w, h)
 	xf := r.opXform(l, op.Xform)
 	// The clamp of appendOp, for the same reason: a per operation constant
 	// is computed once here and not per fragment.
 	radius := min(op.CornerRadius, b.Width()*0.5, b.Height()*0.5)
+	if r.drawImageTexture(l, op, img, w, h, clip, xf, radius) {
+		r.imageOps++
+		if radius > 0 {
+			r.roundImageOps++
+		}
+		r.emitted++
+	}
+}
+
+// drawImageTexture is the drawing half of [Renderer.appendImage], shared with
+// the videos that are drawn from their converted texture: img, of w by h
+// texels, mapped onto the operation's bounds as its Fit says. It reports
+// whether any geometry was emitted, and counts the skip when none was.
+func (r *Renderer) drawImageTexture(l *render.List, op render.Op, img *eb.Image, w, h int, clip geom.Rect, xf geom.Affine2D, radius float32) bool {
+	b := op.Bounds
+	src := op.Fit.Source(b, w, h)
 	var wrote bool
 	switch {
 	case radius > 0:
@@ -963,13 +1007,8 @@ func (r *Renderer) appendImage(l *render.List, op render.Op) {
 	}
 	if !wrote {
 		r.skipOutsideClip++
-		return
 	}
-	r.imageOps++
-	if radius > 0 {
-		r.roundImageOps++
-	}
-	r.emitted++
+	return wrote
 }
 
 // appendRoundImage emits a picture with rounded corners as four quads, one
@@ -1721,6 +1760,11 @@ func (r *Renderer) flush() {
 		r.roundImageOpts.Images[0] = r.curPage
 		r.dst.DrawTrianglesShader32(r.verts, r.idx, r.roundImageShader, &r.roundImageOpts)
 		r.roundImageOpts.Images[0] = nil
+	case r.curMat == MaterialVideo:
+		r.videoOpts.Images[0] = r.curPage
+		r.videoOpts.Uniforms = r.curVideo.uniforms
+		r.dst.DrawTrianglesShader32(r.verts, r.idx, r.videos.direct, &r.videoOpts)
+		r.videoOpts.Images[0], r.videoOpts.Uniforms = nil, nil
 	default:
 		r.dst.DrawTrianglesShader32(r.verts, r.idx, r.shader, &r.opts)
 	}
@@ -1729,14 +1773,14 @@ func (r *Renderer) flush() {
 	switch r.curMat {
 	case MaterialGlyph:
 		r.glyphBatches++
-	case MaterialImage, MaterialRoundImage:
+	case MaterialImage, MaterialRoundImage, MaterialVideo:
 		r.imageBatches++
 	default:
 		r.shapeBatches++
 	}
 	r.verts = r.verts[:0]
 	r.idx = r.idx[:0]
-	r.curMat, r.curPage = MaterialNone, nil
+	r.curMat, r.curPage, r.curVideo = MaterialNone, nil, nil
 }
 
 // RendererStats are the counters of the renderer. Like [gift.Diagnostics]
@@ -1788,6 +1832,10 @@ type RendererStats struct {
 	ImageBatches uint64
 	// ImageOps is the number of image operations that produced geometry.
 	ImageOps uint64
+	// VideoOps is the number of video operations that produced geometry,
+	// and VideoDirectOps the subset converted from YUV in the pass that drew
+	// them rather than through a converted texture; see [VideoCache].
+	VideoOps, VideoDirectOps uint64
 	// RoundImageOps is the subset of ImageOps drawn with rounded corners,
 	// through the rounded picture shader rather than Ebitengine's own linear
 	// filter. The two cost the same four texel fetches per fragment; the
@@ -1949,6 +1997,8 @@ func (r *Renderer) Stats() RendererStats {
 		ImageBatches:       r.imageBatches,
 		ImageOps:           r.imageOps,
 		RoundImageOps:      r.roundImageOps,
+		VideoOps:           r.videoOps,
+		VideoDirectOps:     r.videoDirectOps,
 		GlyphQuads:         r.glyphQuads,
 		ShadowOps:          r.shadowOps,
 		ShadowSharpOps:     r.shadowSharpOps,

@@ -560,7 +560,7 @@ func TestStatsCountSkips(t *testing.T) {
 	l.Reset()
 	l.Add(render.Op{Kind: render.OpFillRect, Bounds: geom.Rc(0, 0, 10, 10), Color: render.RGB(255, 0, 0)})
 	l.Add(render.Op{Kind: render.OpFillRect, Bounds: geom.Rc(0, 0, 10, 10)}) // transparent
-	l.Add(render.Op{Kind: render.OpKind(9)})                                 // unknown
+	l.Add(render.Op{Kind: render.OpKind(250)})                               // unknown
 
 	r.BeginFrame(geom.Sz(100, 100))
 	r.Submit(&l)

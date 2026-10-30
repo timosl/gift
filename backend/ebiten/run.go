@@ -187,6 +187,12 @@ type Config struct {
 	// project plan, section 13, judges the scene and not the startup.
 	WarmupFrames int
 
+	// AudioSampleRate is the rate of the one audio device of the process,
+	// which every video plays its sound at. Zero is 48000, the rate of most
+	// video sound. The device is opened by the first sound that plays, not
+	// before; an application that never plays a video opens none.
+	AudioSampleRate int
+
 	// OnRenderer, if non nil, is called once with the renderer before the
 	// window opens. It is how an application reaches [RendererStats].
 	//
@@ -300,6 +306,7 @@ func Run(app *gift.App, cfg Config) error {
 	// The one route from a painter in ui to a texture in this package. gift
 	// carries the service and never uses it; see [gift.App.SetImages].
 	app.SetImages(r.Images())
+	app.SetVideos(r.Videos(), newAudioOutput(cfg.AudioSampleRate))
 	r.PinGlassQuality(cfg.GlassQuality)
 	if cfg.OnRenderer != nil {
 		cfg.OnRenderer(r)
