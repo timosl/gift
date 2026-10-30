@@ -1240,6 +1240,11 @@ Wachstum hier bemerkt und begruendet, statt im Code zu passieren.
   Font-Register, das ist nicht dasselbe: das Register waehlt eine Schrift
   anhand von Familie, Gewicht und Stil, es setzt keine zweite Schrift fuer
   fehlende Glyphen ein.
+- `Videoformate` faellt, `RAW` bleibt ausgeschlossen. Fuer ein Folgeprojekt
+  ist ein integrierter Videoplayer mit Ton angefordert. Abschnitt 25 haelt
+  Machbarkeit, Messungen und Architektur fest; `render.OpVideo`,
+  `render.Videos`, `render.AudioOutput`, das Paket `video` und
+  `ui/videoplayer` setzen sie um.
 
 Nicht aufgehoben, sondern nie enthalten: Zwischenablage und
 Bildschirmtastatur kommen in diesem Dokument bis hier nicht vor. Sie sind
@@ -1925,6 +1930,366 @@ Drei Bausteine, in dieser Reihenfolge:
 Bewusst nicht enthalten: Vorschaubilder in der Dateiliste, eine Liste von
 Orten wie Laufwerken, das Beobachten eines Verzeichnisses und eine
 Auswahl ueber mehrere Verzeichnisse hinweg.
+
+## 25. Video: ein integrierter Player
+
+Stand 2026-10-30. Die ersten Unterabschnitte sind die Vorarbeit mit dem
+Prototyp `cmd/gift-videoproto`; "Umsetzung in gift" am Ende beschreibt, was
+daraus in `render`, `backend/ebiten`, `video` und `ui/videoplayer` geworden
+ist. Angefordert fuer ein
+Folgeprojekt: ein Videoplayer mit Ton, dessen API an AVPlayer und SwiftUIs
+`VideoPlayer` angelehnt ist, ohne cgo, mit dem Raspberry Pi 5 unter
+Raspberry Pi OS als erstem Ziel. Erwartet werden H.264 und H.265 in PAL
+(4:3 und anamorph 16:9), HD und Full HD bei 25, 30, 50 und 60 fps.
+
+Die Machbarkeitspruefung baute und mass:
+
+- `video/ffmpeg`: Demuxer, Video- und Audiodecoder ueber das FFmpeg des
+  Systems, per purego geladen.
+- `video`: ein Player mit A/V-Clock, Seek und Ton als `io.Reader`.
+- `cmd/gift-videoproto`: Ebitengine direkt, ohne gift-Views, mit
+  YUV-Shadern und Messausgabe.
+
+### Entscheidung: das FFmpeg des Systems, per purego
+
+Das Muster ist dasselbe wie bei `asset/turbojpeg` (Abschnitt 22):
+dlopen ueber purego beim ersten Gebrauch, ohne Bibliothek meldet der Player
+`ErrUnavailable`, und nichts sonst bricht. Gebunden werden libavformat,
+libavcodec, libavutil und libswresample. Raspberry Pi OS bringt alle vier
+mit, auf dem Mac liefert sie Homebrew (`ffmpeg`).
+
+Verworfen:
+
+- **Codec in reinem Go.** Es gibt keinen brauchbaren H.264- oder
+  HEVC-Decoder in Go, und keiner kaeme auf dem Pi an libavcodec mit NEON und
+  Frame-Threading heran.
+- **WebAssembly-Decoder (wazero).** Kein SIMD auf ARM in der Groessenordnung
+  von NEON. Fuer 1080p60 aussichtslos.
+- **GStreamer oder mpv.** Beide bringen eigene Ausgabepfade mit, die nicht
+  in eine Ebitengine-Textur zeichnen, und eine eigene Thread- und
+  Callback-Welt. libmpv mit Render-API braucht einen GL-Kontext, den
+  Ebitengine nicht herausgibt.
+- **V4L2 direkt.** Waere fuer HEVC moeglich (siehe unten), loest aber weder
+  Demuxing noch H.264 noch Ton, und das FFmpeg von Raspberry Pi OS kapselt
+  genau diesen Weg bereits.
+
+**Der Preis ist die ABI.** FFmpegs API besteht aus Structs, nicht aus
+Accessoren, und deren Offsets wandern zwischen Major-Versionen. Gelesen
+werden einige Dutzend Felder (`video/ffmpeg/abi.go`). Fuer jede
+Kombination der Majors von libavutil, libavcodec und libavformat gibt es
+eine Tabelle, die `testdata/offsets.c` aus den Headern der jeweiligen
+Version erzeugt, nie von Hand. Vorhanden sind FFmpeg 5.1 (Bookworm), 6.1
+(Ubuntu 24.04), 7.1 (Trixie) und 8.0 (Homebrew). Innerhalb einer Major
+haengt FFmpeg nur an, eine Tabelle deckt also alle Minor-Releases ab. Die
+Tabelle fuer 7.1 aus den Originalheadern ist identisch mit der, die der Pi
+aus den Headern seines rpt-Forks erzeugt; das bestaetigt das Verfahren.
+Pixelformate werden zur Laufzeit ueber `av_get_pix_fmt` beim Namen
+aufgeloest, weil das Enum zwischen Majors waechst. Callbacks aus FFmpegs
+Decoder-Threads nach Go gibt es nicht: `get_format` bleibt der
+Standard von libavcodec, der das Hardwareformat von selbst waehlt, sobald
+ein Geraet angehaengt ist.
+
+Windows ist wie bei turbojpeg nicht vorgesehen. Getestet ist nur
+Linux/arm64 auf dem Pi. Fuer macOS ist der Code geschrieben und
+kompiliert (`GOOS=darwin go vet`), lief aber mangels Go und FFmpeg auf dem
+Entwicklungsrechner noch nicht.
+
+### Decoder auf dem Pi 5
+
+Der Pi 5 hat **keinen H.264-Decoder** mehr in Hardware, nur noch einen
+HEVC-Block (`rpi-hevc-dec`, V4L2 stateless). Das FFmpeg von Raspberry Pi OS
+erreicht ihn ueber den Hwaccel `drm` (v4l2-request). H.264 laeuft also immer
+in Software. Gemessen auf einem Pi 500 (BCM2712, 4x A76 bei 2,4 GHz,
+Trixie, FFmpeg 7.1.5+rpt2), Decoder inklusive Kopie in gifts
+Upload-Layout, ohne Ausgabe, Testmaterial siehe unten:
+
+| Datei | Decoder | Bilder/s | Echtzeit |
+| --- | --- | --- | --- |
+| H.264 1080p60 | Software, 4 Threads | 222 | 3,7x |
+| HEVC 1080p60 | Software, 4 Threads | 224 | 3,7x |
+| HEVC 1080p60 | Hardware | 342 | 5,7x |
+| HEVC 1080p60 10 Bit | Software | 99 | 1,65x |
+| HEVC 1080p60 10 Bit | Hardware | 163 | 2,7x |
+| H.264 PAL 50i | Software | 848 | 34x |
+
+Software genuegt fuer alle 8-Bit-Faelle der Anforderung. Der
+Hardwaredecoder halbiert die CPU-Last bei HEVC und ist fuer 10 Bit noetig.
+Er wird mit `Options.HW` angefordert und faellt still auf Software zurueck.
+
+### Ausgabe: YUV bis auf die GPU
+
+Ein Bild bleibt YUV, bis der Shader es umrechnet. Eine CPU-Wandlung nach
+RGBA kostete pro Full-HD-Bild mehrere Millisekunden und schickte 8 statt
+3 MB je Bild zur GPU. Der Decoder packt Y und die verzahnten
+Chroma-Ebenen in **ein** Byte-Slice, das als **eine** RGBA-Textur von
+Stride/4 x Hoehe*1,5 mit einem `WritePixels` hochgeladen wird.
+Ebitengine kennt nur RGBA8, also nimmt der Kage-Shader die Bytes wieder
+auseinander. Zwei Layouts: NV12 fuer 8 Bit, P016 (16 Bit, U und V verzahnt)
+fuer 10 Bit. Planares Chroma (yuv420p) wird beim Kopieren verzahnt, eine
+Schleife ueber ein Viertel des Bildes.
+
+Drei Erkenntnisse aus der Messung, alle am Pi 5 bei 1920x1080 und 60 Hz:
+
+1. **Verzweigungen und Fetches kosten, nicht die Arithmetik.** Die erste
+   Shader-Fassung waehlte das Byte im Texel ueber eine `if`-Kette und holte
+   U und V getrennt: rund 11 ms je Full-HD-Konvertierung. Mit
+   verzweigungsfreier Auswahl ueber eine Maske und verzahntem Chroma (ein
+   Fetch liefert U und V) sind es 6,1 ms mit Nearest-Chroma und 8,7 ms
+   bilinear. Gemessen ohne VSync als Differenz zu einem Lauf, der nur das
+   letzte Bild blittet (11,3 ms je Frame, Compositor eingeschlossen).
+2. **Jeder Vollbild-Durchgang zaehlt** (wie bei `Config.DirectToScreen`
+   bereits fuer den Pi 400 festgehalten). Der Weg ueber eine
+   RGB-Zwischentextur und Ebitengines Offscreen kostet drei Durchgaenge und
+   schaffte nur 43 fps. Konvertieren und Skalieren in **einem** Durchgang
+   direkt auf den Framebuffer (`DrawFinalScreen`) erreicht mit VSync
+   59,4 fps. Die Reserve ist klein: ohne VSync 15,9 ms je Frame mit
+   bilinearem Chroma, 13,1 ms mit Nearest-Chroma.
+3. **Beim Hochskalieren dreht sich das um.** Der fusionierte Shader muesste
+   Luma selbst bilinear interpolieren, vier Fetches je Pixel des grossen
+   Bildes. PAL und HD auf Full HD erreichten so nur 54 bis 57 fps. Hier
+   gewinnt der Zwei-Pass-Weg: Konvertierung in Quellaufloesung, dann ein
+   Blit mit dem Filter der Textureinheit, ebenfalls direkt auf den
+   Framebuffer.
+
+Daraus folgt die Regel des Prototyps (`-mode auto`): Bei Massstab 1 und
+quadratischen Pixeln wird fusioniert, sonst zweistufig. Sie gehoert in den
+Renderer, nicht in die Anwendung.
+
+Der Upload selbst ist unkritisch: 1,1 bis 1,9 ms CPU je Full-HD-Bild, und
+ein Lauf, der jedes Bild hochlaedt und nur blittet, schafft ohne VSync
+83,8 statt 88,3 Bilder/s. Das `glFinish` vor `TexSubImage2D`
+(Abschnitt 11) faellt also nicht ins Gewicht.
+
+### Ton und Clock
+
+Ton laeuft ueber `ebiten/v2/audio`, darunter oto v3.5: PulseAudio in reinem
+Go (auf dem Pi pipewire-pulse), ALSA als Rueckfall per purego. Kein cgo.
+Ein Prozess hat genau einen Audio-Kontext mit fester Rate. Der Decoder
+resampelt deshalb mit libswresample auf diese Rate (48 kHz) und Stereo
+float32. Der Player liefert den Ton als `io.Reader`
+(`AudioStream`), der nie blockiert: Fehlt Ton, gibt er Stille aus, und die
+Clock haelt an.
+
+Master ist das Audiogeraet. Dessen Position springt aber in den Schritten,
+in denen das Geraet Daten holt, und ein Bild, das nach einer springenden
+Clock gewaehlt wird, wird bei 60 Hz abwechselnd doppelt gezeigt und
+uebersprungen. Die Clock ist deshalb eine Wanduhr, die mit einem
+Sechzehntel des Fehlers je Bild an die Audioposition gezogen wird und ab
+60 ms Abweichung springt (`video/clock.go`). Gemessen: Bild zu Clock
+innerhalb eines Bildes (+-17 ms), Korrekturen unter 10 ms, keine
+Audio-Unterlaeufe.
+
+Nach einem Seek gibt der Player einen neuen `AudioStream` aus, weil der
+Ton, den das Geraet schon gepuffert hat, zur alten Position gehoert und
+sich nur mit dem Geraete-Player verwerfen laesst. Seeks sind bildgenau:
+Die Decoder beginnen am Keyframe davor und verwerfen alles vor dem Ziel,
+auch innerhalb eines Audio-Frames.
+
+Eine Sperre ist zu beachten: Ebitengine haelt seinen Mutex, waehrend es
+`Read` aufruft. Die Position des Geraete-Players darf deshalb nie unter dem
+Mutex des Players gelesen werden.
+
+### Messungen der Wiedergabe
+
+Pi 500, Trixie, labwc mit XWayland, 1920x1080 bei 60 Hz, Vollbild, VSync,
+`-mode auto`, je 8 bis 10 s. Material: Big Buck Bunny (Blender
+Foundation, CC BY 3.0), 1080p60, daraus 30 s ab Minute 1 umkodiert
+(x264 `fast` CRF 21, x265 `ultrafast` CRF 24, AAC 160 kbit/s).
+
+| Datei | Decoder | Pfad | Draws/s | spaet | CPU (1 Kern = 100 %) |
+| --- | --- | --- | --- | --- | --- |
+| PAL 16:9 anamorph H.264 25p | SW | zweistufig | 59,8 | 0 | 17 % |
+| PAL 16:9 H.264 50i, Bob | SW | zweistufig | 59,8 | 0 | 18 % |
+| HD H.264 50p | SW | zweistufig | 59,8 | 1 | 43 % |
+| HD H.264 60p | SW | zweistufig | 59,8 | 2 | 48 % |
+| Full HD H.264 60p | SW | fusioniert | 59,4 | 19 | 81 % |
+| Full HD HEVC 60p | SW | fusioniert | 59,5 | 2 | 83 % |
+| Full HD HEVC 60p | HW | fusioniert | 59,7 | 4 | 45 % |
+| Full HD HEVC 60p 10 Bit | HW | fusioniert | 57,6 | 18 | 82 % |
+| Full HD HEVC 60p 10 Bit | SW | fusioniert | 48,7 | 102 | 204 % |
+
+„spaet“ zaehlt Bilder, die verworfen wurden, weil schon das naechste
+faellig war. Seitenverhaeltnisse (PAL 4:3 mit Pillarbox, 16:9 anamorph
+entzerrt) und Farben (BT.601 fuer SD, BT.709 fuer HD, begrenzter
+Wertebereich) wurden per Screenshot geprueft, nicht messtechnisch.
+
+Zwei Fallen, die beim Messen auffielen:
+
+- `swayidle` schaltet den Ausgang nach 600 s ohne Eingabe per `wlopm`
+  ab. Danach liefert XWayland keine Frame-Callbacks, und jeder Swap mit
+  VSync wartet eine Sekunde. **Ein Videoplayer muss den Bildschirmschoner
+  waehrend der Wiedergabe sperren** (AVPlayers
+  `preventsDisplaySleepDuringVideoPlayback`). Wie das unter labwc aus einem
+  XWayland-Fenster geht, ist offen, siehe unten.
+- Auf dem Framebuffer des OpenGL-Backends laeuft `dstPos` von unten nach
+  oben. Der fusionierte Shader rechnet seine Position deshalb aus den
+  Quellkoordinaten der Vertices.
+
+### API
+
+AVFoundations Vokabular, gifts Form. Der Player ist ein Objekt mit
+Lebensdauer und gehoert deshalb in den State der Anwendung, nicht in einen
+View; der View ist ein Fenster auf ihn.
+
+```go
+p, err := video.Open(path, video.Options{HW: true})    // AVPlayer(url:)
+p.Play(); p.Pause(); p.Seek(90 * time.Second)          // seek(to:) bildgenau
+p.CurrentTime(); p.Duration()                          // currentTime(), duration
+p.Status()            // StatusUnknown, StatusReadyToPlay, StatusFailed
+p.TimeControlStatus() // Paused, WaitingToPlay, Playing
+p.SetVolume(0.8); p.SetMuted(true); p.SetLoop(true)    // AVPlayerLooper light
+p.AudioTracks(); p.SelectAudioTrack(1)                 // select(_:in:), audible
+p.OnEnd(func() { ... })                                // DidPlayToEndTime
+
+videoplayer.New(p).                    // SwiftUI VideoPlayer(player:)
+	Gravity(videoplayer.ResizeAspect). // AVLayerVideoGravity: Aspect, AspectFill, Resize
+	CornerRadius(12).
+	AutoHide(3 * time.Second)
+videoplayer.Surface(p).OnTap(f)        // nur das Bild, fuer eigene Controls
+```
+
+Die Komponente liegt in einem Unterpaket von `ui`, wie `ui/filepicker`:
+`ui` bleibt ohne Abhaengigkeit auf `video` und damit auf das FFmpeg-Binding.
+
+Bewusst nicht umgesetzt:
+
+- `AddPeriodicTimeObserver`. Die Controls bauen sich ueber einen Token-Tick
+  neu auf, viermal je Sekunde, solange sie sichtbar sind und das Video
+  laeuft; die Positionsleiste malt sich jeden Frame aus dem Player, ohne
+  Build (Abschnitt 11).
+- Eine Quelle ueber `asset.Source` statt eines Pfades. libavformat liest
+  ueber `AVIOContext` auch aus Go, das braeuchte aber Callbacks aus
+  FFmpeg-Threads nach Go, die bisher vermieden sind. Pfade und `file:`-URLs.
+
+### Integration in render und backend/ebiten
+
+- **Ein neuer Ressourcentyp statt `render.Images`.** Ein Bild ist dort
+  unveraenderlich, budgetiert und verdraengbar; ein Video ist eine
+  Textur, die jeden Frame neu beschrieben wird. Vorschlag:
+  `render.Videos` mit `Acquire(w, h, layout)`, `Update(handle, Pixels)` und
+  einer eigenen Op oder einem `ImageFormat`, das die YUV-Materialien
+  waehlt. Ein Video-Upload je gezeichnetem Frame wird nicht gegen das
+  Thumbnail-Budget gerechnet.
+- **Zwei Materialien in `backend/ebiten`**, die beiden Shader des
+  Prototyps. Die Pfadwahl aus Massstab und Pixelseitenverhaeltnis trifft
+  der Renderer. Abgerundete Ecken bekommt das Video wie
+  `roundimage.kage` ueber die Abdeckung derselben Distanzfunktion.
+- **Fusioniert nur mit `DirectToScreen`.** Ohne liegt immer Ebitengines
+  Offscreen dazwischen. Ein Video, das nicht die oberste Ebene ist (ein
+  Overlay darueber), braucht ohnehin die Reihenfolge der Display-Liste;
+  fusioniert heisst dann nur: kein Zwischenziel fuer die RGB-Wandlung.
+- **DrawOnDemand.** Ein spielender Player haelt seinen Knoten ueber
+  `Animate` fuer Repaints offen, ein pausierter nicht.
+- **Interlaced** wird im Prototyp mit Bob auf 50 Halbbilder je Sekunde
+  gezeigt, das Halbbild waehlt die Clock. Fuer bessere Qualitaet waere
+  bwdif aus libavfilter die naechste Stufe (weitere Bindung).
+
+### Offen und Risiken
+
+- **10 Bit in Full HD 60p** ist mit Hardwaredecoder knapp (57,6 fps), in
+  Software nicht machbar. Der Transfer aus dem SAND-Format des Decoders
+  kostet CPU. Naechste Versuche: Transfer in ein 8-Bit-Format, falls das
+  rpt-FFmpeg ihn anbietet, oder DRM-PRIME-Frames als dmabuf ohne Kopie, was
+  aber an Ebitengine vorbei auf GL-Ebene ginge.
+- **Bildschirmschoner.** swayidle wertet das Wayland-Protokoll
+  idle-inhibit aus, das ein XWayland-Fenster nicht sprechen kann.
+  Kandidaten: `org.freedesktop.ScreenSaver.Inhibit` ueber D-Bus in reinem
+  Go, falls labwc oder ein Dienst es auswertet, oder das Kiosk-Image ohne
+  swayidle. Muss auf dem Zielimage geklaert werden; auch der umgesetzte
+  Player sperrt den Bildschirmschoner noch nicht.
+- **Kadenz.** 25p auf 60 Hz zeigt Bilder abwechselnd zwei- und dreimal.
+  Das ist systembedingt; ein Kiosk mit PAL-Material sollte den Ausgang auf
+  50 Hz stellen. Bei 60p auf 60 Hz verwirft H.264 in Software einige
+  Bilder je 10 s (siehe Tabelle); mit Nearest-Chroma sind es weniger
+  (13 statt 19 in 8 s). Die Bildwahl koennte sich ausserdem an die
+  gemessene VSync-Phase haengen.
+- **ABI-Pflege.** Jede neue FFmpeg-Major braucht eine Tabelle. Ohne
+  Tabelle meldet das Paket `ErrUnavailable`, es liest nie mit falschen
+  Offsets.
+- **Recht.** H.264 und H.265 sind patentbelastet, wie HEIF (Abschnitt 22).
+  gift liefert keinen Codec aus, decodiert wird mit dem FFmpeg des Systems.
+  Ob und welche Lizenzen der Betreiber eines Geraets braucht, klaert er
+  selbst. Dies ist keine Rechtsberatung.
+- **Nicht betrachtet:** Untertitel, mehrere Tonspuren, HDR, Streaming
+  ueber Netz, Wiedergaberaten ungleich 1, Mehrkanal-Downmix-Qualitaet
+  (libswresample mischt 5.1 auf Stereo).
+
+### Umsetzung in gift
+
+Der Prototyp ist in gift aufgegangen, mit den Entscheidungen von oben und
+drei Korrekturen aus der Messung im echten Framework.
+
+- **Vertrag.** `render.OpVideo` ist eine eigene Op-Art (Bounds, Color,
+  CornerRadius und Fit wie bei `OpImage`, Image ist eine Video-Id). Den
+  Dienst dazu stellt das Backend als `render.Videos` bereit
+  (`Present`/`Resolve`/`Release`), den Ton als `render.AudioOutput`. Beide
+  reicht `App.SetVideos` an `PaintContext.Videos` und `PaintContext.Audio`
+  weiter, auf demselben Weg wie `Images`. Ein Video ist nicht Teil des
+  Bildbudgets und wird nie verdraengt.
+- **Backend.** `backend/ebiten/video.go` haelt je Video eine YUV- und eine
+  RGB-Textur. Die Pfadwahl aus "Ausgabe" trifft `Renderer.appendVideo` je
+  Operation: direkt (ein Bildpixel je Geraetepixel, eckig, ohne Tint,
+  progressiv) mit `videodirect.kage`, sonst einmal je neuem Bild nach RGB
+  und weiter wie ein Bild, mit Filter, Eckenradius und Tint. Gecachte
+  Ebenen vergleichen ein Video ueber einen Stempel, der sich mit jedem
+  Bild aendert.
+- **Ton.** `audioOutput` oeffnet Ebitengines Audio-Kontext beim ersten
+  Strom und nimmt einen vorhandenen; `Config.AudioSampleRate` ist 48 kHz.
+  Der Player verwaltet die Geraete-Player selbst (`AttachAudio`) und
+  resampelt, falls das Geraet eine andere Rate hat. Ohne Geraet laeuft
+  die Clock auf der Wanduhr und der Ton wird im Takt verworfen; das ist
+  der Headless-Fall von `gifttest`.
+- **Tonspuren.** `ffmpeg.File` listet alle Audiostroeme mit Sprache, Titel
+  und Kanaelen (`AVStream.metadata` kam in die ABI-Tabellen) und wechselt
+  per `SetAudioTrack`; der Player macht daraus `SelectAudioTrack`, einen
+  Seek an die aktuelle Position mit dem Decoder der neuen Spur. Die
+  ABI-Tabellen umfassen jetzt auch FFmpeg 9.0 (Homebrew).
+- **Komponente.** `ui/videoplayer` bringt `Surface` (nur das Bild) und
+  `New` (Bild mit Controls im Stil von iOS): Play/Pause zwischen
+  Spruengen von 10 s, Positionsleiste mit verstrichener und
+  verbleibender Zeit, Lautstaerke mit Stummschalter, Tonspurmenue.
+  Kleinstes Touch-Ziel 44 Pixel, passend fuer 800x480. Die Leiste ist
+  ein eigenes Control und kein `ui.Slider`, weil sie das Ende eines Zugs
+  kennen muss: waehrend des Ziehens wird viermal je Sekunde gesucht,
+  exakt erst beim Loslassen.
+
+Die drei Korrekturen, alle am Pi 5 gemessen, Vollbild 1920x1080:
+
+1. **Kein Hintergrund unter dem Bild.** Mit dem schwarzen Hintergrund der
+   Flaeche und dem von `ui.Window` lagen zwei Vollbildfuellungen unter dem
+   Video; FullHD 60p schaffte so 49 fps. Die Flaeche fuellt jetzt nur die
+   Balken neben dem Bild, und das Beispiel nutzt kein `ui.Window`: 60,0 fps.
+2. **Kein Scrim unter den Controls.** Eine durchscheinende Abdunklung des
+   ganzen Bildes kostete bei sichtbaren Controls 1 bis 2 fps (58,4 statt
+   60). Die Pillen hinter den Controls geben genug Kontrast.
+3. **`DirectToScreen` ist Pflicht** fuer FullHD 60p, sonst liegt Ebitengines
+   Offscreen dazwischen.
+
+Gemessen mit `cmd/example-video -fullscreen -stats`, je 15 bis 20 s, Werte
+nach dem Start:
+
+| Datei | Decoder | Pfad | Controls | Frames/s |
+| --- | --- | --- | --- | --- |
+| Full HD H.264 60p | SW | direkt | aus | 60,0 |
+| Full HD H.264 60p | SW | direkt | sichtbar | 60,0 |
+| Full HD HEVC 60p | SW | direkt | sichtbar | 60,0 |
+| Full HD HEVC 60p | HW | direkt | sichtbar | 60,0 |
+| HD H.264 50p / 60p | SW | konvertiert | sichtbar | 60,0 |
+| PAL 16:9 H.264 25p | SW | konvertiert | sichtbar | 60,0 |
+
+Auf dem Mac (FFmpeg 9.0 aus Homebrew, Metal) laufen Binding, Player und
+Komponente ebenso; Tests: `video`, `video/ffmpeg` und `ui/videoplayer`
+mit einem Testclip von drei Sekunden und zwei Tonspuren
+(`video/testdata/bbb.mp4`), `backend/ebiten/video_test.go` fuer die
+Pfadwahl. Sie werden uebersprungen, wo FFmpeg fehlt.
+
+### Offen
+
+1. Bildschirmschoner waehrend der Wiedergabe sperren, auf dem Zielimage
+   verifiziert.
+2. 10 Bit in Full HD 60p (Hardware: 57,6 fps im Prototyp).
+3. Untertitel, Wiedergaberaten ungleich 1, Quellen ueber `asset.Source`.
+4. GPU-Golden-Tests je Layout und Matrix der beiden Video-Shader.
 
 ## Quellen der Architekturpruefung
 

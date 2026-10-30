@@ -79,6 +79,13 @@ var exampleShots = []exampleShot{
 		{"op":"waitFrames","frames":4}
 	]}`},
 	{Name: "example-effects", Args: []string{"-quality=full"}, Settle: 30},
+	// A five inch panel; the tap on the play button pauses the clip, so that the shot shows the play symbol and
+	// the same picture every time, with the controls kept by -autohide 0.
+	{Name: "example-video", Args: []string{"-width", "800", "-height", "480", "-autohide", "0", "-loop=false"}, Settle: 20, Input: `{"steps":[
+		{"op":"waitFrames","frames":60},
+		{"op":"tap","x":400,"y":240},
+		{"op":"waitFrames","frames":10}
+	]}`},
 }
 
 func main() {

@@ -614,7 +614,7 @@
       },
       "Config": {
         "synopsis": "Config configures the window and the frame loop of Run.",
-        "decl": "type Config struct {\n\tTitle                         string\n\tX11ClassName, X11InstanceName string\n\tWidth, Height                 int\n\tLogger                        *slog.Logger\n\tTPS                           int\n\tIdleTPS                       int\n\tIdleFrames                    int\n\tDrawOnDemand                  bool\n\tDirectToScreen                bool\n\tNominalFrameInterval          time.Duration\n\tIntervalTolerance             time.Duration\n\tWarmupFrames                  int\n\tOnRenderer                    func(*Renderer)\n\tOnUpdate                      func() error\n\tAssetStats                    func() metrics.AssetStats\n\tGlassQuality                  render.GlassQuality\n\tNoInput                       bool\n}",
+        "decl": "type Config struct {\n\tTitle                         string\n\tX11ClassName, X11InstanceName string\n\tWidth, Height                 int\n\tLogger                        *slog.Logger\n\tTPS                           int\n\tIdleTPS                       int\n\tIdleFrames                    int\n\tDrawOnDemand                  bool\n\tDirectToScreen                bool\n\tNominalFrameInterval          time.Duration\n\tIntervalTolerance             time.Duration\n\tWarmupFrames                  int\n\tAudioSampleRate               int\n\tOnRenderer                    func(*Renderer)\n\tOnUpdate                      func() error\n\tAssetStats                    func() metrics.AssetStats\n\tGlassQuality                  render.GlassQuality\n\tNoInput                       bool\n}",
         "constructors": [],
         "methods": []
       },
@@ -875,12 +875,17 @@
             "name": "Textures",
             "signature": "Textures() *TextureCache",
             "synopsis": "Textures returns the texture cache, for TextureStats and for a test that wants a small budget in order to observe admission and eviction."
+          },
+          {
+            "name": "Videos",
+            "signature": "Videos() render.Videos",
+            "synopsis": "Videos returns the video picture service, which Run installs into the app through gift.App.SetVideos."
           }
         ]
       },
       "RendererStats": {
         "synopsis": "RendererStats are the counters of the renderer.",
-        "decl": "type RendererStats struct {\n\tFrames                                                  uint64\n\tBatches                                                 uint64\n\tShapeBatches, GlyphBatches                              uint64\n\tImageBatches                                            uint64\n\tImageOps                                                uint64\n\tRoundImageOps                                           uint64\n\tGlyphQuads                                              uint64\n\tShadowOps, ShadowSharpOps                               uint64\n\tGlassOps, GlassReducedOps, GlassFullOps, GlassFallbacks uint64\n\tGlassPasses                                             uint64\n\tGlassDrawCalls                                          uint64\n\tGlassLate                                               uint64\n\tGlassStaticOps, GlassStaticBlurs                        uint64\n\tGlassLevel                                              render.GlassQuality\n\tGlassPinned                                             bool\n\tOps                                                     uint64\n\tSkippedNone                                             uint64\n\tSkippedTransparent                                      uint64\n\tSkippedEmptyBounds                                      uint64\n\tSkippedEmptyClip                                        uint64\n\tSkippedOutsideClip                                      uint64\n\tSkippedZeroStroke                                       uint64\n\tSkippedNoImage                                          uint64\n\tSkippedEmptyText                                        uint64\n\tUnknownKinds                                            uint64\n\tLayers                                                  LayerStats\n}",
+        "decl": "type RendererStats struct {\n\tFrames                                                  uint64\n\tBatches                                                 uint64\n\tShapeBatches, GlyphBatches                              uint64\n\tImageBatches                                            uint64\n\tImageOps                                                uint64\n\tVideoOps, VideoDirectOps                                uint64\n\tRoundImageOps                                           uint64\n\tGlyphQuads                                              uint64\n\tShadowOps, ShadowSharpOps                               uint64\n\tGlassOps, GlassReducedOps, GlassFullOps, GlassFallbacks uint64\n\tGlassPasses                                             uint64\n\tGlassDrawCalls                                          uint64\n\tGlassLate                                               uint64\n\tGlassStaticOps, GlassStaticBlurs                        uint64\n\tGlassLevel                                              render.GlassQuality\n\tGlassPinned                                             bool\n\tOps                                                     uint64\n\tSkippedNone                                             uint64\n\tSkippedTransparent                                      uint64\n\tSkippedEmptyBounds                                      uint64\n\tSkippedEmptyClip                                        uint64\n\tSkippedOutsideClip                                      uint64\n\tSkippedZeroStroke                                       uint64\n\tSkippedNoImage                                          uint64\n\tSkippedEmptyText                                        uint64\n\tUnknownKinds                                            uint64\n\tLayers                                                  LayerStats\n}",
         "constructors": [],
         "methods": [
           {
@@ -1009,6 +1014,34 @@
         "decl": "type TextureStats struct {\n\tUploads                                                  uint64\n\tUploadedBytes                                            uint64\n\tDeferred                                                 uint64\n\tRejected                                                 uint64\n\tMalformed                                                uint64\n\tResolves, Stale                                          uint64\n\tEvictions, AgeEvictions, ExplicitReleases, Deallocations uint64\n\tTextures                                                 int\n\tBytes                                                    int64\n\tPeakTextures                                             int\n\tPeakBytes                                                int64\n}",
         "constructors": [],
         "methods": []
+      },
+      "VideoCache": {
+        "synopsis": "VideoCache is the render.Videos of this backend: one YUV texture per video, written once per new picture, and an RGB texture beside it for the frames that cannot convert in the pass that draws.",
+        "decl": "type VideoCache struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "NewVideoCache",
+            "signature": "NewVideoCache() (*VideoCache, error)",
+            "synopsis": "NewVideoCache compiles the two conversion shaders."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Present",
+            "signature": "Present(h render.ImageHandle, f render.VideoFrame) (render.ImageHandle, bool)",
+            "synopsis": "Present implements render.Videos."
+          },
+          {
+            "name": "Release",
+            "signature": "Release(h render.ImageHandle)",
+            "synopsis": "Release implements render.Videos."
+          },
+          {
+            "name": "Resolve",
+            "signature": "Resolve(h render.ImageHandle) (render.ImageID, bool)",
+            "synopsis": "Resolve implements render.Videos."
+          }
+        ]
       }
     },
     "funcs": [
@@ -1036,6 +1069,217 @@
         "name": "ShapeShaderSource",
         "signature": "ShapeShaderSource() []byte",
         "synopsis": "ShapeShaderSource returns the Kage source of the shared shape shader."
+      }
+    ]
+  },
+  "ffmpeg": {
+    "importPath": "github.com/worldiety/gift/video/ffmpeg",
+    "synopsis": "Package ffmpeg demultiplexes and decodes video and audio through the FFmpeg libraries of the system, loaded at run time with purego.",
+    "types": {
+      "AudioDecoder": {
+        "synopsis": "AudioDecoder decodes the audio stream of a File to interleaved float32 stereo.",
+        "decl": "type AudioDecoder struct {\n\t// Has unexported fields.\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Codec",
+            "signature": "Codec() string",
+            "synopsis": "Codec is the name of the codec."
+          },
+          {
+            "name": "Flush",
+            "signature": "Flush()",
+            "synopsis": "Flush drops everything buffered in the decoder and the resampler."
+          },
+          {
+            "name": "Receive",
+            "signature": "Receive(buf []float32) ([]float32, time.Duration, error)",
+            "synopsis": "Receive decodes the next frame, appends its samples to buf as interleaved stereo float32 at the output rate and returns the extended slice with the presentation time of the first appended sample."
+          },
+          {
+            "name": "Send",
+            "signature": "Send(p *Packet) error",
+            "synopsis": "Send is VideoDecoder.Send for audio."
+          },
+          {
+            "name": "SetRate",
+            "signature": "SetRate(rate int)",
+            "synopsis": "SetRate changes the output sample rate from the next frame on."
+          }
+        ]
+      },
+      "AudioTrack": {
+        "synopsis": "AudioTrack describes one audio stream of a file.",
+        "decl": "type AudioTrack struct {\n\tStream     int\n\tCodec      string\n\tLanguage   string\n\tTitle      string\n\tChannels   int\n\tSampleRate int\n\tDefault    bool\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "File": {
+        "synopsis": "File is an opened media file.",
+        "decl": "type File struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Open",
+            "signature": "Open(path string, opt Options) (*File, error)",
+            "synopsis": "Open opens path, finds the best video and audio stream and opens a decoder for each."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Audio",
+            "signature": "Audio() *AudioDecoder",
+            "synopsis": "Audio is the decoder of the audio stream, or nil."
+          },
+          {
+            "name": "AudioTrack",
+            "signature": "AudioTrack() int",
+            "synopsis": "AudioTrack is the index into File.AudioTracks of the stream that plays, or -1 for a file without sound."
+          },
+          {
+            "name": "AudioTracks",
+            "signature": "AudioTracks() []AudioTrack",
+            "synopsis": "AudioTracks lists the audio streams of the file."
+          },
+          {
+            "name": "Close",
+            "signature": "Close()",
+            "synopsis": "Close releases the decoders and the file."
+          },
+          {
+            "name": "Info",
+            "signature": "Info() Info",
+            "synopsis": "Info describes the file."
+          },
+          {
+            "name": "ReadPacket",
+            "signature": "ReadPacket() (*Packet, error)",
+            "synopsis": "ReadPacket reads the next packet of the video or the audio stream; packets of other streams are skipped."
+          },
+          {
+            "name": "Seek",
+            "signature": "Seek(t time.Duration) error",
+            "synopsis": "Seek moves the read position to the last key frame at or before t."
+          },
+          {
+            "name": "SetAudioRate",
+            "signature": "SetAudioRate(rate int)",
+            "synopsis": "SetAudioRate changes the output rate of every audio decoder of the file, taking effect with the next decoded frame."
+          },
+          {
+            "name": "SetAudioTrack",
+            "signature": "SetAudioTrack(i int) error",
+            "synopsis": "SetAudioTrack makes track i of File.AudioTracks the one File.ReadPacket reads and File.Audio decodes."
+          },
+          {
+            "name": "Video",
+            "signature": "Video() *VideoDecoder",
+            "synopsis": "Video is the decoder of the video stream, or nil."
+          }
+        ]
+      },
+      "Frame": {
+        "synopsis": "Frame is one decoded picture.",
+        "decl": "type Frame struct {\n\tPTS            time.Duration\n\tDuration       time.Duration\n\tWidth, Height  int\n\tSARNum, SARDen int\n\tLayout         Layout\n\tMatrix         Matrix\n\tFullRange      bool\n\tInterlaced     bool\n\tTopFieldFirst  bool\n\tStride         int\n\tPix            []byte\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "TextureSize",
+            "signature": "TextureSize() (w, h int)",
+            "synopsis": "TextureSize is the size of Pix read as RGBA texels."
+          }
+        ]
+      },
+      "Info": {
+        "synopsis": "Info describes an opened file.",
+        "decl": "type Info struct {\n\tDuration       time.Duration\n\tHasVideo       bool\n\tVideoCodec     string\n\tWidth          int\n\tHeight         int\n\tSARNum, SARDen int\n\tFrameRate      float64\n\tHasAudio       bool\n\tAudioCodec     string\n\tAudioRate      int\n\tAudioChannels  int\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "DisplayAspect",
+            "signature": "DisplayAspect() float64",
+            "synopsis": "DisplayAspect is the width to height ratio the picture is meant to be shown at, which differs from Width/Height for anamorphic material."
+          }
+        ]
+      },
+      "Kind": {
+        "synopsis": "Kind says which decoder a Packet belongs to.",
+        "decl": "type Kind uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "Layout": {
+        "synopsis": "Layout is how a Frame packs its planes into Frame.Pix.",
+        "decl": "type Layout uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "Matrix": {
+        "synopsis": "Matrix is the YUV to RGB matrix a frame was encoded with.",
+        "decl": "type Matrix uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "Options": {
+        "synopsis": "Options configure Open.",
+        "decl": "type Options struct {\n\tHW        bool\n\tThreads   int\n\tAudioRate int\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Packet": {
+        "synopsis": "Packet is one compressed unit of one stream.",
+        "decl": "type Packet struct{ Kind Kind \t// Has unexported fields.\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Free",
+            "signature": "Free()",
+            "synopsis": "Free releases the packet."
+          }
+        ]
+      },
+      "VideoDecoder": {
+        "synopsis": "VideoDecoder decodes the video stream of a File.",
+        "decl": "type VideoDecoder struct {\n\t// Has unexported fields.\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Codec",
+            "signature": "Codec() string",
+            "synopsis": "Codec is the name of the codec, \"h264\" or \"hevc\"."
+          },
+          {
+            "name": "Flush",
+            "signature": "Flush()",
+            "synopsis": "Flush drops everything buffered in the decoder, after a seek."
+          },
+          {
+            "name": "HW",
+            "signature": "HW() string",
+            "synopsis": "HW is the name of the hardware device decoding is attached to, or \"\"."
+          },
+          {
+            "name": "Receive",
+            "signature": "Receive(dst *Frame) error",
+            "synopsis": "Receive decodes the next frame into dst, reusing its buffer."
+          },
+          {
+            "name": "Send",
+            "signature": "Send(p *Packet) error",
+            "synopsis": "Send hands one packet to the decoder and takes ownership of it."
+          }
+        ]
+      }
+    },
+    "funcs": [
+      {
+        "name": "Available",
+        "signature": "Available() bool",
+        "synopsis": "Available reports whether the libraries were found and bound."
+      },
+      {
+        "name": "Versions",
+        "signature": "Versions() (util, codec, format uint32)",
+        "synopsis": "Versions returns the majors of libavutil, libavcodec and libavformat, or zeros when the libraries are not loaded."
       }
     ]
   },
@@ -1509,6 +1753,11 @@
         ],
         "methods": [
           {
+            "name": "Audio",
+            "signature": "Audio() render.AudioOutput",
+            "synopsis": "Audio returns the sound device installed by App.SetVideos, or nil."
+          },
+          {
             "name": "BeginInput",
             "signature": "BeginInput(now time.Duration)",
             "synopsis": "BeginInput opens the input phase of one tick and advances the clock to now."
@@ -1659,6 +1908,11 @@
             "synopsis": "NodeValid reports whether r still refers to a live node."
           },
           {
+            "name": "NodeValue",
+            "signature": "NodeValue(r NodeRef) string",
+            "synopsis": "NodeValue returns the value the node's control reports, or the empty string for a node whose interactor is not a ValueReporter and for a stale reference."
+          },
+          {
             "name": "NodeVisibleBounds",
             "signature": "NodeVisibleBounds(r NodeRef) (geom.Rect, bool)",
             "synopsis": "NodeVisibleBounds returns the part of the node that survives the clips of its ancestors, and whether any of it does."
@@ -1739,6 +1993,11 @@
             "synopsis": "SetModifiers records which modifier keys are currently held."
           },
           {
+            "name": "SetVideos",
+            "signature": "SetVideos(v render.Videos, out render.AudioOutput)",
+            "synopsis": "SetVideos installs the video picture service and the sound device a painter reaches through PaintContext.Videos and PaintContext.Audio."
+          },
+          {
             "name": "SoftKeyboardRequested",
             "signature": "SoftKeyboardRequested() bool",
             "synopsis": "SoftKeyboardRequested reports whether the focused node asked for an on-screen keyboard; see EventContext.RequestSoftKeyboard."
@@ -1752,6 +2011,11 @@
             "name": "Update",
             "signature": "Update(viewport geom.Size) error",
             "synopsis": "Update runs build, reconciliation and layout."
+          },
+          {
+            "name": "Videos",
+            "signature": "Videos() render.Videos",
+            "synopsis": "Videos returns the service installed by App.SetVideos, or nil."
           },
           {
             "name": "Viewport",
@@ -1828,7 +2092,7 @@
       },
       "ControlState": {
         "synopsis": "ControlState is the retained presentation state of one control: the gesture it is in the middle of, and the animation it is in the middle of.",
-        "decl": "type ControlState struct {\n\tGrabbed bool\n\tGrab    float32\n\tTarget  float32\n\tFrom    float32\n\tStart   time.Duration\n\tAt      geom.Point\n\tArmed   bool\n}",
+        "decl": "type ControlState struct {\n\tGrabbed bool\n\tGrab    float32\n\tTarget  float32\n\tFrom    float32\n\tStart   time.Duration\n\tAt      geom.Point\n\tArmed   bool\n\tEntry   EntryState\n}",
         "constructors": [],
         "methods": []
       },
@@ -1841,6 +2105,12 @@
       "Element": {
         "synopsis": "Element is the description of one retained node.",
         "decl": "type Element struct {\n\tKey            string\n\tLabel          string\n\tLayouter       Layouter\n\tPainter        Painter\n\tChildren       []View\n\tFlex           float32\n\tInteractor     Interactor\n\tFocusable      bool\n\tDisabled       bool\n\tObstructs      bool\n\tClip           bool\n\tTransform      *geom.Affine2D\n\tScroll         *ScrollSpec\n\tHidden         bool\n\tLayer          bool\n\tFocusTrap      bool\n\tTransition     TransitionSpec\n\tKeyFallback    bool\n\tPreservesFocus bool\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "EntryState": {
+        "synopsis": "EntryState is the retained state of a control whose value is entered part by part: the hour and the minute of a ui.TimeField, the day, the month and the year of a ui.DateField.",
+        "decl": "type EntryState struct {\n\tPart     int8\n\tDigits   int8\n\tTypedAt  time.Duration\n\tValues   [3]int32\n\tFilled   uint8\n\tAdvanced bool\n\tWheel    float32\n}",
         "constructors": [],
         "methods": []
       },
@@ -2192,6 +2462,11 @@
             "synopsis": "AppendGlyph appends one positioned glyph to the display list."
           },
           {
+            "name": "Audio",
+            "signature": "Audio() render.AudioOutput",
+            "synopsis": "Audio returns the backend's sound device, or nil when there is none."
+          },
+          {
             "name": "Bounds",
             "signature": "Bounds() geom.Rect",
             "synopsis": "Bounds returns the absolute rectangle of the node being painted, as computed by the last layout pass."
@@ -2275,6 +2550,11 @@
             "name": "TransitionPhase",
             "signature": "TransitionPhase() float32",
             "synopsis": "TransitionPhase returns how far the subtree being painted is through a transition: 0 at rest, 1 fully parked."
+          },
+          {
+            "name": "Videos",
+            "signature": "Videos() render.Videos",
+            "synopsis": "Videos returns the backend's video picture service, or nil when there is none."
           }
         ]
       },
@@ -2405,6 +2685,12 @@
             "synopsis": "RegisterType registers a view type under the given name and returns its TypeID."
           }
         ],
+        "methods": []
+      },
+      "ValueReporter": {
+        "synopsis": "ValueReporter is implemented by an Interactor whose node edits a value, so that a tool outside the frame path can read what the control holds.",
+        "decl": "type ValueReporter interface{ AccessibleValue(st ControlState) string }",
+        "constructors": [],
         "methods": []
       },
       "View": {
@@ -2836,6 +3122,11 @@
             "synopsis": "AssertType fails unless the node was built from the view type registered under want, such as \"ui.Button\"."
           },
           {
+            "name": "AssertValue",
+            "signature": "AssertValue(want string) Node",
+            "synopsis": "AssertValue fails unless the value the node's control reports is exactly want; see Node.Value."
+          },
+          {
             "name": "AssertVisible",
             "signature": "AssertVisible() Node",
             "synopsis": "AssertVisible fails when the node is entirely clipped away by an ancestor, naming the clip that removed it."
@@ -3019,6 +3310,11 @@
             "name": "Type",
             "signature": "Type() string",
             "synopsis": "Type returns the registered name of the view type the node was built from, such as \"ui.Button\"."
+          },
+          {
+            "name": "Value",
+            "signature": "Value() string",
+            "synopsis": "Value returns what the node's control holds, as gift.App.NodeValue reports it: the text of a field, \"09:30\" of a time field, \"\" for a node that edits no value."
           },
           {
             "name": "VisibleBounds",
@@ -3539,6 +3835,232 @@
           }
         ],
         "methods": []
+      },
+      "Date": {
+        "synopsis": "Date is a day in the proleptic Gregorian calendar, without a time and without a location, or no day at all.",
+        "decl": "type Date struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "DateFrom",
+            "signature": "DateFrom(t time.Time) Date",
+            "synopsis": "DateFrom returns the day t falls on in t's own location."
+          },
+          {
+            "name": "DateOf",
+            "signature": "DateOf(year int, month time.Month, day int) Date",
+            "synopsis": "DateOf returns the given day."
+          },
+          {
+            "name": "ParseDate",
+            "signature": "ParseDate(s string) (Date, error)",
+            "synopsis": "ParseDate reads a date the way a DateFieldView accepts one from the clipboard: \"26.10.2026\", \"26.10.26\", \"2026-10-26\", \"26/10/2026\", \"26102026\" or \"261026\"."
+          }
+        ],
+        "methods": [
+          {
+            "name": "At",
+            "signature": "At(t TimeOfDay, loc *time.Location) time.Time",
+            "synopsis": "At returns the instant d at the time of day t in loc, which is how the value of a DateFieldView and a TimeFieldView next to it become one time.Time."
+          },
+          {
+            "name": "Day",
+            "signature": "Day() int",
+            "synopsis": ""
+          },
+          {
+            "name": "IsZero",
+            "signature": "IsZero() bool",
+            "synopsis": "IsZero reports whether d is no day at all."
+          },
+          {
+            "name": "MarshalText",
+            "signature": "MarshalText() ([]byte, error)",
+            "synopsis": "MarshalText implements encoding.TextMarshaler with Date.String: \"2026-10-26\", and \"\" for the zero value."
+          },
+          {
+            "name": "Month",
+            "signature": "Month() time.Month",
+            "synopsis": ""
+          },
+          {
+            "name": "String",
+            "signature": "String() string",
+            "synopsis": "String formats d as \"YYYY-MM-DD\", the order that sorts, and the zero value as \"\"."
+          },
+          {
+            "name": "Time",
+            "signature": "Time(loc *time.Location) time.Time",
+            "synopsis": "Time returns midnight at the start of d in loc."
+          },
+          {
+            "name": "UnmarshalText",
+            "signature": "UnmarshalText(b []byte) error",
+            "synopsis": "UnmarshalText implements encoding.TextUnmarshaler."
+          },
+          {
+            "name": "Year",
+            "signature": "Year() int",
+            "synopsis": "Year, Month and Day return the parts of the date, all zero for the zero value."
+          }
+        ]
+      },
+      "DateFieldView": {
+        "synopsis": "DateFieldView is a field for a calendar day, entered as three parts in the order day, month, year: 26.10.2026.",
+        "decl": "type DateFieldView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "DateField",
+            "signature": "DateField() DateFieldView",
+            "synopsis": "DateField returns an empty date field."
+          }
+        ],
+        "methods": [
+          {
+            "name": "ActivePartColor",
+            "signature": "ActivePartColor(background, foreground Color) DateFieldView",
+            "synopsis": "ActivePartColor sets the highlight of the part that has the keyboard and the colour of its digits; see TimeFieldView.ActivePartColor."
+          },
+          {
+            "name": "Background",
+            "signature": "Background(b Background) DateFieldView",
+            "synopsis": "Background fills the bounds behind the parts, replacing ColorControl."
+          },
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[Date]) DateFieldView",
+            "synopsis": "Bind connects the field to a gift.State holding the day, in both directions; see TimeFieldView.Bind."
+          },
+          {
+            "name": "Border",
+            "signature": "Border(b Border) DateFieldView",
+            "synopsis": "Border strokes the inside of the bounds, replacing the themed hairline."
+          },
+          {
+            "name": "Clip",
+            "signature": "Clip(b bool) DateFieldView",
+            "synopsis": "Clip is accepted only as Clip(true), which is what the field already does; see TextFieldView.Clip."
+          },
+          {
+            "name": "CornerRadius",
+            "signature": "CornerRadius(f float32) DateFieldView",
+            "synopsis": "CornerRadius rounds the background and the border."
+          },
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) DateFieldView",
+            "synopsis": "Disabled takes the field out of input, like TextFieldView.Disabled."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) DateFieldView",
+            "synopsis": "Flex makes the field take a share of the remaining main axis space of its parent stack."
+          },
+          {
+            "name": "FocusRing",
+            "signature": "FocusRing(b Border) DateFieldView",
+            "synopsis": "FocusRing sets the border drawn while the field holds the keyboard focus."
+          },
+          {
+            "name": "Font",
+            "signature": "Font(f Font) DateFieldView",
+            "synopsis": "Font sets the font the digits are drawn with."
+          },
+          {
+            "name": "FontSize",
+            "signature": "FontSize(s float32) DateFieldView",
+            "synopsis": "FontSize sets the em size in pixels, and with it the height of the field."
+          },
+          {
+            "name": "Foreground",
+            "signature": "Foreground(c Color) DateFieldView",
+            "synopsis": "Foreground sets the colour of the digits."
+          },
+          {
+            "name": "Frame",
+            "signature": "Frame(w, h float32) DateFieldView",
+            "synopsis": "Frame fixes both axes."
+          },
+          {
+            "name": "Invalid",
+            "signature": "Invalid(b bool) DateFieldView",
+            "synopsis": "Invalid draws the field as invalid, whatever its value."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) DateFieldView",
+            "synopsis": "Key sets the reconciliation key of this view among its siblings."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) DateFieldView",
+            "synopsis": "Label sets the accessible name of the field."
+          },
+          {
+            "name": "MaxHeight",
+            "signature": "MaxHeight(f float32) DateFieldView",
+            "synopsis": "MaxHeight lowers the maximum height of the field."
+          },
+          {
+            "name": "MaxWidth",
+            "signature": "MaxWidth(f float32) DateFieldView",
+            "synopsis": "MaxWidth lowers the maximum width of the field."
+          },
+          {
+            "name": "MinHeight",
+            "signature": "MinHeight(f float32) DateFieldView",
+            "synopsis": "MinHeight raises the minimum height of the field."
+          },
+          {
+            "name": "MinWidth",
+            "signature": "MinWidth(f float32) DateFieldView",
+            "synopsis": "MinWidth raises the minimum width of the field."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(f func(Date)) DateFieldView",
+            "synopsis": "OnChange registers a callback that runs whenever the value changes, with the new value; see TimeFieldView.OnChange."
+          },
+          {
+            "name": "OnSubmit",
+            "signature": "OnSubmit(f func(Date)) DateFieldView",
+            "synopsis": "OnSubmit registers a callback that runs when the user presses enter in the field, with the value."
+          },
+          {
+            "name": "Padding",
+            "signature": "Padding(f float32) DateFieldView",
+            "synopsis": "Padding sets the same padding on all four edges, replacing the default of 5 by 8 that a TextFieldView has too."
+          },
+          {
+            "name": "PaddingInsets",
+            "signature": "PaddingInsets(i geom.Insets) DateFieldView",
+            "synopsis": "PaddingInsets sets the padding per edge."
+          },
+          {
+            "name": "PlaceholderColor",
+            "signature": "PlaceholderColor(c Color) DateFieldView",
+            "synopsis": "PlaceholderColor sets the colour of the placeholders; see TimeFieldView.PlaceholderColor."
+          },
+          {
+            "name": "Placeholders",
+            "signature": "Placeholders(day, month, year string) DateFieldView",
+            "synopsis": "Placeholders sets what an empty day, month and year show, replacing \"--\", \"--\" and \"----\" — \"TT\", \"MM\" and \"JJJJ\" in German."
+          },
+          {
+            "name": "Range",
+            "signature": "Range(min, max Date) DateFieldView",
+            "synopsis": "Range sets the first and the last day the field accepts; see TimeFieldView.Range."
+          },
+          {
+            "name": "Shadow",
+            "signature": "Shadow(s Shadow) DateFieldView",
+            "synopsis": "Shadow draws a blurred copy of the field's box behind it."
+          },
+          {
+            "name": "Value",
+            "signature": "Value(d Date) DateFieldView",
+            "synopsis": "Value sets the day the field shows."
+          }
+        ]
       },
       "DividerView": {
         "synopsis": "DividerView is a horizontal hairline.",
@@ -5806,6 +6328,237 @@
         "constructors": [],
         "methods": []
       },
+      "TimeFieldView": {
+        "synopsis": "TimeFieldView is a field for a time of day on a 24 hour clock, entered as two parts, the hour and the minute.",
+        "decl": "type TimeFieldView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "TimeField",
+            "signature": "TimeField() TimeFieldView",
+            "synopsis": "TimeField returns an empty time field."
+          }
+        ],
+        "methods": [
+          {
+            "name": "ActivePartColor",
+            "signature": "ActivePartColor(background, foreground Color) TimeFieldView",
+            "synopsis": "ActivePartColor sets the highlight behind the part that has the keyboard and the colour of its digits, replacing ColorAccent and ColorOnAccent."
+          },
+          {
+            "name": "Background",
+            "signature": "Background(b Background) TimeFieldView",
+            "synopsis": "Background fills the bounds behind the parts, replacing ColorControl."
+          },
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[TimeOfDay]) TimeFieldView",
+            "synopsis": "Bind connects the field to a gift.State holding the time, in both directions, like TextFieldView.Bind."
+          },
+          {
+            "name": "Border",
+            "signature": "Border(b Border) TimeFieldView",
+            "synopsis": "Border strokes the inside of the bounds, replacing the themed hairline."
+          },
+          {
+            "name": "Clip",
+            "signature": "Clip(b bool) TimeFieldView",
+            "synopsis": "Clip is accepted only as Clip(true), which is what the field already does; see TextFieldView.Clip."
+          },
+          {
+            "name": "CornerRadius",
+            "signature": "CornerRadius(f float32) TimeFieldView",
+            "synopsis": "CornerRadius rounds the background and the border."
+          },
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) TimeFieldView",
+            "synopsis": "Disabled takes the field out of input, like TextFieldView.Disabled."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) TimeFieldView",
+            "synopsis": "Flex makes the field take a share of the remaining main axis space of its parent stack."
+          },
+          {
+            "name": "FocusRing",
+            "signature": "FocusRing(b Border) TimeFieldView",
+            "synopsis": "FocusRing sets the border drawn while the field holds the keyboard focus."
+          },
+          {
+            "name": "Font",
+            "signature": "Font(f Font) TimeFieldView",
+            "synopsis": "Font sets the font the digits are drawn with."
+          },
+          {
+            "name": "FontSize",
+            "signature": "FontSize(s float32) TimeFieldView",
+            "synopsis": "FontSize sets the em size in pixels, and with it the height of the field."
+          },
+          {
+            "name": "Foreground",
+            "signature": "Foreground(c Color) TimeFieldView",
+            "synopsis": "Foreground sets the colour of the digits."
+          },
+          {
+            "name": "Frame",
+            "signature": "Frame(w, h float32) TimeFieldView",
+            "synopsis": "Frame fixes both axes."
+          },
+          {
+            "name": "Invalid",
+            "signature": "Invalid(b bool) TimeFieldView",
+            "synopsis": "Invalid draws the field as invalid, whatever its value: for a rule the field cannot know, such as an end that has to come after a start."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) TimeFieldView",
+            "synopsis": "Key sets the reconciliation key of this view among its siblings."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) TimeFieldView",
+            "synopsis": "Label sets the accessible name of the field."
+          },
+          {
+            "name": "MaxHeight",
+            "signature": "MaxHeight(f float32) TimeFieldView",
+            "synopsis": "MaxHeight lowers the maximum height of the field."
+          },
+          {
+            "name": "MaxWidth",
+            "signature": "MaxWidth(f float32) TimeFieldView",
+            "synopsis": "MaxWidth lowers the maximum width of the field."
+          },
+          {
+            "name": "MinHeight",
+            "signature": "MinHeight(f float32) TimeFieldView",
+            "synopsis": "MinHeight raises the minimum height of the field."
+          },
+          {
+            "name": "MinWidth",
+            "signature": "MinWidth(f float32) TimeFieldView",
+            "synopsis": "MinWidth raises the minimum width of the field."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(f func(TimeOfDay)) TimeFieldView",
+            "synopsis": "OnChange registers a callback that runs whenever the value changes, with the new value."
+          },
+          {
+            "name": "OnSubmit",
+            "signature": "OnSubmit(f func(TimeOfDay)) TimeFieldView",
+            "synopsis": "OnSubmit registers a callback that runs when the user presses enter in the field, with the value, after any change the enter itself made — a lone \"1\" still waiting for its second digit is the hour 01 by then."
+          },
+          {
+            "name": "Padding",
+            "signature": "Padding(f float32) TimeFieldView",
+            "synopsis": "Padding sets the same padding on all four edges, replacing the default of 5 by 8 that a TextFieldView has too."
+          },
+          {
+            "name": "PaddingInsets",
+            "signature": "PaddingInsets(i geom.Insets) TimeFieldView",
+            "synopsis": "PaddingInsets sets the padding per edge."
+          },
+          {
+            "name": "PlaceholderColor",
+            "signature": "PlaceholderColor(c Color) TimeFieldView",
+            "synopsis": "PlaceholderColor sets the colour of the placeholder of an empty part, and of the separator while the whole field is empty, replacing ColorSecondaryLabel."
+          },
+          {
+            "name": "Placeholders",
+            "signature": "Placeholders(hour, minute string) TimeFieldView",
+            "synopsis": "Placeholders sets what an empty hour and an empty minute show, replacing \"--\" — \"hh\" and \"mm\", or a localised \"SS\" for Stunde."
+          },
+          {
+            "name": "Range",
+            "signature": "Range(min, max TimeOfDay) TimeFieldView",
+            "synopsis": "Range sets the earliest and the latest time the field accepts."
+          },
+          {
+            "name": "Shadow",
+            "signature": "Shadow(s Shadow) TimeFieldView",
+            "synopsis": "Shadow draws a blurred copy of the field's box behind it."
+          },
+          {
+            "name": "Step",
+            "signature": "Step(d time.Duration) TimeFieldView",
+            "synopsis": "Step sets how far the arrows and the wheel move the minutes: a step of 15 minutes goes 09:00, 09:15, 09:30, and from 09:07 up to 09:15 first, and from 09:45 on to 10:00."
+          },
+          {
+            "name": "Value",
+            "signature": "Value(t TimeOfDay) TimeFieldView",
+            "synopsis": "Value sets the time the field shows."
+          }
+        ]
+      },
+      "TimeOfDay": {
+        "synopsis": "TimeOfDay is a time on a 24 hour clock, to the minute, or no time at all.",
+        "decl": "type TimeOfDay struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "ParseTimeOfDay",
+            "signature": "ParseTimeOfDay(s string) (TimeOfDay, error)",
+            "synopsis": "ParseTimeOfDay reads a time the way a TimeFieldView accepts one from the clipboard: \"9:30\", \"09:30\", \"9.30\", \"930\", \"0930\", or an hour on its own, \"9\" or \"09\"."
+          },
+          {
+            "name": "TimeOf",
+            "signature": "TimeOf(hour, minute int) TimeOfDay",
+            "synopsis": "TimeOf returns the time hour:minute."
+          },
+          {
+            "name": "TimeOfDayAfter",
+            "signature": "TimeOfDayAfter(d time.Duration) TimeOfDay",
+            "synopsis": "TimeOfDayAfter returns the time d after midnight, truncated to the minute."
+          },
+          {
+            "name": "TimeOfDayFrom",
+            "signature": "TimeOfDayFrom(t time.Time) TimeOfDay",
+            "synopsis": "TimeOfDayFrom returns the time of day of t on the clock of t's own location, truncated to the minute, as DateFrom returns its day."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Duration",
+            "signature": "Duration() time.Duration",
+            "synopsis": "Duration returns the time since midnight."
+          },
+          {
+            "name": "Hour",
+            "signature": "Hour() int",
+            "synopsis": "Hour returns the hour, 0 to 23, and 0 for the zero value."
+          },
+          {
+            "name": "IsZero",
+            "signature": "IsZero() bool",
+            "synopsis": "IsZero reports whether t is no time at all."
+          },
+          {
+            "name": "MarshalText",
+            "signature": "MarshalText() ([]byte, error)",
+            "synopsis": "MarshalText implements encoding.TextMarshaler with TimeOfDay.String: \"09:30\", and \"\" for the zero value, so that a time kept in JSON or a form survives the round trip and an empty field stays empty."
+          },
+          {
+            "name": "Minute",
+            "signature": "Minute() int",
+            "synopsis": "Minute returns the minute, 0 to 59, and 0 for the zero value."
+          },
+          {
+            "name": "Minutes",
+            "signature": "Minutes() int",
+            "synopsis": "Minutes returns the number of minutes since midnight."
+          },
+          {
+            "name": "String",
+            "signature": "String() string",
+            "synopsis": "String formats t as \"hh:mm\", and the zero value as \"\"."
+          },
+          {
+            "name": "UnmarshalText",
+            "signature": "UnmarshalText(b []byte) error",
+            "synopsis": "UnmarshalText implements encoding.TextUnmarshaler."
+          }
+        ]
+      },
       "ToggleView": {
         "synopsis": "ToggleView is a switch: a two state control that applies its change immediately rather than on an \"apply\" button.",
         "decl": "type ToggleView struct {\n\t// Has unexported fields.\n}",
@@ -6051,5 +6804,305 @@
         "synopsis": "SetTheme installs t as the process wide theme and asks app to rebuild everything, which is what puts the new colours on the screen."
       }
     ]
+  },
+  "video": {
+    "importPath": "github.com/worldiety/gift/video",
+    "synopsis": "Package video plays video files with sound: an AVPlayer for gift.",
+    "types": {
+      "AudioStream": {
+        "synopsis": "AudioStream is the sound of a Player as an io.Reader of interleaved little endian float32 stereo at Player.AudioRate, which is what Ebitengine's audio.Context.NewPlayerF32 reads.",
+        "decl": "type AudioStream struct {\n\t// Has unexported fields.\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Read",
+            "signature": "Read(b []byte) (int, error)",
+            "synopsis": "Read fills b with samples."
+          },
+          {
+            "name": "SetPosition",
+            "signature": "SetPosition(f func() time.Duration)",
+            "synopsis": "SetPosition installs the function that reports how much of this stream the device has played, measured from the first byte it read."
+          }
+        ]
+      },
+      "Options": {
+        "synopsis": "Options configure a Player.",
+        "decl": "type Options struct {\n\tHW        bool\n\tLoop      bool\n\tAudioRate int\n\tFrames    int\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Player": {
+        "synopsis": "Player plays one file.",
+        "decl": "type Player struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Open",
+            "signature": "Open(path string, opt Options) (*Player, error)",
+            "synopsis": "Open opens path and starts decoding."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AttachAudio",
+            "signature": "AttachAudio(out render.AudioOutput)",
+            "synopsis": "AttachAudio plays the sound on out."
+          },
+          {
+            "name": "AudioRate",
+            "signature": "AudioRate() int",
+            "synopsis": "AudioRate is the sample rate of Player.AudioStream."
+          },
+          {
+            "name": "AudioStream",
+            "signature": "AudioStream() *AudioStream",
+            "synopsis": "AudioStream is the sound to play now, or nil for a file without sound."
+          },
+          {
+            "name": "AudioTrack",
+            "signature": "AudioTrack() int",
+            "synopsis": "AudioTrack is the index into Player.AudioTracks of the track that plays, or -1 for a file without sound."
+          },
+          {
+            "name": "AudioTracks",
+            "signature": "AudioTracks() []ffmpeg.AudioTrack",
+            "synopsis": "AudioTracks lists the audio tracks of the file."
+          },
+          {
+            "name": "Close",
+            "signature": "Close()",
+            "synopsis": "Close stops the goroutines and releases the file."
+          },
+          {
+            "name": "Closed",
+            "signature": "Closed() bool",
+            "synopsis": "Closed reports whether Player.Close was called."
+          },
+          {
+            "name": "CurrentTime",
+            "signature": "CurrentTime() time.Duration",
+            "synopsis": "CurrentTime is the position of the clock."
+          },
+          {
+            "name": "Duration",
+            "signature": "Duration() time.Duration",
+            "synopsis": "Duration is the length of the file, or zero when it is not known."
+          },
+          {
+            "name": "Err",
+            "signature": "Err() error",
+            "synopsis": "Err is the error that made the status StatusFailed."
+          },
+          {
+            "name": "Frame",
+            "signature": "Frame(now time.Time) (*ffmpeg.Frame, bool)",
+            "synopsis": "Frame returns the picture to show at now and whether it differs from the one the previous call returned."
+          },
+          {
+            "name": "Info",
+            "signature": "Info() ffmpeg.Info",
+            "synopsis": "Info describes the file."
+          },
+          {
+            "name": "Muted",
+            "signature": "Muted() bool",
+            "synopsis": "Muted reports whether the sound is muted."
+          },
+          {
+            "name": "NeedsFrames",
+            "signature": "NeedsFrames() bool",
+            "synopsis": "NeedsFrames reports whether Player.Frame may return a new picture soon: while the clock runs or waits to, and after a seek until its picture is shown."
+          },
+          {
+            "name": "OnEnd",
+            "signature": "OnEnd(f func())",
+            "synopsis": "OnEnd installs a function that is called, on a decoder goroutine, when playback reaches the end of the file without looping: the analogue of AVPlayerItemDidPlayToEndTime."
+          },
+          {
+            "name": "Pause",
+            "signature": "Pause()",
+            "synopsis": "Pause stops the clock."
+          },
+          {
+            "name": "Play",
+            "signature": "Play()",
+            "synopsis": "Play starts or resumes playback."
+          },
+          {
+            "name": "Seek",
+            "signature": "Seek(t time.Duration)",
+            "synopsis": "Seek moves to t, exactly: the decoders start at the key frame before t and everything decoded before t is dropped."
+          },
+          {
+            "name": "SelectAudioTrack",
+            "signature": "SelectAudioTrack(i int)",
+            "synopsis": "SelectAudioTrack switches to track i of Player.AudioTracks, at the current position: AVPlayerItem.select(_:in:) for the audible group."
+          },
+          {
+            "name": "SetLoop",
+            "signature": "SetLoop(l bool)",
+            "synopsis": "SetLoop makes the player start over at the end."
+          },
+          {
+            "name": "SetMuted",
+            "signature": "SetMuted(m bool)",
+            "synopsis": "SetMuted mutes or unmutes the sound without changing the volume."
+          },
+          {
+            "name": "SetVolume",
+            "signature": "SetVolume(v float64)",
+            "synopsis": "SetVolume sets the volume from 0 to 1."
+          },
+          {
+            "name": "Stats",
+            "signature": "Stats() Stats",
+            "synopsis": "Stats returns the counters."
+          },
+          {
+            "name": "Status",
+            "signature": "Status() Status",
+            "synopsis": "Status reports whether the player can play."
+          },
+          {
+            "name": "TimeControlStatus",
+            "signature": "TimeControlStatus() TimeControlStatus",
+            "synopsis": "TimeControlStatus reports what the clock does."
+          },
+          {
+            "name": "VideoHW",
+            "signature": "VideoHW() string",
+            "synopsis": "VideoHW is the hardware the pictures are decoded on, or \"\"."
+          },
+          {
+            "name": "Volume",
+            "signature": "Volume() float64",
+            "synopsis": "Volume is the volume from 0 to 1."
+          }
+        ]
+      },
+      "Stats": {
+        "synopsis": "Stats are counters for measuring playback.",
+        "decl": "type Stats struct {\n\tDecoded        int\n\tPresented      int\n\tLate           int\n\tAudioUnderruns int\n\tAVOffset       time.Duration\n\tClockError     time.Duration\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Status": {
+        "synopsis": "Status is whether a player can play, in the sense of AVPlayer.Status.",
+        "decl": "type Status uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "TimeControlStatus": {
+        "synopsis": "TimeControlStatus is what the clock does, in the sense of AVPlayer.TimeControlStatus.",
+        "decl": "type TimeControlStatus uint8",
+        "constructors": [],
+        "methods": []
+      }
+    },
+    "funcs": []
+  },
+  "videoplayer": {
+    "importPath": "github.com/worldiety/gift/ui/videoplayer",
+    "synopsis": "Package videoplayer shows a video.Player: its picture, its sound and controls a finger can operate.",
+    "types": {
+      "Gravity": {
+        "synopsis": "Gravity is how a picture fills a view whose shape is not the picture's: AVLayerVideoGravity.",
+        "decl": "type Gravity uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "PlayerView": {
+        "synopsis": "PlayerView is a video.Player with controls a finger can operate: the SwiftUI VideoPlayer, laid out like the player of iOS.",
+        "decl": "type PlayerView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "New",
+            "signature": "New(p *video.Player) PlayerView",
+            "synopsis": "New returns a player view for p."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AutoHide",
+            "signature": "AutoHide(d time.Duration) PlayerView",
+            "synopsis": "AutoHide sets how long the controls stay after the last touch while the video plays."
+          },
+          {
+            "name": "CornerRadius",
+            "signature": "CornerRadius(r float32) PlayerView",
+            "synopsis": "CornerRadius rounds the view."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) PlayerView",
+            "synopsis": "Flex sets the share of the free space of a stack."
+          },
+          {
+            "name": "Gravity",
+            "signature": "Gravity(g Gravity) PlayerView",
+            "synopsis": "Gravity sets how the picture fills the view; see Gravity."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) PlayerView",
+            "synopsis": "Key sets the identity among siblings."
+          },
+          {
+            "name": "ShowsControls",
+            "signature": "ShowsControls(b bool) PlayerView",
+            "synopsis": "ShowsControls switches the controls off, which leaves a Surface that still stretches like this view."
+          },
+          {
+            "name": "Skip",
+            "signature": "Skip(d time.Duration) PlayerView",
+            "synopsis": "Skip sets how far the jump buttons jump."
+          }
+        ]
+      },
+      "SurfaceView": {
+        "synopsis": "SurfaceView shows the picture of a video.Player and nothing else: the SwiftUI VideoPlayer without its controls.",
+        "decl": "type SurfaceView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Surface",
+            "signature": "Surface(p *video.Player) SurfaceView",
+            "synopsis": "Surface returns a view of p's picture."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c ui.Color) SurfaceView",
+            "synopsis": "Background sets the colour of the bars around the picture."
+          },
+          {
+            "name": "CornerRadius",
+            "signature": "CornerRadius(r float32) SurfaceView",
+            "synopsis": "CornerRadius rounds the view and the picture in it."
+          },
+          {
+            "name": "Gravity",
+            "signature": "Gravity(g Gravity) SurfaceView",
+            "synopsis": "Gravity sets how the picture fills the view; see Gravity."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) SurfaceView",
+            "synopsis": "Key sets the identity among siblings."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) SurfaceView",
+            "synopsis": "Label sets the accessibility label."
+          },
+          {
+            "name": "OnTap",
+            "signature": "OnTap(fn func()) SurfaceView",
+            "synopsis": "OnTap calls fn when the picture is tapped or clicked without moving."
+          }
+        ]
+      }
+    },
+    "funcs": []
   }
 }

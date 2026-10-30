@@ -44,6 +44,7 @@ go run ./cmd/example-counter      # Start here: state, buttons, scrolling
 go run ./cmd/example-kitchensink  # UI component showcase
 go run ./cmd/example-gallery      # Generates its own sample images
 go run ./cmd/example-effects -quality=full
+go run ./cmd/example-video        # Needs the FFmpeg libraries, see Video below
 ```
 
 Use your own JPEG/PNG images: `go run ./cmd/example-gallery -dir "$HOME/Pictures"`.
@@ -120,6 +121,28 @@ if turbojpeg.Register() { // github.com/worldiety/gift/asset/turbojpeg
 ```
 
 Without the library, `Register` returns false and image/jpeg stays in charge.
+
+### Video
+
+`ui/videoplayer` plays a video with sound and touch controls laid out like the
+player of iOS: play and pause, ±10 seconds, a position bar to drag, volume,
+mute and an audio track menu, sized for a five inch panel. Decoding goes
+through the FFmpeg libraries of the system, loaded at run time without CGO:
+Raspberry Pi OS has them, Homebrew's `ffmpeg` brings them to macOS.
+
+```go
+p, err := video.Open("film.mp4", video.Options{HW: true}) // github.com/worldiety/gift/video
+if err != nil { ... }
+p.Play()
+return videoplayer.New(p)                                 // github.com/worldiety/gift/ui/videoplayer
+```
+
+A Raspberry Pi 5 shows full HD at 60 frames a second with
+`backend.Config{DirectToScreen: true, DrawOnDemand: true}`: H.264 in software,
+HEVC in software or, with `HW`, in hardware. Try it with
+`go run ./cmd/example-video -width 800 -height 480`.
+
+<img src="docs/screenshots/video.png" alt="A video with round play, back and forward buttons, a volume slider and an open audio track menu, captured on a Raspberry Pi 5 at 800x480" width="600">
 
 ## Testing And Automation
 

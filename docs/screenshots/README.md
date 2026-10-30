@@ -25,4 +25,13 @@ The kitchen sink screenshot uses the Home tab and the dark theme:
 curl -fsS -X POST http://127.0.0.1:7391/theme -d '{"mode":"dark"}'
 ```
 
+`video.png` was taken on a Raspberry Pi 5 (Raspberry Pi OS Trixie, labwc), with the
+window at the size of a five inch panel, the clip paused and the audio track menu open:
+
+```sh
+go run -tags giftauto ./cmd/example-video -width 800 -height 480 -autohide 0
+# tap the play button, then the headphones button, through POST /input
+curl -fsS 'http://127.0.0.1:7391/screenshot?settle=3' -o docs/screenshots/video.png
+```
+
 No offscreen reconstruction or separate screenshot application is involved.
