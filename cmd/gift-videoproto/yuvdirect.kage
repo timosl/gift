@@ -1,0 +1,91 @@
+//kage:unit pixels
+
+package main
+
+// This is yuv.kage fused with the scaled blit: it converts and scales in the
+// one pass that draws onto the framebuffer. On a Raspberry Pi the number of
+// full screen passes decides whether a frame fits into a display refresh,
+// and the two pass version costs a conversion into a picture sized target
+// and a second pass to put that target on screen.
+
+var Layout float
+var Height float
+var Width float
+
+// LumaLinear interpolates luma bilinearly; at a scale of one it is not
+// needed and costs three fetches a pixel.
+var LumaLinear float
+var ChromaLinear float
+
+var RowR vec4
+var RowG vec4
+var RowB vec4
+
+func texel(q, row float) vec4 {
+	return imageSrc0UnsafeAt(imageSrc0Origin() + vec2(q+0.5, row+0.5))
+}
+
+func luma(x, y float) float {
+	if Layout > 1.5 {
+		q := floor(x / 2)
+		t := texel(q, y)
+		w := mix(t.rg, t.ba, x-q*2)
+		return (w.x + w.y*256) / 4
+	}
+	q := floor(x / 4)
+	t := texel(q, y)
+	i := x - q*4
+	m := vec4(1) - step(vec4(0.5), abs(vec4(i)-vec4(0, 1, 2, 3)))
+	return dot(t, m)
+}
+
+func chroma(cx, cy float) vec2 {
+	row := Height + cy
+	if Layout > 1.5 {
+		t := texel(cx, row)
+		return vec2(t.r+t.g*256, t.b+t.a*256) / 4
+	}
+	q := floor(cx / 2)
+	t := texel(q, row)
+	return mix(t.rg, t.ba, cx-q*2)
+}
+
+func Fragment(dstPos vec4, srcPos vec2, color vec4) vec4 {
+	// v is the position in the picture, with sample centres on integers.
+	// It comes from the source coordinates of the vertices, which carry
+	// the picture's own pixels, and not from dstPos: on the framebuffer of
+	// the OpenGL backend dstPos runs bottom up, and a picture placed by it
+	// stood on its head.
+	v := srcPos - imageSrc0Origin() - 0.5
+	cw := ceil(Width / 2)
+	ch := ceil(Height / 2)
+
+	var yv float
+	if LumaLinear > 0.5 {
+		x0 := clamp(floor(v.x), 0, Width-1)
+		y0 := clamp(floor(v.y), 0, Height-1)
+		x1 := min(x0+1, Width-1)
+		y1 := min(y0+1, Height-1)
+		t := clamp(v-floor(v), 0, 1)
+		yv = mix(mix(luma(x0, y0), luma(x1, y0), t.x), mix(luma(x0, y1), luma(x1, y1), t.x), t.y)
+	} else {
+		yv = luma(clamp(floor(v.x+0.5), 0, Width-1), clamp(floor(v.y+0.5), 0, Height-1))
+	}
+
+	// Chroma is cosited with luma horizontally and between two luma rows
+	// vertically (MPEG-2 siting).
+	c := vec2(v.x/2, (v.y-0.5)/2)
+	var uv vec2
+	if ChromaLinear > 0.5 {
+		x0 := clamp(floor(c.x), 0, cw-1)
+		y0 := clamp(floor(c.y), 0, ch-1)
+		x1 := min(x0+1, cw-1)
+		y1 := min(y0+1, ch-1)
+		t := clamp(c-floor(c), 0, 1)
+		uv = mix(mix(chroma(x0, y0), chroma(x1, y0), t.x), mix(chroma(x0, y1), chroma(x1, y1), t.x), t.y)
+	} else {
+		uv = chroma(clamp(floor(c.x+0.5), 0, cw-1), clamp(floor(c.y+0.5), 0, ch-1))
+	}
+	yuv := vec4(yv, uv.x, uv.y, 1)
+	return vec4(clamp(vec3(dot(RowR, yuv), dot(RowG, yuv), dot(RowB, yuv)), 0, 1), 1)
+}
