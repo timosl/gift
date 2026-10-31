@@ -212,19 +212,64 @@ func (s *imageService) setPipeline(p *asset.Pipeline) {
 // never falls back to the size of the CPU cache, which is what
 // TestImageUploadReleasesItsThumbnail asserts.
 func (s *imageService) resolve(ctx *gift.PaintContext, k imageKey) (render.ImageID, int, int, bool) {
-	if !k.ok() {
+	id, w, h, st := s.lookup(ctx, k)
+	return id, w, h, st == texResident
+}
+
+// texState is what [imageService.lookup] found.
+type texState uint8
+
+const (
+	// texResident is a texture to draw.
+	texResident texState = iota
+	// texWaiting is none yet: the frame's upload budget refused it, or there
+	// is no graphics context. The next frame asks again.
+	texWaiting
+	// texGone is none, and no pixels to make one from: the texture was
+	// evicted, or never uploaded, and the CPU cache has evicted the pixels
+	// since. Nothing but a new request brings the picture back.
+	texGone
+)
+
+// drawable resolves the texture of the request r for the frame being painted.
+//
+// # Pixels that are gone
+//
+// A request that has delivered stays ready, and a ready request is not asked
+// for again. But its pixels are not kept for it: the CPU cache evicts them
+// under its budget, and a picture whose upload the budget put off for a few
+// frames, or whose texture the GPU's budget evicted, then has nothing left
+// to be drawn from. It stayed a placeholder for good: tiles of a map that a
+// zoom across several levels had decoded faster than they could be uploaded
+// were blurred stand-ins until the process ended, and a level zoomed back to
+// was grey. Such a request is unsettled here, so that the next layout that
+// asks for the picture asks the pipeline again.
+func (s *imageService) drawable(ctx *gift.PaintContext, r *imageRequest) (render.ImageID, int, int, bool) {
+	if r == nil || !r.ok {
 		return 0, 0, 0, false
+	}
+	id, w, h, st := s.lookup(ctx, r.key)
+	if st == texGone {
+		r.ok = false
+	}
+	return id, w, h, st == texResident
+}
+
+// lookup is [imageService.resolve] that says why there is no texture.
+func (s *imageService) lookup(ctx *gift.PaintContext, k imageKey) (render.ImageID, int, int, texState) {
+	if !k.ok() {
+		return 0, 0, 0, texWaiting
 	}
 	im := ctx.Images()
 	if im == nil {
 		// Headless. Every image view falls back to its placeholder, which is
 		// what a layout test and a gifttest harness without a graphics
 		// context want to see.
-		return 0, 0, 0, false
+		return 0, 0, 0, texWaiting
 	}
 	if e, ok := s.tex[k]; ok {
 		if id, ok := im.Resolve(e.h); ok {
-			return id, e.w, e.h2, true
+			return id, e.w, e.h2, texResident
 		}
 		// Evicted between two frames. The generation in the handle is what
 		// turned that from a wrong picture into this branch.
@@ -232,11 +277,11 @@ func (s *imageService) resolve(ctx *gift.PaintContext, k imageKey) (render.Image
 		s.evictedHandles++
 	}
 	if s.pipe == nil {
-		return 0, 0, 0, false
+		return 0, 0, 0, texWaiting
 	}
 	t, ok := s.pipe.Lookup(k.id, k.rung)
 	if !ok {
-		return 0, 0, 0, false
+		return 0, 0, 0, texGone
 	}
 	h, ok := im.Acquire(render.Pixels{
 		Pix: t.Pix(), W: t.Width(), H: t.Height(), Stride: t.Stride(),
@@ -247,11 +292,11 @@ func (s *imageService) resolve(ctx *gift.PaintContext, k imageKey) (render.Image
 	if !ok {
 		// Refused by the per drawn frame upload budget. Not an error: the
 		// caller draws its placeholder and this runs again next frame.
-		return 0, 0, 0, false
+		return 0, 0, 0, texWaiting
 	}
 	s.tex[k] = texEntry{h: h, w: w, h2: hh}
 	s.uploads++
-	return h.ID, w, hh, true
+	return h.ID, w, hh, texResident
 }
 
 // forget releases the texture of one key explicitly.
@@ -312,7 +357,10 @@ func (s *imageService) state(id asset.ID, size int) *imageRequest {
 func (s *imageService) request(src asset.Source, size int, pass uint64, prio asset.Priority, notify func()) *imageRequest {
 	id := src.Metadata().ID
 	r := s.state(id, size)
-	if notify != nil {
+	// Only a node that waits is told. A ready picture used to collect the
+	// invalidator of every layout that asked for it, which nothing ever
+	// emptied: a map asks for its thirty tiles in every frame it moves.
+	if notify != nil && !r.ok && r.failure == nil {
 		r.notify = append(r.notify, notify)
 	}
 	if s.pipe == nil || r.inFlight || r.ok || r.failure != nil || pass < r.retryPass {
@@ -785,7 +833,7 @@ func (n *imageNode) Paint(ctx *gift.PaintContext) {
 	}
 	drawn := false
 	if n.req != nil && n.req.ok {
-		if id, iw, ih, ok := images.resolve(ctx, n.req.key); ok {
+		if id, iw, ih, ok := images.drawable(ctx, n.req); ok {
 			paintImage(ctx, inner, id, iw, ih, n.fit, n.tint, radius)
 			drawn = true
 		}

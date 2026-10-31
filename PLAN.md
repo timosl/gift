@@ -3381,6 +3381,17 @@ Gebaut wie geplant, mit diesen Abweichungen und Ergaenzungen:
   zeichnet deshalb nur noch unter OpenGL direkt, sonst ueber den Offscreen.
   Danach in 540 aufgenommenen Frames keiner mehr dunkel; auf dem Pi (OpenGL
   ES, weiter direkt) unter 80 Bildschirmfotos waehrend acht Wuerfen keiner.
+- **Kacheln, die nie kamen**: grau beim Herauszoomen, unscharf beim
+  Hineinzoomen. Ein angekommenes Bild galt im Bilddienst fuer immer als
+  bereit und wurde nie wieder angefordert, auch wenn seine Textur verdraengt
+  war und seine Pixel aus dem CPU-Cache ebenfalls, oder die Pixel verdraengt
+  wurden, bevor das Upload-Budget sie hochgeladen hatte. Nachgestellt: auf
+  Stufe 11, dann auf 15 zwoelf Wuerfe, zurueck auf 11, und die Karte blieb
+  grau. Jetzt verliert ein solches Bild den Zustand bereit, und das naechste
+  Layout fordert es neu an. Nebenbei: Ein bereites Bild sammelte bei jedem
+  Layout den Invalidator des Anfragenden, ohne dass ihn je jemand leerte.
+  Das Beispiel gibt dem CPU-Cache ausserhalb von Linux 256 MiB statt 64,
+  weil eine Kachel bei Dichte 2 1 MiB gross ist.
 
 Raspberry Pi 5, Vollbild 1920 x 1080, Gestenfolge ueber die
 Automatisierung (vier Wuerfe, sechs Raststufen des Mausrads), Kiosk-

@@ -1216,3 +1216,90 @@ func TestGalleryRungIsChosenInDevicePixels(t *testing.T) {
 		})
 	}
 }
+
+// TestPictureWhosePixelsAreGoneIsRequestedAgain is a picture that had
+// arrived, whose texture the backend evicted and whose pixels the CPU cache
+// evicted after it: nothing is left to draw it from. It used to stay ready,
+// and a ready picture is not asked for again, so it was a placeholder for
+// good — the grey of a map zoomed back to a level it had left long before.
+// The frame that finds it gone unsettles it, and the next layout asks again.
+func TestPictureWhosePixelsAreGoneIsRequestedAgain(t *testing.T) {
+	_, items, srcs := writePictures(t, 1)
+	del := newDeliverer()
+	pipe := asset.NewPipeline(asset.Config{Deliver: del.deliver, Sizes: []int{128}, Workers: 1})
+	defer func() { pipe.Close(); del.drain() }()
+
+	ui.ResetImageService()
+	ui.SetImagePipeline(pipe)
+	defer ui.ResetImageService()
+
+	imgs := newFakeImages()
+	h := gifttest.New(t, gifttest.Options{
+		View: ui.Image(srcs[items[0].ID]).Size(128).Frame(120, 120),
+		Size: geom.Sz(160, 160),
+	})
+	h.App().SetImages(imgs)
+	images := func() int {
+		n := 0
+		for _, op := range h.Ops() {
+			if op.Kind == render.OpImage {
+				n++
+			}
+		}
+		return n
+	}
+
+	del.waitFor(t, 1)
+	del.drain()
+	h.Frame()
+	if images() != 1 {
+		t.Fatal("the picture was not drawn in the first place")
+	}
+
+	// Gone from both: the texture, and the pixels it could be made again from.
+	imgs.evictAll()
+	pipe.Invalidate(items[0].ID)
+	h.Frame()
+	if images() != 0 {
+		t.Fatal("a picture with neither a texture nor pixels was drawn")
+	}
+
+	// The next layout asks the pipeline again, and the picture comes back.
+	h.Resize(geom.Sz(161, 160))
+	del.waitFor(t, 1)
+	del.drain()
+	h.Frame()
+	if images() != 1 {
+		t.Errorf("the picture did not come back after its pixels were gone (%d uploads)", imgs.uploads)
+	}
+}
+
+// TestAReadyPictureCollectsNoWaiters lays out a picture that has arrived many
+// times. Only a node that waits for a picture is told when it arrives; a
+// ready one used to keep the invalidator of every layout that asked for it,
+// and nothing ever emptied the list.
+func TestAReadyPictureCollectsNoWaiters(t *testing.T) {
+	_, items, srcs := writePictures(t, 1)
+	del := newDeliverer()
+	pipe := asset.NewPipeline(asset.Config{Deliver: del.deliver, Sizes: []int{128}, Workers: 1})
+	defer func() { pipe.Close(); del.drain() }()
+
+	ui.ResetImageService()
+	ui.SetImagePipeline(pipe)
+	defer ui.ResetImageService()
+
+	h := gifttest.New(t, gifttest.Options{
+		View: ui.Image(srcs[items[0].ID]).Size(128).Frame(120, 120),
+		Size: geom.Sz(160, 160),
+	})
+	h.App().SetImages(newFakeImages())
+	del.waitFor(t, 1)
+	del.drain()
+	h.Frame()
+	for i := range 50 {
+		h.Resize(geom.Sz(160+float32(i%2), 160))
+	}
+	if n := ui.ImageServiceWaiters(); n != 0 {
+		t.Errorf("a ready picture holds %d invalidators after 50 layouts, want 0", n)
+	}
+}

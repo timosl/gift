@@ -78,6 +78,16 @@ func ResetImageService() { images.setPipeline(nil) }
 // assertion is made on.
 func ImageServiceUploads() uint64 { return images.uploads }
 
+// ImageServiceWaiters is the number of invalidators the requests of the
+// shared service hold, all of them together.
+func ImageServiceWaiters() int {
+	n := 0
+	for _, r := range images.reqs {
+		n += len(r.notify)
+	}
+	return n
+}
+
 // TextureKeysForTest returns the number of resident texture keys and how many
 // distinct revisions the service holds for one picture.
 //

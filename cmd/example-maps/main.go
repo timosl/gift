@@ -182,7 +182,16 @@ func run(path, url, xyz, attribution string, debug, dark, noLabels bool, width, 
 	}
 	// The disk cache keeps the tiles of a service by its caching headers,
 	// which its usage policy asks for, and drawn vector tiles between runs.
-	pipe := asset.NewPipeline(asset.Config{Deliver: app.Post, Workers: workers, Disk: asset.DiskCacheConfig{Dir: cache}})
+	// The decoded tiles of a zoom wait in the CPU cache for their upload:
+	// at density 2 a tile is 1 MiB, and the default of 64 MiB is less than a
+	// screenful and its stand-ins and neighbours, so they are given four
+	// times the room the 256 KiB tiles of a Raspberry Pi's display have.
+	pixels := int64(0)
+	if runtime.GOOS != "linux" {
+		pixels = 4 * asset.DefaultPixelBudget
+	}
+	pipe := asset.NewPipeline(asset.Config{Deliver: app.Post, Workers: workers, PixelBudget: pixels,
+		Disk: asset.DiskCacheConfig{Dir: cache}})
 	defer func() {
 		pipe.Close()
 		app.DrainPosts()

@@ -76,6 +76,10 @@ func requestPicture(src asset.Source, size int, pass uint64, prio asset.Priority
 
 // Ready reports whether the pixels have arrived. A ready picture may still
 // draw nothing in a frame whose upload budget is spent; see [Picture.Draw].
+// It is not ready again once a frame found its pixels gone, evicted from the
+// CPU cache before they could be uploaded or after their texture was
+// evicted, until a layout has requested it again and they have arrived
+// again.
 func (p Picture) Ready() bool { return p.r != nil && p.r.ok }
 
 // Err is the permanent failure of the picture, or nil.
@@ -112,10 +116,7 @@ func (p Picture) Rung() int {
 // reports whether it drew: a picture that is not ready, or whose texture the
 // frame's upload budget refused, draws nothing and is tried again next frame.
 func (p Picture) Draw(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius float32) bool {
-	if p.r == nil || !p.r.ok {
-		return false
-	}
-	id, iw, ih, ok := images.resolve(ctx, p.r.key)
+	id, iw, ih, ok := images.drawable(ctx, p.r)
 	if !ok {
 		return false
 	}
@@ -128,10 +129,7 @@ func (p Picture) Draw(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius 
 // the thumbnails of a gallery or the markers of a map do. It reports whether
 // it drew, as [Picture.Draw].
 func (p Picture) DrawFit(ctx *gift.PaintContext, dst geom.Rect, fit ImageFit, tint Color, radius float32) bool {
-	if p.r == nil || !p.r.ok {
-		return false
-	}
-	id, iw, ih, ok := images.resolve(ctx, p.r.key)
+	id, iw, ih, ok := images.drawable(ctx, p.r)
 	if !ok {
 		return false
 	}
@@ -144,10 +142,7 @@ func (p Picture) DrawFit(ctx *gift.PaintContext, dst geom.Rect, fit ImageFit, ti
 // drawn edge to edge show no seam between them under linear filtering; see
 // [render.ImageTile]. It is how the tiles of a map are drawn.
 func (p Picture) DrawTile(ctx *gift.PaintContext, dst geom.Rect, tint Color) bool {
-	if p.r == nil || !p.r.ok {
-		return false
-	}
-	id, _, _, ok := images.resolve(ctx, p.r.key)
+	id, _, _, ok := images.drawable(ctx, p.r)
 	if !ok {
 		return false
 	}
@@ -161,20 +156,14 @@ func (p Picture) DrawTile(ctx *gift.PaintContext, dst geom.Rect, tint Color) boo
 // frames for a large picture, is done before the picture is needed rather
 // than in the frame it first appears in.
 func (p Picture) Prepare(ctx *gift.PaintContext) bool {
-	if p.r == nil || !p.r.ok {
-		return false
-	}
-	_, _, _, ok := images.resolve(ctx, p.r.key)
+	_, _, _, ok := images.drawable(ctx, p.r)
 	return ok
 }
 
 // DrawCover draws the picture into dst like [FitCover]: the centred part of
 // it with the aspect ratio of dst.
 func (p Picture) DrawCover(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius float32) bool {
-	if p.r == nil || !p.r.ok {
-		return false
-	}
-	id, iw, ih, ok := images.resolve(ctx, p.r.key)
+	id, iw, ih, ok := images.drawable(ctx, p.r)
 	if !ok {
 		return false
 	}
