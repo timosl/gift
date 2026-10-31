@@ -8,6 +8,7 @@ import (
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/geom"
 	"github.com/worldiety/gift/gifttest"
+	"github.com/worldiety/gift/render"
 	"github.com/worldiety/gift/ui"
 )
 
@@ -142,5 +143,38 @@ func TestATimeWheelStepsByItsInterval(t *testing.T) {
 	h.Key(gift.KeyUp)
 	if chosen.Hour() != 8 {
 		t.Errorf("up on the hour chose %v, want 8 o'clock", chosen)
+	}
+}
+
+// TestTurningTheWheelDrawsItsRowsInFewSizes pins the size ladder of the
+// perspective. Every size a row is drawn at is one the glyph atlas rasterises
+// and keeps, so a scale that followed the angle continuously was a new size
+// for every row on every frame of a turn: a few turns filled the atlas, which
+// then turned glyphs away, and digits went missing from the wheel.
+func TestTurningTheWheelDrawsItsRowsInFewSizes(t *testing.T) {
+	h, _ := wheelScene(t, 15, false)
+	at := h.Find(gifttest.ByKey("picker")).Center()
+	sizes := map[float32]bool{}
+	h.TouchDownAt(at)
+	for i := 1; i <= 150; i++ {
+		h.TouchMoveTo(geom.Pt(at.X, at.Y+float32(i)*0.7))
+		h.Frame()
+		l := h.List()
+		for _, op := range l.Ops() {
+			if op.Kind != render.OpGlyphs {
+				continue
+			}
+			s := l.Xform(op.Xform).A
+			for _, g := range l.Glyphs(op.Glyphs, op.GlyphCount) {
+				sizes[g.Size*s] = true
+			}
+		}
+	}
+	h.TouchUpAt(geom.Pt(at.X, at.Y+105))
+	h.Settle()
+	// The rows turn through every angle of the visible half cylinder, which
+	// the ladder covers in 0.3*64 steps.
+	if len(sizes) > 24 {
+		t.Errorf("a turn drew the rows in %d sizes, want a ladder of at most 24", len(sizes))
 	}
 }

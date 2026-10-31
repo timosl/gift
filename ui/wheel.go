@@ -24,6 +24,9 @@ const (
 	wheelFontSize  = float32(21)
 	wheelBandInset = float32(8)
 	wheelBandR     = float32(8)
+	// wheelScaleSteps is the resolution of the scale a row is drawn at; see
+	// wheelNode.Paint.
+	wheelScaleSteps = 64
 )
 
 // wheelSpring settles a wheel on its row: critically damped, so that a flick
@@ -409,8 +412,15 @@ func (n *wheelNode) Paint(ctx *gift.PaintContext) {
 		// it turns away, about the middle of the wheel: a perspective
 		// rather than a squash, because glyphs squashed one way only are
 		// rasterised smaller both ways and come out letter spaced.
+		//
+		// The scale moves on a ladder of wheelScaleSteps and not with the
+		// angle. Each scale is a size the glyph atlas rasterises and
+		// keeps, and a continuous one was a new size for every row on
+		// every frame of a turn, which filled the atlas until it turned
+		// glyphs away. A step is two thirds of a pixel of a row at
+		// density 2, which no eye follows on a turning wheel.
 		y := r * math.Sin(theta)
-		u := float32(0.7 + 0.3*math.Cos(theta))
+		u := float32(math.Round((0.7+0.3*math.Cos(theta))*wheelScaleSteps) / wheelScaleSteps)
 		cx := (b.Min.X + b.Max.X) / 2
 		m := geom.Translate(geom.Pt(-cx, float32(-cy))).
 			Mul(geom.Scale(u, u)).
