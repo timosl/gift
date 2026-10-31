@@ -167,14 +167,16 @@ func detail(d showcase.Demo) ui.ScrollView {
 	// The demo is a component of its own, keyed by its name: leaving it
 	// unmounts it with its state, which closes what it opened, and coming
 	// back starts it afresh.
+	// The stage is a ZStack with a frame, which measures the demo bounded on
+	// both axes: a full window demo is a screen, a navigation stack or a
+	// modal say, which fills what it is given and has nothing to fill under
+	// a stack that leaves its main axis open.
 	demo := gift.Component("demo-"+d.Name, d.View)
-	var stage gift.View
-	if d.FullWindow {
-		stage = ui.ZStack(demo)
-	} else {
+	stage := ui.ZStack(demo)
+	if !d.FullWindow {
 		stage = ui.ZStack(ui.VStack(demo).Padding(24)).Align(geom.Center)
 	}
-	stage = ui.VStack(stage).
+	stage = stage.
 		Frame(float32(d.Width), float32(d.Height)).
 		Background(ui.ColorBackground).
 		Border(ui.Border{Width: 1, Color: ui.ColorSeparator}).

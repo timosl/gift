@@ -43,6 +43,37 @@ func TestEveryComponentIsListedAndShowsItsDemo(t *testing.T) {
 	}
 }
 
+// TestEveryDemoRunsOnItsStage opens every component one after the other, as
+// a visitor tapping down the list does: the stage hosts each demo in a frame
+// of its size, and leaving one unmounts it before the next starts.
+func TestEveryDemoRunsOnItsStage(t *testing.T) {
+	for _, size := range []geom.Size{geom.Sz(1180, 800), geom.Sz(800, 480)} {
+		h := scene(t, size.W, size.H)
+		// tap taps n as a visitor does. The popover and menu demos present
+		// their panel from the first frame, over the whole window as a panel
+		// goes: the first tap beside it closes it, as on iOS, and the second
+		// one is n's.
+		tap := func(n gifttest.Node) {
+			if h.At(n.Center()).Key() == "ui.panel" {
+				h.TapAt(n.Center())
+				h.AdvanceTicks(40, gifttest.FrameInterval)
+			}
+			n.Tap()
+			h.AdvanceTicks(40, gifttest.FrameInterval)
+		}
+		for _, d := range showcase.All() {
+			tap(h.Find(gifttest.ByKey("row-" + d.Name)).ScrollIntoView())
+			if !h.Find(gifttest.ByKey("stage-" + d.Name)).IsVisible() {
+				t.Fatalf("%vx%v: the stage of %s is not shown", size.W, size.H, d.Name)
+			}
+			if size.W < compactBelow {
+				// The back button of the kitchen sink, not one of a demo.
+				tap(h.Find(gifttest.ByKey("back").And(gifttest.Not(gifttest.Under(gifttest.ByKey("stage-" + d.Name))))))
+			}
+		}
+	}
+}
+
 func TestTheSearchFiltersTheList(t *testing.T) {
 	h := scene(t, 1180, 800)
 	h.Find(gifttest.ByKey("search-field")).Focus()
