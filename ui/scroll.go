@@ -72,6 +72,10 @@ type ScrollView struct {
 	cfg      gift.ScrollConfig
 	bar      ScrollBar
 	children []gift.View
+
+	refreshable bool
+	refreshing  bool
+	onRefresh   func()
 }
 
 // VScroll arranges its children from top to bottom and scrolls vertically.
@@ -123,6 +127,14 @@ func (s ScrollView) Build(*gift.BuildContext) gift.Element {
 	if s.axis == layout.Horizontal {
 		axis = gift.ScrollHorizontal
 	}
+	var hold float32
+	if s.refreshable && axis == gift.ScrollVertical {
+		n.refresh = &refreshSpec{refreshing: s.refreshing, onRefresh: s.onRefresh, spokes: ResolveColor(ColorSecondaryLabel)}
+		p = n
+		if s.refreshing {
+			hold = refreshHold
+		}
+	}
 	return gift.Element{
 		Key:      s.key,
 		Flex:     s.flex,
@@ -138,8 +150,30 @@ func (s ScrollView) Build(*gift.BuildContext) gift.Element {
 		// over its neighbours and would be indistinguishable from a stack;
 		// see [ScrollView.Clip].
 		Clip:   true,
-		Scroll: &gift.ScrollSpec{Axis: axis, Config: s.cfg},
+		Scroll: &gift.ScrollSpec{Axis: axis, Config: s.cfg, LeadingHold: hold},
 	}
+}
+
+// Refreshable adds the pull-to-refresh of iOS to a vertical scroll view:
+// content pulled down past its top far enough calls onRefresh, once per
+// pull, and while refreshing is true the content rests a little below its
+// top with a spinner turning in the room above it. Set refreshing when the
+// refresh starts, from onRefresh, and clear it when the new content is
+// there; the content then springs back.
+//
+//	busy := ctx.State("busy", false)
+//	ui.VScroll(rows...).Refreshable(ctx.Read(busy), func() {
+//		busy.Set(true)
+//		go reload(func() { app.Post(func() { busy.Set(false) }) })
+//	})
+//
+// As on iOS the refresh starts while the finger is still pulling, as soon as
+// the pull is far enough, and the spokes of the spinner appear one by one on
+// the way there. It needs the rubber band, so it does nothing with
+// [ScrollView.Bounce] false, and nothing on a horizontal scroll view.
+func (s ScrollView) Refreshable(refreshing bool, onRefresh func()) ScrollView {
+	s.refreshable, s.refreshing, s.onRefresh = true, refreshing, onRefresh
+	return s
 }
 
 // --- scrolling modifiers -----------------------------------------------------

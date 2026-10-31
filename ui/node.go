@@ -65,6 +65,10 @@ type node struct {
 	// kind, for the reason bar is here.
 	row rowShrink
 
+	// refresh is the pull-to-refresh of a refreshable scroll view, and nil
+	// for every other; see [ScrollView.Refreshable].
+	refresh *refreshSpec
+
 	// ctx is the layout context of the call in progress. It exists so that
 	// the node can implement layout.Measurer through a pointer receiver:
 	// boxing a wrapper value into the Measurer interface on every layout
@@ -179,6 +183,9 @@ func (n *node) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
 func (n *node) Paint(ctx *gift.PaintContext) {
 	paintStyle(ctx, n.st)
 	if n.kind == kindScroll {
+		if n.refresh != nil {
+			n.refresh.paint(ctx)
+		}
 		n.bar.paint(ctx)
 	}
 }
@@ -194,7 +201,11 @@ func (n *node) HandleEvent(ctx *gift.EventContext, e gift.Event) bool {
 	if n.bar.handleEvent(ctx, e) {
 		return true
 	}
-	return gift.ScrollInteractor().HandleEvent(ctx, e)
+	done := gift.ScrollInteractor().HandleEvent(ctx, e)
+	if n.refresh != nil {
+		n.refresh.handleEvent(ctx, e)
+	}
+	return done
 }
 
 // ensure sizes the scratch buffers to k children, reusing the backing arrays
