@@ -181,6 +181,10 @@ moment.
 `ui.TextArea` edits text of several lines: it wraps, grows with its text up
 to a number of lines and then scrolls, keeps the column on up and down, and
 lets a finger scroll where a mouse selects.
+Smaller pieces of the same kind: `ui.Stepper` (minus and plus, repeating
+while held), `ui.SearchField` (glass, clear button, escape clears),
+`ui.PageControl` (dots to tap or scrub along) and `ui.Toast` (a capsule
+that slides in, stays two seconds and can be swiped away).
 
 ### Video
 

@@ -11,5 +11,6 @@ Dialogs and overlays present a view on top of the screen and take its input whil
 - [Popover](popover/): a card with an arrow next to the view it belongs to.
 - [Menu](menu/): a control that opens a list of actions, chosen with a tap or with one press, slide and lift.
 - [Context Menu](context-menu/): the actions of one thing, opened with a long press or the secondary mouse button.
+- [Toast](toast/): a short message that slides in at the edge of the window and goes again by itself.
 - [Keyboard](keyboard/): the on-screen keyboard for touch kiosks without a hardware keyboard.
 - [File Picker](file-picker/): opens files, chooses a folder or picks a path to save to, inside your window.

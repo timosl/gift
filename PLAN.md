@@ -2609,6 +2609,48 @@ bei gift das Modell (Text, Caret, Auswahl), deshalb heisst die Ansicht
 Offen: Undo, Schwung beim Scrollen mit dem Finger, Umbruch ueberlanger
 Woerter, Auswahlgriffe fuer Touch.
 
+## 32. Stepper, Suchfeld, Seitenpunkte, Toast
+
+Punkt 6 der iOS-Liste: kleine Controls, die ein Kiosk staendig braucht.
+
+- `ui.Stepper` wie UIStepper: 94 x 32 pt, Minus und Plus durch eine
+  Haarlinie getrennt; ein Schritt schon beim Aufsetzen, gehalten nach 0,5 s
+  zehnmal, nach 2 s zwanzigmal je Sekunde (`EventContext.After`; der
+  Frametakt macht 50 ms zur feinsten Stufe). Am Ende des Bereichs wird die
+  Haelfte grau, `Wraps` springt zum anderen Ende; Schritte liegen auf dem
+  Raster ab dem Minimum, damit zehn Zehntel genau 1 ergeben.
+- `ui.SearchField`: ein `TextField` in der Kapsel von UISearchBar (36 pt,
+  Radius 10), Lupe und Loeschknopf selbst gezeichnet (die Symbolpakete
+  importieren `ui`). Der Loeschknopf traegt `Element.PreservesFocus`, damit
+  Fokus und Bildschirmtastatur bleiben; Escape leert, im leeren Feld geht
+  Escape weiter nach aussen.
+- `ui.PageControl` wie UIPageControl: Punkte 7 pt, Teilung 16 pt; Tipp neben
+  den aktuellen Punkt blaettert, ein Finger entlang der Punkte scrubbt (der
+  Gestenzustand ist `Retained`, weil jede Seite neu baut), senkrechte Zuege
+  bleiben dem Container. `Capsule` legt die Punkte weiss auf eine dunkle
+  Kapsel fuer Bilder.
+- `ui.Toast`: Kapsel mit Symbol, Titel, Untertitel in der Top-Ebene, faellt
+  von oben (oder unten) mit einer Feder herein, bleibt 2 s
+  (`LayoutContext.After`), laesst sich zur Kante wegwischen, haelt unter dem
+  Finger. Die Ebene ist fenstergross, aber ohne Interactor, damit ein Tipp
+  neben der Kapsel durchgeht.
+
+Offen: Stepper mit Wertanzeige wie SwiftUIs Stepper mit Label, eine
+Abbrechen-Taste am Suchfeld, viele Seiten mit schrumpfenden Randpunkten, eine
+Warteschlange fuer mehrere Toasts.
+
+## Vorgemerkt: Fokusring als Halo ausserhalb
+
+Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb
+des Rahmens (`focusRingGap`), weil ein Ring ausserhalb vom ersten
+Scroll-Container, einer Liste oder Tab-Leiste abgeschnitten wuerde. iPadOS
+zeichnet den Fokus stattdessen als Halo *ausserhalb* der Ansicht in einer
+Ebene darueber (UIFocusHaloEffect); macOS und das Web legen den Ring ebenfalls
+nach aussen. Das wuerde die innere Luecke ueberfluessig machen, an der
+gescrollter Text abgeschnitten werden muss (siehe Abschnitt 31 und 3db49cd).
+Kandidat fuer den Mechanismus: die Top-Ebene (`Element.Overlay`) oder ein
+eigener Malschritt ueber dem Inhalt. Betrifft jedes Control mit Ring.
+
 ## Quellen der Architekturpruefung
 
 - Nago, untersuchter Stand: https://github.com/worldiety/nago/tree/76fb9e89b1169c9f6bc020a5b31971422898479c

@@ -6197,6 +6197,44 @@
           }
         ]
       },
+      "PageControlView": {
+        "synopsis": "PageControlView shows which of a row of pages is shown.",
+        "decl": "type PageControlView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "PageControl",
+            "signature": "PageControl(count, current int, onChange func(int)) PageControlView",
+            "synopsis": "PageControl returns the dots of UIPageControl for count pages with current shown, the counterpart of the index of SwiftUI's paged TabView."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Capsule",
+            "signature": "Capsule(b bool) PageControlView",
+            "synopsis": "Capsule puts the dots on a dark translucent capsule, for a page control over a picture: UIPageControl's prominent background style."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) PageControlView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) PageControlView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) PageControlView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "Tint",
+            "signature": "Tint(c Color) PageControlView",
+            "synopsis": "Tint sets the colour of the current dot; the others are a third of it."
+          }
+        ]
+      },
       "Picture": {
         "synopsis": "Picture is a handle on one picture at one size in the shared image service of SetImagePipeline: the request, the decoded pixels and the texture.",
         "decl": "type Picture struct {\n\t// Has unexported fields.\n}",
@@ -6587,6 +6625,59 @@
           }
         ]
       },
+      "SearchFieldView": {
+        "synopsis": "SearchFieldView is a field for a search term.",
+        "decl": "type SearchFieldView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "SearchField",
+            "signature": "SearchField(ed *TextEditor) SearchFieldView",
+            "synopsis": "SearchField returns the search field of iOS: a TextField in a rounded box with a magnifying glass in front and, while it holds text, a button behind that clears it."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[string]) SearchFieldView",
+            "synopsis": "Bind reads the text from b and writes every edit back."
+          },
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) SearchFieldView",
+            "synopsis": "Disabled takes the field out of input."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) SearchFieldView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) SearchFieldView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) SearchFieldView",
+            "synopsis": "Label sets the accessible name; the placeholder is used without one."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(f func(string)) SearchFieldView",
+            "synopsis": "OnChange sets the function called with the text after every edit, clearing included."
+          },
+          {
+            "name": "OnSubmit",
+            "signature": "OnSubmit(f func(string)) SearchFieldView",
+            "synopsis": "OnSubmit sets the function called with the text when enter is pressed."
+          },
+          {
+            "name": "Placeholder",
+            "signature": "Placeholder(s string) SearchFieldView",
+            "synopsis": "Placeholder sets the text shown while the field is empty."
+          }
+        ]
+      },
       "SectionHeaderView": {
         "synopsis": "SectionHeaderView is the caption above a group of rows in a ListView.",
         "decl": "type SectionHeaderView struct {\n\t// Has unexported fields.\n}",
@@ -6918,6 +7009,54 @@
             "name": "Shadow",
             "signature": "Shadow(v Shadow) Stack",
             "synopsis": "Shadow draws a blurred copy of the view's shape — its bounds, rounded by the corner radius — behind the view."
+          }
+        ]
+      },
+      "StepperView": {
+        "synopsis": "StepperView changes a number by a step at a time.",
+        "decl": "type StepperView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Stepper",
+            "signature": "Stepper(value float64, onChange func(float64)) StepperView",
+            "synopsis": "Stepper returns a minus and a plus button side by side, the counterpart of UIStepper and of the control of SwiftUI's Stepper."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) StepperView",
+            "synopsis": "Disabled takes the stepper out of input."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) StepperView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) StepperView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) StepperView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "Range",
+            "signature": "Range(min, max float64) StepperView",
+            "synopsis": "Range sets the smallest and the largest value."
+          },
+          {
+            "name": "Step",
+            "signature": "Step(s float64) StepperView",
+            "synopsis": "Step sets how much one step changes the value; it must be greater than zero."
+          },
+          {
+            "name": "Wraps",
+            "signature": "Wraps(b bool) StepperView",
+            "synopsis": "Wraps makes a step past one end go to the other, as UIStepper's wraps does."
           }
         ]
       },
@@ -7889,6 +8028,70 @@
             "name": "Value",
             "signature": "Value(t TimeOfDay) TimeWheelView",
             "synopsis": "Value sets the time shown."
+          }
+        ]
+      },
+      "ToastEdge": {
+        "synopsis": "ToastEdge is the edge of the window a toast appears at.",
+        "decl": "type ToastEdge uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "ToastView": {
+        "synopsis": "ToastView shows a short message above everything for a moment.",
+        "decl": "type ToastView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Toast",
+            "signature": "Toast(content gift.View, title string) ToastView",
+            "synopsis": "Toast returns content with a message that slides in at the top of the window while it is ToastView.Presented, stays for two seconds and goes again: a capsule with an optional symbol, a title and an optional subtitle, as iOS shows \"Copied\" or a connected headset."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Duration",
+            "signature": "Duration(d time.Duration) ToastView",
+            "synopsis": "Duration sets how long the toast stays; zero keeps it until it is swiped away or no longer presented."
+          },
+          {
+            "name": "Edge",
+            "signature": "Edge(e ToastEdge) ToastView",
+            "synopsis": "Edge sets the edge of the window the toast appears at."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) ToastView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Icon",
+            "signature": "Icon(s Symbol) ToastView",
+            "synopsis": "Icon sets the symbol in front of the text."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) ToastView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "OnDismiss",
+            "signature": "OnDismiss(fn func()) ToastView",
+            "synopsis": "OnDismiss sets the function called when the toast's time is up or it was swiped or tapped away; it should stop presenting it."
+          },
+          {
+            "name": "OnTap",
+            "signature": "OnTap(fn func()) ToastView",
+            "synopsis": "OnTap sets the function called when the toast is tapped, before it is dismissed."
+          },
+          {
+            "name": "Presented",
+            "signature": "Presented(b bool) ToastView",
+            "synopsis": "Presented shows the toast while b is true."
+          },
+          {
+            "name": "Subtitle",
+            "signature": "Subtitle(s string) ToastView",
+            "synopsis": "Subtitle sets a second, smaller line under the title."
           }
         ]
       },

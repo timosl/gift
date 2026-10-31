@@ -26,3 +26,6 @@ Basic components display one piece of content or take one input. All of them liv
 - [Wheel Picker](wheel-picker/): one or more turning wheels to choose values from, as on iOS.
 - [Date and Time Wheels](date-wheel/): a date or a time of day on wheels.
 - [Calendar](calendar/): a date on a month grid that pages sideways.
+- [Stepper](stepper/): a minus and a plus button that change a number a step at a time.
+- [Search Field](search-field/): a text field with a magnifying glass and a clear button.
+- [Page Control](page-control/): a row of dots that shows and turns the current page.
