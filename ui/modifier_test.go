@@ -150,6 +150,18 @@ var views = []struct {
 	{name: "ui.swipeCatcher", set: setInternal, why: "the top layer of an open ui.Swipe row, which closes it on a press elsewhere"},
 	{name: "ui.swipeShield", set: setInternal, why: "one rectangle of the catcher of an open ui.Swipe row"},
 	{
+		name: "ui.ProgressRing", set: setMinimal, v: ui.ProgressRing(0),
+		why: "a ring of one size, set by Size and LineWidth; it has no box to style",
+	},
+	{
+		name: "ui.Gauge", set: setMinimal, v: ui.Gauge(0, 0, 1),
+		why: "a ring of one size, set by Size and LineWidth, with its labels inside; it has no box to style",
+	},
+	{
+		name: "ui.CircularSlider", set: setMinimal, v: ui.CircularSlider(0, nil),
+		why: "a ring with a knob, sized by Size and LineWidth like the Slider it is the round form of",
+	},
+	{
 		name: "ui.WheelPicker", set: setMinimal, v: ui.WheelPicker(),
 		why: "a wheel has the height of its rows and draws its own band and fading; its size is VisibleRows, RowHeight and Width",
 	},

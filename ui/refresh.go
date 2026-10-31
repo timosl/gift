@@ -1,15 +1,12 @@
 package ui
 
 import (
-	"math"
-	"time"
-
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/geom"
 )
 
-// Metrics of pull-to-refresh: those of UIRefreshControl and of the medium
-// UIActivityIndicatorView.
+// Metrics of pull-to-refresh: those of UIRefreshControl. The spinner is
+// [paintSpinner].
 const (
 	// refreshTrigger is how far the content has to be displaced past its top
 	// for the refresh to start.
@@ -17,12 +14,6 @@ const (
 	// refreshHold is how far below its top the content rests while the
 	// refresh runs.
 	refreshHold = float32(56)
-
-	spinnerSpokes = 8
-	spinnerInner  = float32(4.5)
-	spinnerOuter  = float32(9.5)
-	spinnerWidth  = float32(1.25)
-	spinnerStep   = 90 * time.Millisecond
 )
 
 // refreshSpec is what a refreshable scroll view knows about its refresh.
@@ -69,25 +60,6 @@ func (r *refreshSpec) paint(ctx *gift.PaintContext) {
 	}
 	b := ctx.Bounds()
 	c := geom.Pt((b.Min.X+b.Max.X)/2, b.Min.Y+min(over, refreshHold)/2)
-	shown := spinnerSpokes
-	head := 0
-	if r.refreshing {
-		head = int(ctx.Now()/spinnerStep) % spinnerSpokes
-		ctx.Animate(spinnerStep)
-	} else {
-		shown = int(float32(spinnerSpokes) * min(over/refreshTrigger, 1))
-	}
-	for i := range shown {
-		ang := -math.Pi/2 + 2*math.Pi*float64(i)/spinnerSpokes
-		dx, dy := float32(math.Cos(ang)), float32(math.Sin(ang))
-		alpha := float32(1)
-		if r.refreshing {
-			// The newest spoke is solid and the ones behind it fade.
-			age := (head - i + spinnerSpokes) % spinnerSpokes
-			alpha = 1 - 0.75*float32(age)/spinnerSpokes
-		}
-		a := geom.Pt(c.X+dx*spinnerInner, c.Y+dy*spinnerInner)
-		z := geom.Pt(c.X+dx*spinnerOuter, c.Y+dy*spinnerOuter)
-		paintBar(ctx, a, z, spinnerWidth, scaleColor(r.spokes, alpha))
-	}
+	shown := int(float32(spinnerSpokes) * min(over/refreshTrigger, 1))
+	paintSpinner(ctx, c, 1, r.spokes, shown, r.refreshing)
 }
