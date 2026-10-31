@@ -2441,6 +2441,67 @@ bewegt. Vier Decoder auf vier Kernen verdraengen die Frameschleife (p99
   und Doppelklick.
 - Der Filmstreifen ist nicht gebaut.
 
+## 27. Menues, Kontextmenues und Popover
+
+Nach dem Abgleich mit iOS (Abschnitt 26 ff.) als erste fehlende Bausteine
+gewaehlt, weil sie die Grundlage fuer Menue-Picker, Auswahllisten und spaetere
+Popups sind.
+
+### Die oberste Ebene im Kern
+
+Ein Menue an einem Knopf tief im Baum kann kein gewoehnliches Kind seines
+Knopfs sein: ein Scrollcontainer schneidet es ab, spaeter gezeichnete
+Geschwister ueberdecken es, und ein Tipp daneben trifft, was darunter liegt.
+`ui.Modal` loest das, indem es den Bildschirm umhuellt; fuer ein Steuerelement
+ist das die falsche Form. Deshalb gibt es `Element.Overlay`: ein Knoten erklaert
+eine Ansicht, der Kern haengt sie in eine oberste Ebene als zweites Kind der
+Wurzel, vollflaechig, zuletzt gezeichnet und zuerst getroffen. Die Erklaerung
+gehoert dem Knoten (SwiftUIs `.popover(isPresented:)`), wird mit ihm neu gebaut,
+verschwindet sofort mit ihm oder wenn er verborgen wird, und die Ebene existiert
+nur, solange etwas praesentiert wird. `LayoutContext.Presenter` liefert das
+Rechteck des Ausloesers; bewegt er sich im laufenden Layout, wird die Ebene im
+selben Update noch einmal gelegt. `Element.OverlayExit` laesst eine
+zurueckgezogene Ebene ohne Eingabe nachlaufen, damit sie wegschrumpfen kann.
+
+Dazu: `EventContextMenu` fuer die sekundaere Maustaste (sie tat bisher nichts),
+`EventContext.Capture(id)` und ein `EventLongPress`, der zu den Vorfahren
+durchgereicht wird und waehrenddessen `StealPointer` erlaubt. So sieht ein
+Kontextmenue um einen Knopf den Long-Press, den der Knopf nicht nutzt, und nimmt
+ihm den Finger, damit das Loslassen kein Tipp mehr ist. Niemand im Repository
+hatte `EventLongPress` bisher verarbeitet.
+
+### iOS als Vorbild
+
+| Groesse              | Wert                                          |
+|----------------------|-----------------------------------------------|
+| Menuebreite          | 250 pt                                        |
+| Zeilenhoehe          | 44 pt, Titel 17 pt, Symbol hinten 20 pt       |
+| Abschnitte           | 8 pt Band, optionale Ueberschrift 13 pt       |
+| Eckenradius          | 13 pt                                         |
+| Pfeil                | 10 pt hoch, 20 pt breit                       |
+| Abstand zum Rand     | 8 pt                                          |
+| Long-Press           | 0,5 s (`LongPressDelay`)                      |
+| Auswahl              | Druecken, Wischen, Loslassen ohne zweiten Tipp |
+
+Das Menue erscheint beim Druck, unter oder ueber dem Knopf, buendig mit
+dessen vorderer Kante, und waechst mit einer leicht ueberschwingenden Feder aus
+der naechsten Ecke; das Popover waechst aus seiner Pfeilspitze. Ein
+Kontextmenue nach Long-Press dunkelt das Fenster um den Inhalt ab; das Loch
+folgt dem Eckenradius des Inhalts, gezeichnet als ein einziger, sehr breiter
+abgerundeter Ring. Der Pfeil ist ein um 45 Grad gedrehtes Quadrat, dessen
+innere Haelfte die Karte verdeckt; ein Dreieck-Primitiv gibt es nicht.
+
+### Offen
+
+- Kein Weichzeichnen hinter dem Kontextmenue wie bei iOS; nur Abdunkeln. Die
+  Glass-Materialien koennten es, kosten aber auf dem Pi.
+- Kein Hochheben (Skalieren) des Inhalts beim Long-Press.
+- Keine Untermenues.
+- Ausblenden ist ein Schrumpfen ohne Ueberblenden des Inhalts, weil gift keine
+  Gruppen-Deckkraft hat.
+- Ein Menue, das hoeher als das Fenster ist, wird abgeschnitten statt
+  gescrollt.
+
 ## Quellen der Architekturpruefung
 
 - Nago, untersuchter Stand: https://github.com/worldiety/nago/tree/76fb9e89b1169c9f6bc020a5b31971422898479c

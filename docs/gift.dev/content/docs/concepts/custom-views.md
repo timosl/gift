@@ -352,6 +352,27 @@ this, gift keeps a `gift.ControlState` per node that survives rebuilds: a grab f
 Every animation enrollment takes a duration, a deadline after which gift stops repainting the node. See
 [Animation](../animation/).
 
+When `ControlState` is too small — a recognizer that follows several fingers, a zoom with its own physics —
+`ctx.Retained[T]()` keeps a value of any type per node across builds, one per type, created zero on first use; the
+same call is on the layout, paint and event contexts. `EventContext.After(d)` and `LayoutContext.After(d)` deliver
+one `gift.EventTimer` to the node d later, for decisions only time makes.
+
+### Presenting above everything
+
+`Element.Overlay` is a view the node presents above everything else in the window: it is mounted in the **top
+layer**, which covers the window, is painted after the whole application and is hit tested before it. Neither a
+clipping scroll view nor a sibling painted later can hide it, wherever the presenting node is. This is what
+[Popover](../../components/dialogs/popover/), [Menu](../../components/dialogs/menu/) and
+[Context Menu](../../components/dialogs/context-menu/) are built on.
+
+- The declaration belongs to the node: the overlay is rebuilt with it, withdrawn when a build declares nil, and gone
+  at once when the node is unmounted or hidden. Several overlays stack in the order they were presented.
+- A node inside the overlay finds its presenter with `LayoutContext.Presenter()`, in device space, and places itself
+  against it. When the presenter moves in a layout, the overlay is laid out again in the same update.
+- `Element.OverlayExit` keeps a withdrawn overlay on the screen for that long, without input, so it can animate
+  away; `PaintContext.OverlayLeaving()` says how far it has gone.
+- The top layer exists only while something is presented, so it costs nothing otherwise.
+
 ## Children
 
 A view with children lists them in `Element.Children`. Its layouter measures and places them, and its painter

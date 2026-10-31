@@ -151,6 +151,25 @@ on a 50 Hz panel. Try it with `go run ./cmd/example-photos`.
 
 <img src="docs/screenshots/photos.png" alt="A photo full screen on a Raspberry Pi 5 with a sheet of its file name and size slid over it, opened through a virtual touch screen" width="600">
 
+### Menus And Popovers
+
+`ui.Menu`, `ui.ContextMenu` and `ui.Popover` work like their iOS
+counterparts: a menu opens on the press of its label and a finger can slide
+onto an item and lift to choose it, a long press dims the window around a
+picture and offers its actions, a secondary click opens the same menu at the
+pointer, and a popover points at its anchor with an arrow. They live in a top
+layer above the whole window (`gift.Element.Overlay`), so no scroll view clips
+them, and cost nothing while closed.
+
+```go
+ui.Menu(ui.Icon(outline.DotsHorizontal),
+    ui.MenuItem("Share", share).Icon(outline.ShareNodes),
+    ui.MenuSection("",
+        ui.MenuItem("Delete", remove).Icon(outline.TrashBin).Destructive(),
+    ),
+)
+```
+
 ### Video
 
 `ui/videoplayer` plays a video with sound and touch controls laid out like the

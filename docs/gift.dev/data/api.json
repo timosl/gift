@@ -2077,6 +2077,11 @@
             "synopsis": "BeginInput opens the input phase of one tick and advances the clock to now."
           },
           {
+            "name": "ContextMenuAt",
+            "signature": "ContextMenuAt(pos geom.Point)",
+            "synopsis": "ContextMenuAt reports a click of the secondary mouse button at pos: an EventContextMenu for the node under it, bubbling to its ancestors."
+          },
+          {
             "name": "Density",
             "signature": "Density() float32",
             "synopsis": "Density returns the device density in force, which is always an integer of at least one."
@@ -2433,7 +2438,7 @@
       },
       "Element": {
         "synopsis": "Element is the description of one retained node.",
-        "decl": "type Element struct {\n\tKey            string\n\tLabel          string\n\tLayouter       Layouter\n\tPainter        Painter\n\tChildren       []View\n\tFlex           float32\n\tInteractor     Interactor\n\tFocusable      bool\n\tDisabled       bool\n\tObstructs      bool\n\tClip           bool\n\tTransform      *geom.Affine2D\n\tScroll         *ScrollSpec\n\tHidden         bool\n\tLayer          bool\n\tFocusTrap      bool\n\tTransition     TransitionSpec\n\tKeyFallback    bool\n\tMultiTouch     bool\n\tPreservesFocus bool\n}",
+        "decl": "type Element struct {\n\tKey            string\n\tLabel          string\n\tLayouter       Layouter\n\tPainter        Painter\n\tChildren       []View\n\tFlex           float32\n\tInteractor     Interactor\n\tFocusable      bool\n\tDisabled       bool\n\tObstructs      bool\n\tClip           bool\n\tTransform      *geom.Affine2D\n\tScroll         *ScrollSpec\n\tHidden         bool\n\tLayer          bool\n\tFocusTrap      bool\n\tTransition     TransitionSpec\n\tKeyFallback    bool\n\tOverlay        View\n\tOverlayExit    time.Duration\n\tMultiTouch     bool\n\tPreservesFocus bool\n}",
         "constructors": [],
         "methods": []
       },
@@ -2474,6 +2479,11 @@
             "name": "Bounds",
             "signature": "Bounds() geom.Rect",
             "synopsis": "Bounds returns the absolute rectangle of the receiving node, as computed by the last layout pass."
+          },
+          {
+            "name": "Capture",
+            "signature": "Capture(id PointerID) bool",
+            "synopsis": "Capture is EventContext.StealPointer for the pointer id rather than the one whose event is being dispatched: for a recogniser that decides on a timer, when no pointer event is on its way — a long press that turns into a context menu takes the finger from the tile it rests on, so that the tile does not treat the release as a tap."
           },
           {
             "name": "ClearFocus",
@@ -2519,6 +2529,11 @@
             "name": "PointerIsDown",
             "signature": "PointerIsDown(id PointerID) bool",
             "synopsis": "PointerIsDown reports whether the pointer id is currently pressed: the mouse with its primary button held, or a finger on the glass."
+          },
+          {
+            "name": "Presenter",
+            "signature": "Presenter() (geom.Rect, bool)",
+            "synopsis": "Presenter is LayoutContext.Presenter for the node receiving the event."
           },
           {
             "name": "Repaint",
@@ -2708,6 +2723,11 @@
             "synopsis": "Place positions the given child at the offset at, relative to the origin of the node being laid out."
           },
           {
+            "name": "Presenter",
+            "signature": "Presenter() (geom.Rect, bool)",
+            "synopsis": "Presenter returns the rectangle, in device space, of the node that presents the overlay the node being laid out is in, and whether it is in one; see Element.Overlay."
+          },
+          {
             "name": "ReportBaseline",
             "signature": "ReportBaseline(v float32)",
             "synopsis": "ReportBaseline records the distance from the top of this node to the baseline its content sits on, in logical pixels."
@@ -2861,6 +2881,11 @@
             "synopsis": "Now returns the timestamp of the input phase this frame was drawn after, on the clock App.BeginInput is given."
           },
           {
+            "name": "OverlayLeaving",
+            "signature": "OverlayLeaving() (float32, bool)",
+            "synopsis": "OverlayLeaving reports how far the overlay the node being painted is in has gone on its way out, from zero to one, and whether it is leaving at all: a withdrawn overlay stays on the screen for Element.OverlayExit so that it can animate away, and takes no input meanwhile."
+          },
+          {
             "name": "PaintChild",
             "signature": "PaintChild(i int)",
             "synopsis": "PaintChild paints the child with the given index."
@@ -2879,6 +2904,11 @@
             "name": "PopTransform",
             "signature": "PopTransform()",
             "synopsis": "PopTransform ends the innermost PaintContext.PushTransform of this painter."
+          },
+          {
+            "name": "Presenter",
+            "signature": "Presenter() (geom.Rect, bool)",
+            "synopsis": "Presenter is LayoutContext.Presenter for the node being painted."
           },
           {
             "name": "PushClip",
@@ -4518,6 +4548,34 @@
         ],
         "methods": []
       },
+      "ContextMenuView": {
+        "synopsis": "ContextMenuView is content with a context menu.",
+        "decl": "type ContextMenuView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "ContextMenu",
+            "signature": "ContextMenu(content gift.View, items ...MenuElement) ContextMenuView",
+            "synopsis": "ContextMenu returns content with a menu of items that a long press opens on a touch screen and a click of the secondary mouse button on a desktop, the counterpart of SwiftUI's .contextMenu."
+          }
+        ],
+        "methods": [
+          {
+            "name": "CornerRadius",
+            "signature": "CornerRadius(r float32) ContextMenuView",
+            "synopsis": "CornerRadius tells the context menu the corner radius of its content, so that the window dims around the content's own shape after a long press."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) ContextMenuView",
+            "synopsis": "Flex sets the flex factor of the content in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) ContextMenuView",
+            "synopsis": "Key sets the reconciliation key."
+          }
+        ]
+      },
       "Date": {
         "synopsis": "Date is a day in the proleptic Gregorian calendar, without a time and without a location, or no day at all.",
         "decl": "type Date struct {\n\t// Has unexported fields.\n}",
@@ -5728,6 +5786,94 @@
           }
         ]
       },
+      "MenuElement": {
+        "synopsis": "MenuElement is an entry of a menu: a MenuItem, a MenuDivider or a MenuSection.",
+        "decl": "type MenuElement interface {\n\n}// contains filtered or unexported methods\n",
+        "constructors": [
+          {
+            "name": "MenuDivider",
+            "signature": "MenuDivider() MenuElement",
+            "synopsis": "MenuDivider returns a hairline between two items."
+          },
+          {
+            "name": "MenuSection",
+            "signature": "MenuSection(title string, items ...MenuElement) MenuElement",
+            "synopsis": "MenuSection returns items that belong together, set apart from the rest of the menu by a band, under title when it is not empty."
+          }
+        ],
+        "methods": []
+      },
+      "MenuItemView": {
+        "synopsis": "MenuItemView is one action of a menu.",
+        "decl": "type MenuItemView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "MenuItem",
+            "signature": "MenuItem(title string, action func()) MenuItemView",
+            "synopsis": "MenuItem returns an item that runs action when it is chosen."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Checked",
+            "signature": "Checked(b bool) MenuItemView",
+            "synopsis": "Checked puts a check mark in front of the item: the current choice of a menu that picks one of several."
+          },
+          {
+            "name": "Destructive",
+            "signature": "Destructive() MenuItemView",
+            "synopsis": "Destructive draws the item in ColorDanger, for an action that deletes or discards."
+          },
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) MenuItemView",
+            "synopsis": "Disabled shows the item and refuses to choose it."
+          },
+          {
+            "name": "Icon",
+            "signature": "Icon(s Symbol) MenuItemView",
+            "synopsis": "Icon sets the symbol shown at the trailing end of the item."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) MenuItemView",
+            "synopsis": "Key sets the key of the item's row, for a test to find it by."
+          }
+        ]
+      },
+      "MenuView": {
+        "synopsis": "MenuView is a control that opens a menu.",
+        "decl": "type MenuView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Menu",
+            "signature": "Menu(label gift.View, items ...MenuElement) MenuView",
+            "synopsis": "Menu returns label as a control that opens a menu of items, the counterpart of SwiftUI's Menu."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) MenuView",
+            "synopsis": "Disabled shows the label and does not open the menu."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) MenuView",
+            "synopsis": "Flex sets the flex factor of the label in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) MenuView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) MenuView",
+            "synopsis": "Label sets the accessible name of the control."
+          }
+        ]
+      },
       "ModalView": {
         "synopsis": "ModalView presents one view on top of another and takes the input of everything underneath.",
         "decl": "type ModalView struct {\n\t// Has unexported fields.\n}",
@@ -5954,6 +6100,75 @@
             "name": "Rung",
             "signature": "Rung() int",
             "synopsis": "Rung is the ladder rung the pixels were produced at, or zero before they have arrived."
+          }
+        ]
+      },
+      "PopoverEdge": {
+        "synopsis": "PopoverEdge says on which side of its anchor a popover appears.",
+        "decl": "type PopoverEdge uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "PopoverView": {
+        "synopsis": "PopoverView shows content in a card next to an anchor, above everything else in the window.",
+        "decl": "type PopoverView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Popover",
+            "signature": "Popover(anchor, content gift.View) PopoverView",
+            "synopsis": "Popover returns anchor with a popover of content that is shown while PopoverView.Presented is true."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Arrow",
+            "signature": "Arrow(b bool) PopoverView",
+            "synopsis": "Arrow sets whether the card points at its anchor."
+          },
+          {
+            "name": "Background",
+            "signature": "Background(c Color) PopoverView",
+            "synopsis": "Background sets the colour of the card."
+          },
+          {
+            "name": "Edge",
+            "signature": "Edge(e PopoverEdge) PopoverView",
+            "synopsis": "Edge sets the preferred side; see PopoverEdge."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) PopoverView",
+            "synopsis": "Flex sets the flex factor of the anchor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) PopoverView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) PopoverView",
+            "synopsis": "Label sets the accessible name of the popover."
+          },
+          {
+            "name": "MaxWidth",
+            "signature": "MaxWidth(w float32) PopoverView",
+            "synopsis": "MaxWidth caps the width of the card."
+          },
+          {
+            "name": "OnDismiss",
+            "signature": "OnDismiss(fn func()) PopoverView",
+            "synopsis": "OnDismiss sets the function called on a press outside the popover and on escape."
+          },
+          {
+            "name": "Padding",
+            "signature": "Padding(f float32) PopoverView",
+            "synopsis": "Padding sets the space between the card and its content."
+          },
+          {
+            "name": "Presented",
+            "signature": "Presented(b bool) PopoverView",
+            "synopsis": "Presented shows the popover while b is true."
           }
         ]
       },

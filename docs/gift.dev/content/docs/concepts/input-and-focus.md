@@ -93,7 +93,11 @@ pointer is outside, the button also loses its pressed look, and gets it back whe
 ### Gestures gift recognizes
 
 - **Long press.** When a pointer stays down for `gift.LongPressDelay` (500 ms) without moving further than
-  `DragSlop`, the capturing node receives one `EventLongPress`.
+  `DragSlop`, the capturing node receives one `EventLongPress`. It bubbles to the ancestors until one handles it, so a
+  [context menu](../../components/dialogs/context-menu/) around a button sees the long press the button ignores and
+  takes the finger with `StealPointer`.
+- **Secondary click.** The secondary mouse button sends `EventContextMenu` to the node under the pointer, bubbling
+  like a wheel event. It is the only thing that button does.
 - **Wheel.** `EventWheel` carries the scroll amount in `Delta`. It goes to the node under the pointer and bubbles
   until a scroll container that can still move in that direction consumes it.
 - **Drag to scroll.** A scroll container watches the moves that bubble up from its children. When a drag that
@@ -106,7 +110,8 @@ activation.
 
 ### Limits
 
-- Only the primary mouse button drives the pointer model. The right and middle buttons produce no events.
+- Only the primary mouse button drives the pointer model. The secondary button produces `EventContextMenu` and
+  nothing else; the middle button produces no events.
 - gift delivers one finger at a time unless a view asks for more. A second finger that comes down while the first
   is still down is dropped and counted in `Diagnostics.DiscardedTouches`, unless it lands in a view that set
   `Element.MultiTouch`; such a view receives up to `gift.MaxTouches` fingers. Pinch, rotation and the other
