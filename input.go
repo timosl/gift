@@ -84,7 +84,9 @@ const (
 	EventPointerCancel
 	// EventLongPress is delivered once per press to the capturing node, when
 	// the pointer has been down for [LongPressDelay] without moving further
-	// than [DragSlop].
+	// than [DragSlop], and bubbles to its ancestors until one handles it: a
+	// context menu around a button sees the long press the button ignores.
+	// [EventContext.StealPointer] works while it is delivered.
 	EventLongPress
 	// EventWheel is a scroll wheel or two finger scroll. It is delivered to
 	// the node under the pointer and bubbles to its ancestors, because the
@@ -132,6 +134,14 @@ const (
 	// It is delivered to that node only and does not bubble. It carries no
 	// position; [Event.Time] is the tick it fired in.
 	EventTimer
+
+	// EventContextMenu asks for the context menu of what is at [Event.Pos]:
+	// a click with the secondary mouse button. It goes to the node under the
+	// pointer and bubbles until a node handles it, like a wheel event, and
+	// it is the only thing the secondary button does in gift; see
+	// [App.ContextMenuAt]. On a touch screen the same request is a long
+	// press, which a view recognises itself.
+	EventContextMenu
 )
 
 // Key is a physical key, in the small set gift's own navigation, activation
@@ -404,7 +414,7 @@ type Event struct {
 // IsPointer reports whether e is a pointer event, that is one with a
 // meaningful Pos.
 func (e Event) IsPointer() bool {
-	return e.Kind >= EventPointerEnter && e.Kind <= EventWheel
+	return e.Kind >= EventPointerEnter && e.Kind <= EventWheel || e.Kind == EventContextMenu
 }
 
 // Interaction is the presentation state gift maintains for an interactive
@@ -608,10 +618,18 @@ func (c *EventContext) ClearFocus() { c.app.setFocus(scene.Handle{}) }
 //
 // It does nothing when no pointer is down, so calling it from a key handler is
 // harmless rather than a way to corrupt the capture.
-func (c *EventContext) StealPointer() bool { return c.app.stealPointer(c.cur) }
+func (c *EventContext) StealPointer() bool { return c.app.stealPointer(c.app.in.cur, c.cur) }
 
-func (a *App) stealPointer(h scene.Handle) bool {
-	p := a.in.cur
+// Capture is [EventContext.StealPointer] for the pointer id rather than the
+// one whose event is being dispatched: for a recogniser that decides on a
+// timer, when no pointer event is on its way — a long press that turns into a
+// context menu takes the finger from the tile it rests on, so that the tile
+// does not treat the release as a tap.
+func (c *EventContext) Capture(id PointerID) bool {
+	return c.app.stealPointer(c.app.findPointer(id), c.cur)
+}
+
+func (a *App) stealPointer(p *pointer, h scene.Handle) bool {
 	if p == nil || !p.down || !a.store.Valid(h) {
 		return false
 	}
@@ -623,9 +641,29 @@ func (a *App) stealPointer(h scene.Handle) bool {
 	p.insideCap = a.hits(h, p.pos)
 	if a.store.Valid(prev) {
 		a.setPressed(prev, false)
+		cur := a.in.cur
+		a.in.cur = p
 		a.deliver(prev, a.pointerEvent(EventPointerCancel, p), true)
+		a.in.cur = cur
 	}
 	return true
+}
+
+// ContextMenuAt reports a click of the secondary mouse button at pos: an
+// [EventContextMenu] for the node under it, bubbling to its ancestors.
+func (a *App) ContextMenuAt(pos geom.Point) {
+	a.assertInputPhase("ContextMenuAt")
+	p := a.pointerFor(MousePointer, PointerMouse, false)
+	if p == nil {
+		return
+	}
+	h := a.hitTest(pos)
+	if h.IsZero() {
+		return
+	}
+	e := a.pointerEvent(EventContextMenu, p)
+	e.Pos, e.Inside = pos, true
+	a.deliver(h, e, false)
 }
 
 // Repaint marks the receiving node as needing to be drawn again, without
@@ -921,6 +959,7 @@ func (a *App) BeginInput(now time.Duration) {
 	a.tickIndicators(now)
 	a.tickAnimations(now)
 	a.tickTimers(now)
+	a.tickOverlays(now)
 	a.tickKeyRepeat(now)
 	a.tickReveal()
 	for i := range a.in.pointers {
@@ -933,7 +972,13 @@ func (a *App) BeginInput(now time.Duration) {
 		}
 		p.longFired = true
 		if a.store.Valid(p.capture) {
-			a.deliver(p.capture, a.pointerEvent(EventLongPress, p), true)
+			// Bubbling, with the pointer current: a context menu around a
+			// button sees the long press the button does not use, and takes
+			// the finger with [EventContext.StealPointer], so that the button
+			// does not count the release as a tap.
+			a.in.cur = p
+			a.deliver(p.capture, a.pointerEvent(EventLongPress, p), false)
+			a.in.cur = nil
 		}
 	}
 }
@@ -1792,6 +1837,9 @@ func (a *App) forgetNode(h scene.Handle) {
 	// sequence of mounts and unmounts, exactly like the two above.
 	a.stopAnimating(h)
 	a.stopTimer(h)
+	if a.data(h).presents {
+		a.forgetOverlay(h)
+	}
 	for i := range a.in.pointers {
 		p := &a.in.pointers[i]
 		if p.over == h {

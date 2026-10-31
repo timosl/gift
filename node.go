@@ -107,6 +107,10 @@ type nodeData struct {
 	// multiTouch mirrors [Element.MultiTouch].
 	multiTouch bool
 
+	// presents says this node has an entry in the top layer; see
+	// [Element.Overlay].
+	presents bool
+
 	// ia is the interaction state gift owns for this node. It lives here and
 	// not in the view because that is what makes hover and press survive a
 	// rebuild and, more importantly, what makes them not cause one; see
@@ -217,6 +221,7 @@ func (nd *nodeData) release() {
 	// tracking.
 	nd.retained = nil
 	nd.multiTouch = false
+	nd.presents = false
 	nd.ia = Interaction{}
 	nd.flex = 0
 	nd.childViews = nil

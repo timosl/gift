@@ -889,6 +889,10 @@ func (a *arena) timer(ctx *gift.EventContext, now time.Duration, gs []Gesture, c
 			s.failed = true
 			a.claimed = true
 			c.Device = a.device
+			// The press is the long press's now: whatever captured the
+			// finger — a tile, a button — is told it was cancelled and does
+			// not see the release.
+			ctx.Capture(a.fingers[0].id)
 			if g.fn != nil {
 				g.fn(LongPressValue{Common: c, Location: s.downPos})
 			}

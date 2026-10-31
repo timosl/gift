@@ -1,6 +1,10 @@
 package gift
 
-import "github.com/worldiety/gift/geom"
+import (
+	"time"
+
+	"github.com/worldiety/gift/geom"
+)
 
 // View is a short lived description of a piece of user interface.
 //
@@ -357,6 +361,26 @@ type Element struct {
 	// It changes nothing while something *is* focused. A keyboard user gets
 	// the ordinary focused delivery and this flag never comes into play.
 	KeyFallback bool
+
+	// Overlay is a view this node presents above everything else in the
+	// window, or nil: a popover, a menu, a context menu. It is mounted in the
+	// top layer, which covers the whole window, is painted after the whole
+	// application and is hit tested before it, so neither a clipping
+	// ancestor nor a sibling painted later can hide it, wherever in the tree
+	// the presenting node is.
+	//
+	// The declaration belongs to the node: the overlay is rebuilt with it,
+	// withdrawn when a build declares nil, and gone when the node is
+	// unmounted or hidden. A node inside the overlay finds where its
+	// presenter is with [LayoutContext.Presenter]. Several overlays are
+	// painted in the order they were presented, the latest on top.
+	Overlay View
+
+	// OverlayExit is how long a withdrawn Overlay stays on the screen,
+	// without taking input, so that it can animate away; see
+	// [PaintContext.OverlayLeaving]. Zero removes it at once. An overlay of
+	// a node that is unmounted or hidden is removed at once regardless.
+	OverlayExit time.Duration
 
 	// MultiTouch declares that this node, and every node inside it, takes
 	// further fingers while one is already down.

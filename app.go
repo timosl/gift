@@ -72,6 +72,15 @@ type App struct {
 	pctx       PaintContext
 	layoutCtxs []*LayoutContext
 
+	// overlays are the presentations of the top layer, topNode the node
+	// they are mounted under, topDirty says it has to be reconciled, and
+	// topBuf and rootViews are reused slices; see overlay.go.
+	overlays  []overlayEntry
+	topNode   scene.Handle
+	topDirty  bool
+	topBuf    []View
+	rootViews [2]View
+
 	// dirty is the queue of scopes that need a rebuild in the next update.
 	dirty []*scope
 	// pendingLayout are the nodes that asked for another layout pass from
@@ -180,8 +189,10 @@ func New(opts Options) *App {
 	n.Key = "root"
 	n.TypeID = uint32(componentTypeID)
 	nd := &n.Payload
-	nd.layouter = passthrough{}
-	nd.painter = passthrough{}
+	// The root is a component with a second child, the top layer; see
+	// overlay.go.
+	nd.layouter = rootLayout{}
+	nd.painter = rootLayout{}
 
 	a.root = &scope{app: a, key: "root", path: "/root", cell: &plainCell{fn: opts.Root}, node: h, alive: true}
 	a.root.ctx = Context{app: a, scope: a.root}
@@ -262,12 +273,21 @@ func (a *App) Update(viewport geom.Size) error {
 	// capture and the hover it hid — is delivered here, and whatever that
 	// dirtied is rebuilt before the layout sees the tree; see pending.go.
 	a.settleNotices()
+	a.reconcileTop()
 
 	if a.needsLayout {
 		a.layoutPass++
 		a.layoutDepth = 0
 		a.layoutNode(a.root.node, geom.Loose(a.viewport))
 		a.assignBounds(a.root.node, geom.Point{}, 0)
+		if a.settleOverlays() {
+			// A presenter moved in this layout; its overlay is placed again
+			// against where it is now. Once: the overlay does not move the
+			// presenter.
+			a.layoutDepth = 0
+			a.layoutNode(a.root.node, geom.Loose(a.viewport))
+			a.assignBounds(a.root.node, geom.Point{}, 0)
+		}
 		a.needsLayout = false
 		a.needsPaint = true
 	}

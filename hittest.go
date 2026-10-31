@@ -125,6 +125,11 @@ func (a *App) hitNode(h scene.Handle, p geom.Point, clip geom.Rect, m geom.Affin
 	if nd.hidden {
 		return scene.Handle{}
 	}
+	// An overlay on its way out is still drawn and no longer touched; see
+	// [Element.OverlayExit].
+	if host, ok := nd.layouter.(*overlayHostNode); ok && host.leaving != 0 {
+		return scene.Handle{}
+	}
 
 	if nd.xform != nil {
 		m = nd.xform.Mul(m)

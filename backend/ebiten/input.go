@@ -349,9 +349,12 @@ func (b *inputBridge) pollMouse(now time.Duration) {
 			continue
 		}
 		b.mouse[i] = now
-		// Only the primary button drives the pointer model. gift has no
-		// notion of a secondary click yet, and inventing one that no view
-		// reads would be a modifier nobody honours.
+		// The primary button drives the pointer model. The secondary one
+		// asks for a context menu, on its press, as on every desktop; the
+		// middle one does nothing.
+		if btn == eb.MouseButtonRight && now {
+			b.app.ContextMenuAt(pos)
+		}
 		if btn != eb.MouseButtonLeft {
 			continue
 		}

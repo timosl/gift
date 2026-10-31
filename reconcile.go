@@ -77,8 +77,25 @@ func (a *App) buildScope(sc *scope) {
 	if v == nil {
 		panic(fmt.Sprintf("gift: component %q returned a nil View", sc.path))
 	}
-	sc.one[0] = v
-	a.reconcileChildren(sc.node, a.data(sc.node), sc.one[:], sc)
+	if sc == a.root {
+		// The root reconciles the top layer after the application while
+		// anything is presented, and nothing besides it otherwise; see
+		// overlay.go.
+		a.rootViews[0], a.rootViews[1] = v, topLayer{a: a}
+		views := a.rootViews[:1]
+		if len(a.overlays) > 0 {
+			views = a.rootViews[:]
+		}
+		nd := a.data(sc.node)
+		a.reconcileChildren(sc.node, nd, views, sc)
+		a.topNode = scene.Handle{}
+		if len(nd.children) > 1 {
+			a.topNode = nd.children[1]
+		}
+	} else {
+		sc.one[0] = v
+		a.reconcileChildren(sc.node, a.data(sc.node), sc.one[:], sc)
+	}
 
 	n := a.store.Get(sc.node)
 	n.Flags &^= scene.FlagNeedsBuild
@@ -186,6 +203,7 @@ func (a *App) applyElement(h scene.Handle, nd *nodeData, desc childDesc, owner *
 	// then reveal a focused field around a rectangle that is not on the
 	// screen. So the rule is the last *unhidden* one.
 	hiddenHere := nd.hidden || a.reconcileHidden
+	a.declareOverlay(h, nd, desc.elem.Overlay, desc.elem.OverlayExit, hiddenHere)
 	if nd.obstructs && !hiddenHere {
 		a.setObstruction(h)
 	} else if a.in.soft.obstruct == h {
@@ -286,6 +304,7 @@ func (a *App) applyHidden(h scene.Handle, nd *nodeData, hidden bool) {
 	// draws nothing; see [App.stopHiddenWork] for the measurements and
 	// [TabBarView] for what they are worth on a Pi.
 	a.stopHiddenWork(h)
+	a.hideOverlaysIn(h)
 	for i := range a.in.pointers {
 		p := &a.in.pointers[i]
 		if !p.active {
