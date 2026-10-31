@@ -6996,6 +6996,154 @@
         "constructors": [],
         "methods": []
       },
+      "TextAreaView": {
+        "synopsis": "TextAreaView edits text of several lines.",
+        "decl": "type TextAreaView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "TextArea",
+            "signature": "TextArea(ed *TextEditor) TextAreaView",
+            "synopsis": "TextArea returns an area editing ed, three lines tall at least and growing without limit; see TextAreaView.Lines."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(b Background) TextAreaView",
+            "synopsis": "Background sets the face."
+          },
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[string]) TextAreaView",
+            "synopsis": "Bind reads the text from b and writes every edit back; see TextFieldView.Bind."
+          },
+          {
+            "name": "Border",
+            "signature": "Border(b Border) TextAreaView",
+            "synopsis": "Border sets the outline."
+          },
+          {
+            "name": "CaretColor",
+            "signature": "CaretColor(c Color) TextAreaView",
+            "synopsis": "CaretColor sets the colour of the caret."
+          },
+          {
+            "name": "Clip",
+            "signature": "Clip(b bool) TextAreaView",
+            "synopsis": "Clip panics for false, as TextFieldView.Clip does: the lines scroll inside the area."
+          },
+          {
+            "name": "CornerRadius",
+            "signature": "CornerRadius(f float32) TextAreaView",
+            "synopsis": "CornerRadius sets the radius of the corners."
+          },
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) TextAreaView",
+            "synopsis": "Disabled takes the area out of input."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) TextAreaView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "FocusRing",
+            "signature": "FocusRing(b Border) TextAreaView",
+            "synopsis": "FocusRing sets the ring drawn while the area holds a visible focus."
+          },
+          {
+            "name": "Font",
+            "signature": "Font(f Font) TextAreaView",
+            "synopsis": "Font sets the font of the text."
+          },
+          {
+            "name": "FontSize",
+            "signature": "FontSize(s float32) TextAreaView",
+            "synopsis": "FontSize sets the size of the text, which is also what a line is measured in."
+          },
+          {
+            "name": "Foreground",
+            "signature": "Foreground(c Color) TextAreaView",
+            "synopsis": "Foreground sets the colour of the text."
+          },
+          {
+            "name": "Frame",
+            "signature": "Frame(w, h float32) TextAreaView",
+            "synopsis": "Frame fixes the size; see BoxView.Frame."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) TextAreaView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) TextAreaView",
+            "synopsis": "Label sets the accessible name; see TextFieldView.Label."
+          },
+          {
+            "name": "Lines",
+            "signature": "Lines(min, max int) TextAreaView",
+            "synopsis": "Lines sets the height of the area in lines of its font: at least min, and growing with the text up to max, past which the lines scroll."
+          },
+          {
+            "name": "MaxHeight",
+            "signature": "MaxHeight(f float32) TextAreaView",
+            "synopsis": "MaxHeight sets the largest height, past which the lines scroll."
+          },
+          {
+            "name": "MaxWidth",
+            "signature": "MaxWidth(f float32) TextAreaView",
+            "synopsis": "MaxWidth sets the largest width."
+          },
+          {
+            "name": "MinHeight",
+            "signature": "MinHeight(f float32) TextAreaView",
+            "synopsis": "MinHeight sets the smallest height."
+          },
+          {
+            "name": "MinWidth",
+            "signature": "MinWidth(f float32) TextAreaView",
+            "synopsis": "MinWidth sets the smallest width."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(f func(string)) TextAreaView",
+            "synopsis": "OnChange sets the function called with the text after every edit."
+          },
+          {
+            "name": "Padding",
+            "signature": "Padding(f float32) TextAreaView",
+            "synopsis": "Padding sets the room between the edge and the text on every side."
+          },
+          {
+            "name": "PaddingInsets",
+            "signature": "PaddingInsets(i geom.Insets) TextAreaView",
+            "synopsis": "PaddingInsets sets the room between the edge and the text per side."
+          },
+          {
+            "name": "Placeholder",
+            "signature": "Placeholder(s string) TextAreaView",
+            "synopsis": "Placeholder sets the text shown while the area is empty; see TextFieldView.Placeholder."
+          },
+          {
+            "name": "PlaceholderColor",
+            "signature": "PlaceholderColor(c Color) TextAreaView",
+            "synopsis": "PlaceholderColor sets the colour of the placeholder."
+          },
+          {
+            "name": "SelectionColor",
+            "signature": "SelectionColor(c Color) TextAreaView",
+            "synopsis": "SelectionColor sets the colour behind selected text."
+          },
+          {
+            "name": "Shadow",
+            "signature": "Shadow(s Shadow) TextAreaView",
+            "synopsis": "Shadow sets the shadow."
+          }
+        ]
+      },
       "TextEditor": {
         "synopsis": "TextEditor is the document a TextFieldView edits, together with the state of editing it: the caret, the selection anchor, the horizontal scroll of the field and the phase of the blink.",
         "decl": "type TextEditor struct {\n\t// Has unexported fields.\n}",

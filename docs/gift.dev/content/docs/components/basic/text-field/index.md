@@ -140,6 +140,7 @@ control, and control with an arrow moves by words. The modifiers are the variabl
 
 The shortcut letters are physical key positions of a US keyboard, so on other layouts they sit where the US keys
 would be. There is no undo, and no multi-line input: enter submits, and pasted text ends at its first line break.
+For text of several lines use a [Text Area](../text-area/).
 The field is not an input method for CJK composition, but umlauts, accents, AltGr and dead keys arrive as ordinary
 characters and are inserted like any other.
 
@@ -188,6 +189,7 @@ tell a kiosk from a desktop. Passing the app instead of nil rebuilds the window 
 
 ## Related
 
+- [Text Area](../text-area/), for text of several lines
 - [Secure Field](../secure-field/), the same field for a password or a PIN
 - [Keyboard](../../dialogs/keyboard/), the on-screen keyboard of a kiosk
 - [Button](../button/), which usually submits what a field holds

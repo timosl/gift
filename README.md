@@ -178,6 +178,9 @@ behind its title.
 `ui.SecureField` takes a password or a PIN: dots drawn the way iOS draws
 them, no copy or cut, and on a kiosk the character just typed shown for a
 moment.
+`ui.TextArea` edits text of several lines: it wraps, grows with its text up
+to a number of lines and then scrolls, keeps the column on up and down, and
+lets a finger scroll where a mouse selects.
 
 ### Video
 

@@ -2580,6 +2580,35 @@ Ein `TextField` mit Maske, als Gegenstueck zu SwiftUIs SecureField.
 Offen: das Leeren beim erneuten Bearbeiten, das UIKit fuer sichere Felder
 macht, und ein Hinweis auf eingerastete Feststelltaste.
 
+## 31. TextArea
+
+Das mehrzeilige Textfeld, Punkt 5 der iOS-Liste. Der Name `TextEditor` ist
+bei gift das Modell (Text, Caret, Auswahl), deshalb heisst die Ansicht
+`ui.TextArea`; sie arbeitet auf demselben Modell wie `TextField`.
+
+- Umbruch an der Breite, harte Umbrueche mit Enter; Einfuegen behaelt Zeilen,
+  macht aus CR/CRLF/LS/PS ein `\n` und aus Tab vier Leerzeichen.
+- Hoehe `Lines(min, max)`: waechst mit dem Text von min bis max Zeilen (0 =
+  ohne Grenze), danach scrollt das Feld selbst (Rad, Finger, Caret im Blick,
+  Ziehen ueber den Rand); ein schmaler Indikator rechts waehrend des Scrollens.
+- Zeilengeometrie aus dem Absatz: `Line.Start/End` umfassen beim weichen
+  Umbruch die Leerzeichen, beim harten liegt der Umbruch *zwischen* End und
+  dem naechsten Start (der Kommentar im Textpaket behauptete das Gegenteil und
+  ist korrigiert). Der Offset am weichen Umbruch ist zweideutig; eine
+  Affinitaet (`up`) haelt ihn am Ende der oberen Zeile, wenn End oder ein
+  Klick hinter das Zeilenende ihn dorthin gesetzt hat.
+- Tasten: hoch/runter mit gemerkter Spalte, Bild hoch/runter um die
+  sichtbaren Zeilen, Pos1/Ende auf der Bildschirmzeile, mit der
+  Shortcut-Taste an die Enden des Texts; Dreifachklick waehlt den Absatz.
+- Zeiger: Die Maus waehlt beim Ziehen in jede Richtung aus; ein Finger, der
+  senkrecht beginnt, scrollt (das Feld, sonst das Formular). Ein Finger setzt
+  den Caret erst beim Loslassen, wie bei iOS, damit Scrollen ihn nicht
+  versetzt. Die Unterscheidung nach Geraet ist moeglich, seit der Pi das
+  Panel als Touch liest.
+
+Offen: Undo, Schwung beim Scrollen mit dem Finger, Umbruch ueberlanger
+Woerter, Auswahlgriffe fuer Touch.
+
 ## Quellen der Architekturpruefung
 
 - Nago, untersuchter Stand: https://github.com/worldiety/nago/tree/76fb9e89b1169c9f6bc020a5b31971422898479c
