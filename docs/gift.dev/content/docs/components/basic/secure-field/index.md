@@ -59,10 +59,10 @@ ui.HStack(
 
 ## API
 
-{{< api-funcs pkg="ui" names="SecureField" >}}
+`SecureField` returns a `ui.TextFieldView`, so it is listed with that type; `Revealed` and `ShowsLastCharacter` are
+its modifiers and do nothing to a plain text field. See [Text Field](../text-field/) for the rest.
 
-`SecureField` returns a `ui.TextFieldView`; `Revealed` and `ShowsLastCharacter` are its modifiers and do nothing to a
-plain text field. See [Text Field](../text-field/) for the rest.
+{{< api "TextFieldView" >}}
 
 ## Related
 
