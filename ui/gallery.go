@@ -290,6 +290,7 @@ type Gallery struct {
 	overscan   float64
 	onSelect   func(asset.ID)
 	onActivate func(asset.ID)
+	onOpen     func(asset.ID)
 
 	// slots is the tile pool. Its length is the number of tile nodes that
 	// exist, which is bounded by the viewport and never by the catalogue.
@@ -377,6 +378,12 @@ type Gallery struct {
 	// pass. It is the frame counter the retry of a refused thumbnail is
 	// rate limited by; see [Gallery.onImage].
 	pass uint64
+
+	// paintSeq counts the paints of the gallery node, and concealed is the
+	// entry whose picture is hidden; see [Gallery.ThumbnailFrame] and
+	// [Gallery.Conceal].
+	paintSeq  uint64
+	concealed asset.ID
 
 	// invalidate marks the gallery node for layout. It is handed over by the
 	// first layout pass — see [gift.LayoutContext.Invalidator] — and is what
@@ -996,6 +1003,14 @@ type tileSlot struct {
 	// is where the ticket is cancelled.
 	pending   asset.Ticket
 	requested bool
+
+	// frame is the device space rectangle the tile was last drawn at, and
+	// paintSeq the [Gallery.paintSeq] of that paint. They are a record of
+	// where a picture is on screen, written by the painter and read only
+	// outside the frame by [Gallery.ThumbnailFrame]; nothing that is drawn
+	// depends on them.
+	frame    geom.Rect
+	paintSeq uint64
 }
 
 func (s *tileSlot) binding(slot int) TileBinding {
@@ -1060,6 +1075,7 @@ type GalleryView struct {
 	bar        ScrollBar
 	onSelect   func(asset.ID)
 	onActivate func(asset.ID)
+	onOpen     func(asset.ID)
 	name       string
 }
 
@@ -1095,7 +1111,7 @@ func (v GalleryView) Build(*gift.BuildContext) gift.Element {
 		g.style = v.tile.resolved()
 	}
 	g.overscan = float64(v.overscan)
-	g.onSelect, g.onActivate = v.onSelect, v.onActivate
+	g.onSelect, g.onActivate, g.onOpen = v.onSelect, v.onActivate, v.onOpen
 
 	n := &galleryNode{g: g, fr: v.frame, st: v.style.resolved(), pad: v.pad}
 	n.bar.style = v.bar.withDefaults()
@@ -1232,6 +1248,12 @@ func (v GalleryView) OnSelect(fn func(asset.ID)) GalleryView { v.onSelect = fn; 
 // activation; every click selects, see [GalleryView.OnSelect].
 func (v GalleryView) OnActivate(fn func(asset.ID)) GalleryView { v.onActivate = fn; return v }
 
+// OnOpen is called when a tile is tapped or clicked without a modifier, after
+// it was selected: the gesture with which Photos opens a picture. A gallery
+// that opens a viewer on a tap sets it, usually together with
+// [GalleryView.OnActivate] for the enter key, to the same function.
+func (v GalleryView) OnOpen(fn func(asset.ID)) GalleryView { v.onOpen = fn; return v }
+
 // Label sets the accessible name of the gallery; see [gift.Element.Label].
 func (v GalleryView) Label(s string) GalleryView { v.name = s; return v }
 
@@ -1363,6 +1385,11 @@ func (t *tileNode) Paint(ctx *gift.PaintContext) {
 	}
 	st := t.g.style
 	b := ctx.Bounds()
+	s.frame, s.paintSeq = ctx.DeviceBounds(), t.g.paintSeq
+	if s.id == t.g.concealed {
+		// Shown somewhere else; see [Gallery.Conceal].
+		return
+	}
 
 	// The picture, if there is one. The lookup is one map read plus two
 	// integer comparisons inside the backend for a resident texture, and it
@@ -2041,6 +2068,9 @@ func grow32i(s []int32, n int) []int32 {
 func (n *galleryNode) Paint(ctx *gift.PaintContext) {
 	b := ctx.Bounds()
 	paintBackground(ctx, n.st, b)
+	// The bookkeeping of [Gallery.ThumbnailFrame], not drawing state: the
+	// tiles painted below record this number next to where they were drawn.
+	n.g.paintSeq++
 	ctx.PaintChildren()
 	paintBorder(ctx, n.st, b)
 	// Last, because an indicator is an overlay: it has to sit over the tiles
@@ -2215,6 +2245,9 @@ func (g *Gallery) tileHit(ctx *gift.EventContext, slot int, e gift.Event) bool {
 		g.sel.Only(id)
 	}
 	g.fire(g.onSelect, id)
+	if !e.Mods.Has(gift.ModShift) && !e.Mods.Has(gift.ModControl) && !e.Mods.Has(gift.ModMeta) {
+		g.fire(g.onOpen, id)
+	}
 	// A repaint and not a relayout: nothing moved. The tile reads the
 	// selection live, so the new border is on screen in the next frame
 	// without a single view function running.

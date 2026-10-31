@@ -57,6 +57,12 @@ type Pixels struct {
 	W, H int
 	// Stride is the distance between two rows in bytes.
 	Stride int
+	// Key identifies the picture, the same number every time the same
+	// pixels are offered, or zero. A backend may use it to upload a picture
+	// larger than its per frame budget over several frames, a band of rows
+	// at a time, recognising the picture again when it is offered in the
+	// next frame; without a key such a picture is uploaded whole.
+	Key uint64
 }
 
 // IsEmpty reports whether there is nothing to upload.

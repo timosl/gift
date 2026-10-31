@@ -483,3 +483,23 @@ func (n *iconNode) Paint(ctx *gift.PaintContext) {
 	}
 	paintBorder(ctx, n.st, b)
 }
+
+// Draw draws the symbol into dst, in the local space of the node being
+// painted, tinted with c: the mask of an [Icon] without the view, for a
+// painter that composes symbols with its own drawing — a control that fades
+// in and out, say, which a view of its own cannot do because nothing in gift
+// fades a subtree. px is the edge of the mask in device pixels, normally the
+// edge of dst times the density the node was laid out at. It reports whether
+// it drew; a mask that is not resident yet is drawn on a later frame.
+func (s Symbol) Draw(ctx *gift.PaintContext, dst geom.Rect, c Color, px int) bool {
+	if s.IsZero() || c.IsTransparent() {
+		return false
+	}
+	px = max(1, min(px, icon.MaxIconExtent))
+	id, ok := icons.resolve(ctx.Images(), s, px)
+	if !ok {
+		return false
+	}
+	ctx.Add(render.Op{Kind: render.OpImage, Bounds: dst, Color: c, Image: id})
+	return true
+}

@@ -72,6 +72,30 @@ type imageKey struct {
 
 func (k imageKey) ok() bool { return k.id != "" && k.rung > 0 }
 
+// hash is the key as one number, for [render.Pixels.Key]: FNV-1a over the
+// three parts, never zero.
+func (k imageKey) hash() uint64 {
+	h := uint64(14695981039346656037)
+	add := func(s string) {
+		for i := range len(s) {
+			h ^= uint64(s[i])
+			h *= 1099511628211
+		}
+		h ^= 0xff
+		h *= 1099511628211
+	}
+	add(string(k.id))
+	add(k.rev)
+	for v := uint64(k.rung); ; v >>= 8 {
+		h ^= v & 0xff
+		h *= 1099511628211
+		if v < 256 {
+			break
+		}
+	}
+	return h | 1
+}
+
 // texEntry is one resident texture: the durable handle and the pixel size the
 // aspect ratio is computed from.
 //
@@ -216,6 +240,7 @@ func (s *imageService) resolve(ctx *gift.PaintContext, k imageKey) (render.Image
 	}
 	h, ok := im.Acquire(render.Pixels{
 		Pix: t.Pix(), W: t.Width(), H: t.Height(), Stride: t.Stride(),
+		Key: k.hash(),
 	})
 	w, hh := t.Width(), t.Height()
 	t.Release()

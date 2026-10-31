@@ -31,7 +31,21 @@ type DiskCacheConfig struct {
 
 	// Now supplies the clock, for tests. Nil selects [time.Now].
 	Now func() time.Time
+	// MaxSize is the largest ladder rung that is kept on disk. Larger rungs
+	// are decoded from the source every time and live in the CPU cache only.
+	// Zero selects [DefaultDiskMaxSize].
+	//
+	// The cache stores raw pixels, and a picture the size of a screen is ten
+	// megabytes of them: a viewer that pages through a hundred pictures
+	// would push every thumbnail of the gallery behind it out of the budget.
+	// Decoding such a rung again costs far less than decoding a gallery's
+	// worth of thumbnails, so the large rungs give way.
+	MaxSize int
 }
+
+// DefaultDiskMaxSize is the largest rung the disk cache keeps when none is
+// configured: 1024 pixels along the longest edge, four megabytes.
+const DefaultDiskMaxSize = 1024
 
 // DefaultDiskBudget is the disk cache ceiling when none is configured: 256 MiB,
 // which holds about a thousand 256 pixel thumbnails in the raw format the cache
@@ -57,7 +71,9 @@ const DefaultDiskBudget int64 = 256 << 20
 type diskCache struct {
 	dir    string
 	budget int64
-	now    func() time.Time
+	// maxSize is [DiskCacheConfig.MaxSize] with its default applied.
+	maxSize int
+	now     func() time.Time
 
 	mu      sync.Mutex
 	entries map[string]diskEntry // by file name
@@ -100,9 +116,14 @@ func newDiskCache(cfg DiskCacheConfig) *diskCache {
 	if now == nil {
 		now = time.Now
 	}
+	maxSize := cfg.MaxSize
+	if maxSize <= 0 {
+		maxSize = DefaultDiskMaxSize
+	}
 	return &diskCache{
 		dir:     filepath.Join(cfg.Dir, "v1"),
 		budget:  b,
+		maxSize: maxSize,
 		now:     now,
 		entries: make(map[string]diskEntry),
 	}
@@ -163,7 +184,7 @@ func (d *diskCache) path(name string) string {
 
 // get reads the entry for k, or reports a miss.
 func (d *diskCache) get(k Key) (w, h int, pix []byte, ok bool) {
-	if d == nil || k.Revision == "" {
+	if d == nil || k.Revision == "" || k.Size > d.maxSize {
 		return 0, 0, nil, false
 	}
 	d.scan()
@@ -192,9 +213,10 @@ func (d *diskCache) get(k Key) (w, h int, pix []byte, ok bool) {
 
 // put writes the entry for k and evicts down to the budget.
 //
-// A key without a revision is not written: see [ErrNoRevision].
+// A key without a revision is not written: see [ErrNoRevision]. Neither is a
+// rung above [DiskCacheConfig.MaxSize], which is not an error.
 func (d *diskCache) put(k Key, t *Thumbnail) error {
-	if d == nil {
+	if d == nil || k.Size > d.maxSize {
 		return nil
 	}
 	if k.Revision == "" {
