@@ -195,7 +195,7 @@ func capture(bin string, args []string, input string, settle int, crop bool, dir
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, args...)
-	cmd.Env = append(os.Environ(), "GIFT_AUTO_ADDR="+addr)
+	cmd.Env = append(os.Environ(), "GIFT_AUTO_ADDR="+addr, "GIFT_CAPTURE=1")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		return err

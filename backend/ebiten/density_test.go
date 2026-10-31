@@ -412,3 +412,19 @@ func TestLayoutFFollowsTheSystemScale(t *testing.T) {
 		})
 	}
 }
+
+// TestNoMouseReadsNoMouse pins [Config.NoMouse]: the cursor is not even asked
+// for, so nothing an operator does with it reaches the application.
+func TestNoMouseReadsNoMouse(t *testing.T) {
+	ka := newKeyboardApp(t)
+	b := newInputBridge(ka.app)
+	b.noMouse = true
+	b.cursor = func() (float64, float64) { t.Fatal("the cursor was read"); return 0, 0 }
+	b.wheel = func() (float64, float64) { t.Fatal("the wheel was read"); return 0, 0 }
+	ka.events = ka.events[:0]
+	ka.app.BeginInput(0)
+	b.pollMouse(0)
+	if len(ka.events) != 0 {
+		t.Fatalf("NoMouse delivered %d events", len(ka.events))
+	}
+}

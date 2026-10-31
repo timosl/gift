@@ -105,6 +105,9 @@ type inputBridge struct {
 	cursor func() (float64, float64)
 	wheel  func() (float64, float64)
 
+	// noMouse is [Config.NoMouse].
+	noMouse bool
+
 	// runes is the buffer [eb.AppendInputChars] appends this tick's
 	// characters into. It is reused and never handed out, which is what
 	// keeps the rune path inside the zero allocation contract of the project
@@ -321,6 +324,9 @@ func (b *inputBridge) logical(x, y float64) geom.Point {
 }
 
 func (b *inputBridge) pollMouse(now time.Duration) {
+	if b.noMouse {
+		return
+	}
 	x, y := b.cursor()
 	pos := b.logical(x, y)
 	if b.panel != nil && b.panel.recent(now, panelLinger) {

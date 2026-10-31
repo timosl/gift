@@ -132,7 +132,10 @@ func run() error {
 	}()
 	ui.SetImagePipeline(pipe)
 
+	// docs/capture sets GIFT_CAPTURE, so that the operator's cursor resting
+	// over the window does not hover anything in the screenshots.
 	return backend.Run(app, backend.Config{
 		Title: "gift gallery: " + d.Name, Width: d.Width, Height: d.Height,
+		NoMouse: os.Getenv("GIFT_CAPTURE") != "",
 	})
 }

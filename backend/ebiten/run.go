@@ -269,6 +269,14 @@ type Config struct {
 	// field and use Ebitengine's own touch input.
 	Touchscreen string
 
+	// NoMouse stops reading the mouse and only the mouse; the keyboard, the
+	// touches and the touch panel still arrive. It is for screenshots taken
+	// through the automation interface: the mouse is polled every tick, so
+	// without it a hover shows wherever the operator's cursor happens to rest
+	// over the window, and a picture of an open menu has a highlighted row
+	// on one machine and none on the next.
+	NoMouse bool
+
 	// NoInput disables the input bridge. It exists for a measurement run that
 	// must not be perturbed by a cursor that happens to rest over a button,
 	// and for a test harness that dispatches events into [gift.App] itself.
@@ -394,6 +402,7 @@ func Run(app *gift.App, cfg Config) error {
 	if cfg.NoInput {
 		g.input = nil
 	} else {
+		g.input.noMouse = cfg.NoMouse
 		g.input.attachPanel(cfg.Touchscreen, cfg.Logger, g.wake)
 		defer g.input.detachPanel()
 	}
