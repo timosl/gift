@@ -175,6 +175,9 @@ wheels that turn, flick and settle on a row, and `ui.DateWheel` and
 `ui.TimeWheel` built from it. `ui.Calendar` is the graphical date picker: a
 month grid that pages sideways under a finger, with month and year wheels
 behind its title.
+`ui.SecureField` takes a password or a PIN: dots drawn the way iOS draws
+them, no copy or cut, and on a kiosk the character just typed shown for a
+moment.
 
 ### Video
 

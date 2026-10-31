@@ -188,6 +188,7 @@ tell a kiosk from a desktop. Passing the app instead of nil rebuilds the window 
 
 ## Related
 
+- [Secure Field](../secure-field/), the same field for a password or a PIN
 - [Keyboard](../../dialogs/keyboard/), the on-screen keyboard of a kiosk
 - [Button](../button/), which usually submits what a field holds
 - [Segmented Control](../segmented-control/) and [Toggle](../toggle/), controls for fixed values

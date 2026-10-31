@@ -7134,6 +7134,11 @@
         "decl": "type TextFieldView struct {\n\t// Has unexported fields.\n}",
         "constructors": [
           {
+            "name": "SecureField",
+            "signature": "SecureField(ed *TextEditor) TextFieldView",
+            "synopsis": "SecureField returns a field for a password or a PIN, the counterpart of SwiftUI's SecureField: a TextField that shows a dot for every character."
+          },
+          {
             "name": "TextField",
             "signature": "TextField(ed *TextEditor) TextFieldView",
             "synopsis": "TextField returns a field editing ed."
@@ -7266,6 +7271,11 @@
             "synopsis": "PlaceholderColor sets the colour of the placeholder text."
           },
           {
+            "name": "Revealed",
+            "signature": "Revealed(b bool) TextFieldView",
+            "synopsis": "Revealed shows the text of a SecureField in the clear while b is true, for a \"show password\" button next to it."
+          },
+          {
             "name": "SelectionColor",
             "signature": "SelectionColor(c Color) TextFieldView",
             "synopsis": "SelectionColor sets the highlight drawn behind selected text."
@@ -7274,6 +7284,11 @@
             "name": "Shadow",
             "signature": "Shadow(s Shadow) TextFieldView",
             "synopsis": "Shadow draws a blurred copy of the field's box behind it."
+          },
+          {
+            "name": "ShowsLastCharacter",
+            "signature": "ShowsLastCharacter(b bool) TextFieldView",
+            "synopsis": "ShowsLastCharacter makes a SecureField show the character just typed for SecureRevealDuration, or until the next key, as iOS does: on a touch keyboard a mistyped letter is otherwise found only when the sign in fails."
           }
         ]
       },

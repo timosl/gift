@@ -2555,6 +2555,30 @@ Offen: Wochennummern, Bereichsauswahl (von–bis), Lokalisierung der
 Wochentage ueber `WeekdayNames` hinaus, eine Hoehe, die der Zahl der Wochen
 folgt.
 
+## 30. SecureField
+
+Ein `TextField` mit Maske, als Gegenstueck zu SwiftUIs SecureField.
+
+- `ui.SecureField(ed)` liefert ein `TextFieldView` mit gesetztem Schalter;
+  Editor, Bindung, Callbacks, Aussehen, Fokus und Bildschirmtastatur bleiben
+  dieselben. `Revealed` zeigt den Klartext (Augen-Knopf), `ShowsLastCharacter`
+  das zuletzt getippte Zeichen fuer `SecureRevealDuration` (1,5 s) oder bis
+  zur naechsten Eingabe; Standard ist der Schalter der Bildschirmtastatur,
+  also an auf dem Kiosk und aus auf dem Desktop wie bei macOS.
+- Gesetzt wird statt jedes Zeichens eine Ziffer „0“ als Zelle, gezeichnet wird
+  statt ihres Glyphs ein Kreis von 0,38 em: der Punkt von U+2022 ist in den
+  meisten Schriften klein und eng, und es gibt keine Laufweite im Textsatz.
+  Die Ziffer hat in jeder Schrift etwa 0,55 em, das ist die Teilung von iOS.
+  Caret, Auswahl und Klick laufen ueber eine Abbildung der Byte-Offsets
+  zwischen Dokument und Maske.
+- Kopieren und Ausschneiden tun nichts, Einfuegen geht (Passwortmanager).
+  Keine Woerter: Doppelklick waehlt alles, Wortsprung geht an die Enden.
+- Der gemeldete Wert (Barrierefreiheit, giftauto) ist die Maske, nie der
+  Klartext.
+
+Offen: das Leeren beim erneuten Bearbeiten, das UIKit fuer sichere Felder
+macht, und ein Hinweis auf eingerastete Feststelltaste.
+
 ## Quellen der Architekturpruefung
 
 - Nago, untersuchter Stand: https://github.com/worldiety/nago/tree/76fb9e89b1169c9f6bc020a5b31971422898479c
