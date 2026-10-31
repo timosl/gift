@@ -120,6 +120,19 @@ var views = []struct {
 		name: "ui.ContextMenu", set: setMinimal, v: ui.ContextMenu(ui.Box()),
 		why: presenterWhy,
 	},
+	{
+		name: "ui.WheelPicker", set: setMinimal, v: ui.WheelPicker(),
+		why: "a wheel has the height of its rows and draws its own band and fading; its size is VisibleRows, RowHeight and Width",
+	},
+	{
+		name: "ui.DateWheel", set: setMinimal, v: ui.DateWheel(),
+		why: "three wheels of fixed widths, styled like a ui.WheelPicker",
+	},
+	{
+		name: "ui.TimeWheel", set: setMinimal, v: ui.TimeWheel(),
+		why: "two wheels of fixed widths, styled like a ui.WheelPicker",
+	},
+	{name: "ui.wheelColumn", set: setInternal, why: "one wheel of a ui.WheelPicker; its settings are WheelColumn's"},
 	{name: "ui.panel", set: setInternal, why: "the card of a popover and of a menu in the top layer; its settings are PopoverView's"},
 	{name: "ui.menuButton", set: setInternal, why: "the control of ui.Menu, which carries its settings"},
 	{name: "ui.menuList", set: setInternal, why: "the rows of an open menu"},
