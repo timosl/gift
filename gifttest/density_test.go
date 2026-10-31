@@ -455,11 +455,14 @@ func TestGlassAtTwoX(t *testing.T) {
 	}
 
 	// The column is the middle of the panel and the rows span the blurred
-	// edge of the bar, from well inside the smear to just short of the
-	// panel's own bottom edge.
+	// edge of the bar, from well inside the smear to just short of the rim
+	// at the panel's bottom edge, 48. The rim is two hairlines measured in
+	// device pixels, as iOS draws them, so at 2x it is half as wide and the
+	// rows it crosses differ by design: by 63 at y=46, where the 1x specular
+	// line lies and the 2x one has already ended.
 	const col = 44
 	worst, at := 0, 0
-	for y := 20; y < 47; y++ {
+	for y := 20; y < 45; y++ {
 		r1, g1, b1, _ := one.At(col, y).RGBA()
 		r2, g2, b2, _ := two.At(2*col, 2*y).RGBA()
 		d := max(chanDiff(r1, r2), chanDiff(g1, g2), chanDiff(b1, b2))
