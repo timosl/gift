@@ -172,7 +172,9 @@ ui.Menu(ui.Icon(outline.DotsHorizontal),
 
 Wheels choose values the way iOS does: `ui.WheelPicker` with any number of
 wheels that turn, flick and settle on a row, and `ui.DateWheel` and
-`ui.TimeWheel` built from it.
+`ui.TimeWheel` built from it. `ui.Calendar` is the graphical date picker: a
+month grid that pages sideways under a finger, with month and year wheels
+behind its title.
 
 ### Video
 

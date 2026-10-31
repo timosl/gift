@@ -4460,6 +4460,84 @@
           }
         ]
       },
+      "CalendarView": {
+        "synopsis": "CalendarView chooses a date on a month grid.",
+        "decl": "type CalendarView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Calendar",
+            "signature": "Calendar() CalendarView",
+            "synopsis": "Calendar returns a date picker of a month grid, the counterpart of SwiftUI's DatePicker with the graphical style and of UICalendarView."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c Color) CalendarView",
+            "synopsis": "Background puts the calendar on a rounded card of colour c, which the month and year wheels fade into as well."
+          },
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[Date]) CalendarView",
+            "synopsis": "Bind reads the chosen date from b and writes the choice back."
+          },
+          {
+            "name": "FirstWeekday",
+            "signature": "FirstWeekday(d time.Weekday) CalendarView",
+            "synopsis": "FirstWeekday sets the day the weeks begin with."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) CalendarView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) CalendarView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) CalendarView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "Marked",
+            "signature": "Marked(fn func(Date) bool) CalendarView",
+            "synopsis": "Marked puts a dot under every day for which fn reports true: the days with appointments, the days a shop is open."
+          },
+          {
+            "name": "MonthNames",
+            "signature": "MonthNames(names [12]string) CalendarView",
+            "synopsis": "MonthNames sets the names in the header, January first."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(fn func(Date)) CalendarView",
+            "synopsis": "OnChange sets the function called with the date chosen."
+          },
+          {
+            "name": "Range",
+            "signature": "Range(min, max Date) CalendarView",
+            "synopsis": "Range limits the dates that can be chosen and the months that can be shown."
+          },
+          {
+            "name": "Value",
+            "signature": "Value(d Date) CalendarView",
+            "synopsis": "Value sets the chosen date."
+          },
+          {
+            "name": "WeekdayNames",
+            "signature": "WeekdayNames(names [7]string) CalendarView",
+            "synopsis": "WeekdayNames sets the names of the weekday row, Sunday first; see GermanWeekdays."
+          },
+          {
+            "name": "Width",
+            "signature": "Width(px float32) CalendarView",
+            "synopsis": "Width fixes the width."
+          }
+        ]
+      },
       "CardView": {
         "synopsis": "CardView is a panel raised above the window background: a ColorSurface face, a corner radius, a hairline and an optional header.",
         "decl": "type CardView struct {\n\t// Has unexported fields.\n}",

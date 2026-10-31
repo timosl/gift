@@ -2528,6 +2528,33 @@ Touch-Kiosk der natuerlichste Picker: drehen, werfen, anhalten, nichts tippen.
 Offen: 12-Stunden-Uhr mit AM/PM, Lokalisierung ueber die Monatsnamen hinaus,
 eine Tonrueckmeldung beim Weiterrasten.
 
+## 29. Kalender
+
+Der grafische DatePicker von iOS, als Gegenstueck zu den Raedern.
+
+- `ui.Calendar`: Kopfzeile mit Monat und Jahr, Pfeile fuer den vorigen und den
+  naechsten Monat, Wochentagszeile, sechs Wochen in festen Zeilen von 44 pt,
+  damit die Hoehe beim Blaettern nicht springt. Der gewaehlte Tag liegt in
+  einem Kreis der Akzentfarbe, heute ist in der Akzentfarbe geschrieben, Tage
+  ausserhalb des Bereichs sind grau und nehmen keinen Tipp an; `Marked` setzt
+  einen Punkt unter Tage mit Terminen.
+- Blaettern wie im Bildbetrachter: drei Monate liegen nebeneinander, ein Wisch
+  verschiebt sie, ein Wurf ab 400 pt/s oder ein langsamer Zug ueber die Haelfte
+  wechselt den Monat, eine kritisch gedaempfte Feder bringt ihn an; an den
+  Enden des Bereichs gibt das Rubberband nach. Pfeile, Mausrad (hoechstens ein
+  Monat je 200 ms, damit ein Trackpad nicht durch das Jahr rast) und Bild
+  auf/ab schieben den neuen Monat von seiner Seite herein.
+- Ein Tipp auf den Titel ersetzt Raster, Wochentage und Pfeile durch ein Monats-
+  und ein Jahresrad (`ui.WheelPicker`); der Chevron dreht nach unten.
+- Tastatur: Pfeile verschieben den gewaehlten Tag um einen Tag oder eine
+  Woche, der angezeigte Monat folgt ihm.
+- Der angezeigte Monat ist Zustand der Komponente, nicht der Anwendung: Blaettern
+  waehlt nichts.
+
+Offen: Wochennummern, Bereichsauswahl (von–bis), Lokalisierung der
+Wochentage ueber `WeekdayNames` hinaus, eine Hoehe, die der Zahl der Wochen
+folgt.
+
 ## Quellen der Architekturpruefung
 
 - Nago, untersuchter Stand: https://github.com/worldiety/nago/tree/76fb9e89b1169c9f6bc020a5b31971422898479c
