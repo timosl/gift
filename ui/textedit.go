@@ -116,6 +116,12 @@ type TextEditor struct {
 	clickX  float32
 	clicks  int
 
+	// revealing is set while a secure field shows the character that ends
+	// at revealEnd in the clear, the one just typed; see
+	// [TextFieldView.ShowsLastCharacter].
+	revealing bool
+	revealEnd int
+
 	// owner and ownerPass are the double mount guard; see [TextEditor].
 	owner     gift.NodeRef
 	ownerPass uint64

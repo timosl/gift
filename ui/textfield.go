@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/geom"
@@ -58,6 +59,12 @@ const (
 	// [gift.Event.Time], which is the injected clock and therefore testable.
 	DoubleClickInterval = 400 * time.Millisecond
 	DoubleClickSlop     = float32(4)
+
+	// SecureRevealDuration is how long a secure field shows the character
+	// just typed before it becomes a dot like the others, when it shows it at
+	// all; see [TextFieldView.ShowsLastCharacter]. iOS and Android both show
+	// it for about this long.
+	SecureRevealDuration = 1500 * time.Millisecond
 
 	// caretWidth is the thickness of the caret in logical pixels. One is what
 	// a text caret is; at a device density of two it is drawn two physical
@@ -205,6 +212,9 @@ type TextFieldView struct {
 	hasFocusRing bool
 	disabled     bool
 	hasPadding   bool
+
+	secure, revealed      bool
+	lastChar, hasLastChar bool
 }
 
 // TextField returns a field editing ed. A nil editor panics: a field without a
@@ -216,6 +226,48 @@ func TextField(ed *TextEditor) TextFieldView {
 			"or, inside a component, with ui.Editor(ctx, name, initial)")
 	}
 	return TextFieldView{ed: ed}
+}
+
+// SecureField returns a field for a password or a PIN, the counterpart of
+// SwiftUI's SecureField: a [TextField] that shows a dot for every character.
+//
+//	pw := ui.Editor(ctx, "password", "")
+//	ui.SecureField(pw).Placeholder("Password").OnSubmit(signIn)
+//
+// What it changes against a [TextField], and why:
+//
+//   - The text is drawn, measured and reported as dots, one per character,
+//     so neither the screen nor [gift.ValueReporter] — and with it giftauto —
+//     gives it away. The caret, the selection and a click still land between
+//     the same characters as in the clear.
+//   - Copy and cut do nothing, so the password does not end up on a clipboard
+//     every other program can read. Paste works, for a password manager.
+//   - There are no words: a double click selects everything and the word
+//     motions go to the ends, because stopping at a space would tell where
+//     the spaces are.
+//   - The character just typed can be shown for [SecureRevealDuration]; see
+//     [TextFieldView.ShowsLastCharacter].
+//
+// [TextFieldView.Revealed] shows the text in the clear, for the eye button
+// next to a password field.
+func SecureField(ed *TextEditor) TextFieldView {
+	v := TextField(ed)
+	v.secure = true
+	return v
+}
+
+// Revealed shows the text of a [SecureField] in the clear while b is true, for
+// a "show password" button next to it. It does nothing to a [TextField].
+func (v TextFieldView) Revealed(b bool) TextFieldView { v.revealed = b; return v }
+
+// ShowsLastCharacter makes a [SecureField] show the character just typed for
+// [SecureRevealDuration], or until the next key, as iOS does: on a touch
+// keyboard a mistyped letter is otherwise found only when the sign in fails.
+// The default follows [SetOnScreenKeyboard], on for a kiosk and off on a
+// desktop, where macOS never shows it. It does nothing to a [TextField].
+func (v TextFieldView) ShowsLastCharacter(b bool) TextFieldView {
+	v.lastChar, v.hasLastChar = b, true
+	return v
 }
 
 // ViewType implements gift.View.
@@ -264,7 +316,12 @@ func (v TextFieldView) Build(*gift.BuildContext) gift.Element {
 		onSubmit:    v.onSubmit,
 		bind:        v.bind,
 		disabled:    v.disabled,
+		secure:      v.secure && !v.revealed,
+		showLast:    v.lastChar,
 		req:         text.Request{Font: resolveFont(v.font), Size: size, MaxWidth: geom.Unbounded()},
+	}
+	if !v.hasLastChar {
+		n.showLast = onScreenKeyboard.Load()
 	}
 	if v.hasPadding {
 		n.pad = v.pad
@@ -358,6 +415,17 @@ type textFieldNode struct {
 
 	disabled bool
 
+	// secure is set for a [SecureField] whose text is not revealed, and
+	// showLast when it shows the character just typed. mask caches the masked
+	// text for the document and the revealed character it was made for, with
+	// the offset of every cell in it; see [textFieldNode.shown].
+	secure, showLast bool
+	mask             struct {
+		src, out string
+		rev      int
+		cells    []int
+	}
+
 	// inner is the content rectangle of the last layout, in local space. The
 	// event handlers need its width to keep the caret in view and its left
 	// edge to turn a pointer position into a text offset.
@@ -378,8 +446,100 @@ type textFieldNode struct {
 // text is a miss and allocates in harfbuzz, which the project plan, section
 // 11, excludes from the frame path contract by name.
 func (n *textFieldNode) para() *text.Paragraph {
-	n.req.Text = n.ed.Text()
+	n.req.Text = n.shown()
 	return text.Default().Layout(n.req)
+}
+
+// maskCell is what a secure field shapes for a character: room for a dot,
+// which [textFieldNode.paintSecureLine] draws in the middle of it instead of
+// the digit. The dot is drawn rather than set as U+2022 because a bullet glyph
+// is small and tight in most fonts, and absent from some; the dot of iOS is
+// about four tenths of an em across on a pitch of six tenths, which is the
+// width of a digit in every font.
+//
+// maskDot is what the field reports for a character.
+const (
+	maskCell = "0"
+	maskDot  = "\u2022"
+)
+
+// shown is the text the field shapes and draws: the document, or for a secure
+// field a [maskCell] for every character of it but the one being revealed.
+//
+// Every offset the node hands to the shaped line or takes from it therefore
+// goes through [textFieldNode.toShown] and [textFieldNode.fromShown]; the
+// editor itself only ever sees offsets in the document. The cells are cached
+// per text, so a frame that changed nothing builds no string.
+func (n *textFieldNode) shown() string {
+	s := n.ed.Text()
+	if !n.secure {
+		return s
+	}
+	rev := n.revealEnd()
+	if n.mask.out != "" && n.mask.src == s && n.mask.rev == rev {
+		return n.mask.out
+	}
+	var b strings.Builder
+	n.mask.cells = n.mask.cells[:0]
+	for i := 0; i < len(s); {
+		_, size := utf8.DecodeRuneInString(s[i:])
+		if i+size == rev {
+			b.WriteString(s[i : i+size])
+		} else {
+			n.mask.cells = append(n.mask.cells, b.Len())
+			b.WriteString(maskCell)
+		}
+		i += size
+	}
+	n.mask.src, n.mask.rev, n.mask.out = s, rev, b.String()
+	return n.mask.out
+}
+
+// revealEnd is the end of the character a secure field shows in the clear,
+// or -1.
+func (n *textFieldNode) revealEnd() int {
+	if n.ed.revealing && n.showLast {
+		return n.ed.revealEnd
+	}
+	return -1
+}
+
+// toShown maps a byte offset in the document to the same position in
+// [textFieldNode.shown].
+func (n *textFieldNode) toShown(off int) int {
+	if !n.secure {
+		return off
+	}
+	s, rev, d := n.ed.Text(), n.revealEnd(), 0
+	for i := 0; i < off && i < len(s); {
+		_, size := utf8.DecodeRuneInString(s[i:])
+		i += size
+		if i == rev {
+			d += size
+		} else {
+			d += len(maskCell)
+		}
+	}
+	return d
+}
+
+// fromShown is the inverse of [textFieldNode.toShown].
+func (n *textFieldNode) fromShown(d int) int {
+	if !n.secure {
+		return d
+	}
+	s, rev, at := n.ed.Text(), n.revealEnd(), 0
+	i := 0
+	for i < len(s) && at < d {
+		_, size := utf8.DecodeRuneInString(s[i:])
+		i += size
+		if i == rev {
+			at += size
+		} else {
+			at += len(maskCell)
+		}
+	}
+	return i
 }
 
 // --- layout -----------------------------------------------------------------
@@ -534,7 +694,7 @@ func (n *textFieldNode) revealCaret() {
 	if !(w > 0) {
 		return
 	}
-	x := caretX(n.para(), n.ed.caret)
+	x := caretX(n.para(), n.toShown(n.ed.caret))
 	switch {
 	case x-n.ed.scroll < 0:
 		n.ed.scroll = x
@@ -643,22 +803,65 @@ func (n *textFieldNode) paintContent(ctx *gift.PaintContext, b geom.Rect, ia gif
 		}
 	} else {
 		if lo, hi := n.ed.selection(); lo != hi && ia.Focused && !n.selectionBG.IsTransparent() {
-			r := geom.Rc(x+caretX(p, lo), top, x+caretX(p, hi), bottom)
+			r := geom.Rc(x+caretX(p, n.toShown(lo)), top, x+caretX(p, n.toShown(hi)), bottom)
 			ctx.Add(render.Op{Kind: render.OpFillRect, Bounds: r, Color: n.selectionBG})
 		}
-		if !fg.IsTransparent() {
+		switch {
+		case fg.IsTransparent():
+		case n.secure:
+			n.paintSecureLine(ctx, b, p, fg, x, baseline, top+n.lineH/2)
+		default:
 			n.paintLine(ctx, b, n.req, fg, x, baseline)
 		}
 	}
 
 	if ia.Focused && !ia.Disabled && !n.caretColor.IsTransparent() &&
 		n.ed.caretVisible(ctx.Now()) {
-		cx := roundf(x + caretX(p, n.ed.caret))
+		cx := roundf(x + caretX(p, n.toShown(n.ed.caret)))
 		ctx.Add(render.Op{
 			Kind:   render.OpFillRect,
 			Bounds: geom.Rc(cx, top, cx+caretWidth, bottom),
 			Color:  n.caretColor,
 		})
+	}
+}
+
+// paintSecureLine is [paintShapedLine] for a secure field: it draws a dot in
+// the middle of every cell of the shaped line p instead of its glyph, on the
+// height cy, the middle of the line band where the caret is centred too, and
+// the glyph of the character being revealed as it is.
+func (n *textFieldNode) paintSecureLine(ctx *gift.PaintContext, b geom.Rect, p *text.Paragraph, fg Color, x, baseline, cy float32) {
+	if len(p.Lines) == 0 {
+		return
+	}
+	cell := text.Default().Layout(text.Request{Text: maskCell, Font: n.req.Font, Size: n.req.Size, MaxWidth: geom.Unbounded()})
+	half := float32(0)
+	if len(cell.Lines) > 0 {
+		half = cell.Lines[0].Advance / 2
+	}
+	r := n.req.Size * 0.19
+	cells := n.mask.cells
+	k := 0
+	ln := &p.Lines[0]
+	first := ctx.GlyphsLen()
+	for ri := range ln.Runs {
+		run := &ln.Runs[ri]
+		id := render.FontID(run.Font.ID())
+		for gi := range run.Glyphs {
+			g := &run.Glyphs[gi]
+			for k < len(cells) && cells[k] < int(g.Cluster) {
+				k++
+			}
+			if k < len(cells) && cells[k] == int(g.Cluster) {
+				c := geom.Pt(x+g.X+half, cy)
+				ctx.Add(render.Op{Kind: render.OpFillRoundRect, Bounds: geom.Rc(c.X-r, c.Y-r, c.X+r, c.Y+r), Color: fg, CornerRadius: r})
+				continue
+			}
+			ctx.AppendGlyph(render.Glyph{Font: id, ID: render.GlyphID(g.ID), Size: run.Size, X: x + g.X, Y: baseline + g.Y})
+		}
+	}
+	if count := ctx.GlyphsLen() - first; count > 0 {
+		ctx.Add(render.Op{Kind: render.OpGlyphs, Bounds: b, Color: fg, Glyphs: first, GlyphCount: count})
 	}
 }
 
@@ -707,8 +910,14 @@ func paintShapedLine(ctx *gift.PaintContext, b geom.Rect, req text.Request, fg C
 // --- input -------------------------------------------------------------------
 
 // AccessibleValue implements [gift.ValueReporter]: the text of the field, which
-// is what giftauto reports as its value.
-func (n *textFieldNode) AccessibleValue(gift.ControlState) string { return n.ed.Text() }
+// is what giftauto reports as its value. A secure field reports its dots and
+// never the character it is revealing.
+func (n *textFieldNode) AccessibleValue(gift.ControlState) string {
+	if n.secure {
+		return strings.Repeat(maskDot, utf8.RuneCountInString(n.ed.Text()))
+	}
+	return n.ed.Text()
+}
 
 // HandleEvent implements gift.Interactor.
 //
@@ -762,7 +971,24 @@ func (n *textFieldNode) HandleEvent(ctx *gift.EventContext, e gift.Event) bool {
 		// than input arriving at a control.
 		return false
 	}
+	// The character just typed goes back to a dot at the next thing the user
+	// does, as on iOS: another key, a press, the focus leaving.
 	switch e.Kind {
+	case gift.EventKeyDown, gift.EventPointerDown, gift.EventFocusLost:
+		if n.ed.revealing {
+			n.ed.revealing = false
+			ctx.Repaint()
+		}
+	}
+	switch e.Kind {
+	case gift.EventTimer:
+		if n.ed.revealing {
+			n.ed.revealing = false
+			n.revealCaret()
+			ctx.Repaint()
+		}
+		return true
+
 	case gift.EventFocusGained:
 		n.ed.restartBlink(e.Time)
 		ctx.Animate(CaretBlinkWindow)
@@ -828,6 +1054,10 @@ func (n *textFieldNode) HandleEvent(ctx *gift.EventContext, e gift.Event) bool {
 			return false
 		}
 		n.ed.InsertRune(e.Rune)
+		if n.secure && n.showLast {
+			n.ed.revealing, n.ed.revealEnd = true, n.ed.caret
+			ctx.After(SecureRevealDuration)
+		}
 		n.afterEdit(ctx, e.Time)
 		return true
 	}
@@ -915,6 +1145,11 @@ func (n *textFieldNode) press(ctx *gift.EventContext, e gift.Event) {
 		n.ed.MoveCaret(off, e.Mods.Has(gift.ModShift))
 		n.ed.drag = dragPending
 	case 2:
+		if n.secure {
+			n.ed.SelectAll()
+			n.ed.drag = dragNone
+			break
+		}
 		n.ed.SelectWordAt(off)
 		n.ed.dragWordLo, n.ed.dragWordHi = n.ed.selection()
 		n.ed.drag = dragPending
@@ -944,6 +1179,8 @@ func (n *textFieldNode) key(ctx *gift.EventContext, e gift.Event) bool {
 		// [TextEditor.MoveWordLeft] unreachable from the keyboard on the
 		// platform of the project plan, section 1.
 		switch {
+		case word && n.secure:
+			ed.MoveHome(extend)
 		case word:
 			ed.MoveWordLeft(extend)
 		case shortcut:
@@ -953,6 +1190,8 @@ func (n *textFieldNode) key(ctx *gift.EventContext, e gift.Event) bool {
 		}
 	case gift.KeyRight:
 		switch {
+		case word && n.secure:
+			ed.MoveEnd(extend)
 		case word:
 			ed.MoveWordRight(extend)
 		case shortcut:
@@ -999,13 +1238,15 @@ func (n *textFieldNode) key(ctx *gift.EventContext, e gift.Event) bool {
 		if !shortcut {
 			return false
 		}
-		n.copy()
+		if !n.secure {
+			n.copy()
+		}
 		return true
 	case gift.KeyX:
 		if !shortcut {
 			return false
 		}
-		if n.copy() && ed.DeleteSelection() {
+		if !n.secure && n.copy() && ed.DeleteSelection() {
 			n.afterEdit(ctx, e.Time)
 		}
 		return true
@@ -1123,7 +1364,8 @@ func (n *textFieldNode) afterCaretMove(ctx *gift.EventContext, now time.Duration
 func (n *textFieldNode) offsetOf(ctx *gift.EventContext, p geom.Point) int {
 	b := ctx.DeviceBounds()
 	x := p.X - b.Min.X - n.pad.Left + n.ed.scroll
-	return offsetAt(n.para(), n.ed.Text(), x)
+	para := n.para()
+	return n.fromShown(offsetAt(para, n.req.Text, x))
 }
 
 func absf(v float32) float32 {
