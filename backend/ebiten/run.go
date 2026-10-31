@@ -46,11 +46,28 @@ type Config struct {
 	Logger *slog.Logger
 
 	// TPS is the tick rate, that is the number of update callbacks per
-	// second. Zero or less selects Ebitengine's default of sixty.
+	// second. Zero or less ties the updates to the display instead: one
+	// before every refresh (Ebitengine's SyncWithFPS), whatever the
+	// display's rate.
 	//
 	// It does not set the frame rate. Ebitengine draws as often as the
-	// display and the driver allow, and several updates may happen between
-	// two drawn frames; the project plan, section 6, is explicit about this.
+	// display and the driver allow, and with a rate of its own several
+	// updates may happen between two drawn frames, or none; the project
+	// plan, section 6, is explicit about this.
+	//
+	// # Why one per refresh is the default
+	//
+	// Ebitengine counts the ticks a refresh affords against the clock and
+	// rounds. Refreshes sixty times a second at sixty ticks a second sit on
+	// the rounding boundary, and the small jitter of their timing pushes the
+	// count to none and then two: measured on a Mac during a fling of a map,
+	// 14 of 141 refreshes had no update, so nothing new to draw, and showed
+	// the frame before once more, and 8 had two; on a Raspberry Pi 5, 11
+	// and 10 of 141. The motion stuttered, although every refresh came on
+	// time. Gift's time is the wall clock, not the tick count, so it loses
+	// nothing by ticking once a refresh, and an animation gets every
+	// refresh. [Config.IdleTPS] lowers the rate while nothing changes as
+	// before.
 	TPS int
 
 	// IdleTPS, if greater than zero, lowers the tick rate to this value once
@@ -338,9 +355,13 @@ func Run(app *gift.App, cfg Config) error {
 	if h <= 0 {
 		h = 720
 	}
-	tps := cfg.TPS
+	// busy is the tick rate while anything changes, and tps the rate the
+	// metrics take a nominal frame interval from: one update per refresh
+	// unless the application asked for a rate, and the refresh then
+	// assumed to be sixty hertz, as before.
+	tps, busy := cfg.TPS, cfg.TPS
 	if tps <= 0 {
-		tps = eb.DefaultTPS
+		tps, busy = eb.DefaultTPS, eb.SyncWithFPS
 	}
 	idleAfter := cfg.IdleFrames
 	if idleAfter <= 0 {
@@ -402,8 +423,8 @@ func Run(app *gift.App, cfg Config) error {
 		rec:       rec,
 		log:       cfg.Logger,
 		onUpdate:  cfg.OnUpdate,
-		activeTPS: tps,
-		busyTPS:   tps,
+		activeTPS: busy,
+		busyTPS:   busy,
 		idleTPS:   cfg.IdleTPS,
 		idleAfter: idleAfter,
 		onDemand:  cfg.DrawOnDemand,
@@ -431,7 +452,7 @@ func Run(app *gift.App, cfg Config) error {
 	eb.SetWindowTitle(cfg.Title)
 	eb.SetWindowSize(w, h)
 	eb.SetWindowResizingMode(eb.WindowResizingModeEnabled)
-	eb.SetTPS(tps)
+	eb.SetTPS(busy)
 	if cfg.DrawOnDemand || cfg.DirectToScreen {
 		// With DirectToScreen the offscreen holds nothing but a marker;
 		// clearing it every frame would be a full screen pass for nothing.
@@ -442,7 +463,7 @@ func Run(app *gift.App, cfg Config) error {
 		cfg.Logger.Info("gift/backend/ebiten: starting",
 			slog.String("title", cfg.Title),
 			slog.Int("width", w), slog.Int("height", h),
-			slog.Int("tps", tps), slog.Int("idle_tps", cfg.IdleTPS))
+			slog.Int("tps", busy), slog.Int("idle_tps", cfg.IdleTPS))
 	}
 
 	opts := &eb.RunGameOptions{
