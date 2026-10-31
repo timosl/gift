@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	eb "github.com/hajimehoshi/ebiten/v2"
 	"github.com/worldiety/gift"
@@ -62,7 +63,7 @@ func main() {
 	weatherFrom := flag.String("weather", "", "the weather over the map: dwd, gfs, or dwd+gfs for the one inside Germany and the other beyond")
 	reduced := flag.Bool("reduced", false, "the reduced quality of the weather, for a Raspberry Pi")
 	workers := flag.Int("workers", 2, "decode and rasterising goroutines: two leave the frame loop a core of its own on a Raspberry Pi 5")
-	upload := flag.Int("upload", 512, "texture upload budget per frame in KiB: on a Raspberry Pi 5 two tiles per frame keep a pan at 60 Hz")
+	upload := flag.Int("upload", 0, "texture upload budget per frame in KiB; 0 is two tiles a frame, which keep a pan at 60 Hz on a Raspberry Pi 5")
 	flag.Parse()
 	if *fullscreen {
 		eb.SetFullscreen(true)
@@ -193,6 +194,13 @@ func run(path, url, xyz, attribution string, debug, dark, noLabels bool, width, 
 		// straight into the window, and tick slowly while nothing does.
 		DrawOnDemand: true, DirectToScreen: true, IdleTPS: 10,
 		AssetStats: ui.ImagePipelineStats,
+	}
+	// Two tiles a frame: 512 KiB where the display of a Raspberry Pi has
+	// density 1 and a tile is 256 pixels square, and the backend's 2 MiB on
+	// the displays of density 2 elsewhere, where a tile is 512. Less there,
+	// and the tiles of a zoom arrive over a second.
+	if upload == 0 && runtime.GOOS == "linux" {
+		upload = 512
 	}
 	if upload > 0 {
 		cfg.Textures.UploadBytesPerFrame = int64(upload) << 10

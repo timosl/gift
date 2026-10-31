@@ -102,6 +102,16 @@ func (m *Map) labelsFor(k labelKey, pass uint64) ([]labelCand, bool) {
 	return nil, false
 }
 
+// hasLabels reports whether the labels of a tile have been read, without
+// asking for them.
+func (m *Map) hasLabels(k labelKey, pass uint64) bool {
+	if _, ok := m.labels.tiles[k]; ok {
+		m.labels.used[k] = pass
+		return true
+	}
+	return false
+}
+
 // readLabels is the label goroutine of a map. It touches nothing of the map
 // but the provider and the styles, which are fixed, and hands every result
 // back through post.
@@ -232,31 +242,49 @@ const (
 	maxLabels         = 160
 	maxShapedPerFrame = 12
 	labelFade         = 180 * time.Millisecond
+	labelGrace        = 250 * time.Millisecond
 )
 
-// sizeKey is a string at a font size.
-type sizeKey struct {
-	s    string
-	size float32
+// measureSize is the font size a label is measured at. Its size at any other
+// is that one scaled: the size of a label follows the zoom, and a zoom
+// passes through a new size in every frame, which measured anew would leave
+// most labels unmeasured, and so off the map, until the zoom ends.
+const measureSize = 32
+
+// measured returns the size of a label at the font size fs, if it was
+// measured before.
+func (m *Map) measured(s string, fs float32) (geom.Size, bool) {
+	v, ok := m.sizes[s]
+	return scaled(v, fs), ok
 }
 
-// measured returns the size of a label measured before.
-func (m *Map) measured(s string, size float32) (geom.Size, bool) {
-	v, ok := m.sizes[sizeKey{s, size}]
-	return v, ok
-}
-
-// measure shapes a label and remembers its size. The table is emptied when it
-// grows past a few thousand entries rather than kept in order: a map moved
-// across a whole city meets that many names, and measuring them again is the
-// cost of a few frames.
-func (m *Map) measure(s string, size float32) geom.Size {
+// measure shapes a label and remembers its size, and returns it at the font
+// size fs. The table is emptied when it grows past a few thousand entries
+// rather than kept in order: a map moved across a whole city meets that many
+// names, and measuring them again is the cost of a few frames.
+func (m *Map) measure(s string, fs float32) geom.Size {
 	if m.sizes == nil || len(m.sizes) > 4096 {
-		m.sizes = make(map[sizeKey]geom.Size, 512)
+		m.sizes = make(map[string]geom.Size, 512)
 	}
-	v := ui.MeasureText(s, ui.TextStyle{Size: size})
-	m.sizes[sizeKey{s, size}] = v
-	return v
+	v := ui.MeasureText(s, ui.TextStyle{Size: measureSize})
+	m.sizes[s] = v
+	return scaled(v, fs)
+}
+
+// labelFontSize is the font size of a label of the rule r at zoom, in steps
+// of half a point. The glyphs of a label are rasterised for the size they
+// are drawn at, and a zoom that went through a new size in every frame
+// would rasterise every label again in every frame, and fill the glyph atlas
+// with sizes it never needs again until it turns glyphs away. In steps, a
+// zoom across a level passes two or three.
+func labelFontSize(r *LabelRule, zoom float64) float32 {
+	return float32(math.Round(r.Size.At(zoom)*2) / 2)
+}
+
+// scaled is a size measured at measureSize at the font size fs.
+func scaled(v geom.Size, fs float32) geom.Size {
+	k := fs / measureSize
+	return geom.Size{W: v.W * k, H: v.H * k}
 }
 
 // layoutLabels places the labels of the frame.
@@ -279,31 +307,43 @@ func (n *node) layoutLabels(ctx *gift.LayoutContext, v projection, pass uint64) 
 	if st == nil || len(st.Labels) == 0 {
 		return
 	}
-	// The tiles of the label level under the viewport.
+	// The tiles of the label level under the viewport, whether their
+	// pictures have arrived or not. Of a tile whose labels have not been
+	// read, those of the level the map comes from stand in, its parent's or
+	// its children's, as its picture's stand-in does: a zoom across a level
+	// would otherwise take the labels off the map until the new ones are
+	// read.
 	lz := m.labelLevel(v.zoom)
 	f.ltiles = f.ltiles[:0]
-	for _, ref := range f.refs {
-		if ref.kind != refExact {
-			continue
+	add := func(t TileID) {
+		if !slices.Contains(f.ltiles, t) {
+			f.ltiles = append(f.ltiles, t)
 		}
-		t := ref.k.t
+	}
+	for _, t := range f.vtiles {
 		if t.Z > lz {
 			t = t.Ancestor(lz)
 		}
-		if !slices.Contains(f.ltiles, t) {
-			f.ltiles = append(f.ltiles, t)
+		if _, ok := m.labelsFor(labelKey{t: t, style: si}, pass); ok {
+			add(t)
+			continue
+		}
+		if t.Z > m.info.MinZoom {
+			if p := t.Ancestor(t.Z - 1); m.hasLabels(labelKey{t: p, style: si}, pass) {
+				add(p)
+				continue
+			}
+		}
+		for i := range 4 {
+			if ch := (TileID{Z: t.Z + 1, X: 2*t.X + i%2, Y: 2*t.Y + i/2}); m.hasLabels(labelKey{t: ch, style: si}, pass) {
+				add(ch)
+			}
 		}
 	}
 	// The candidates change with the tiles, their labels arriving and the
 	// zoom crossing a quarter level, not with every frame of a pan: they are
 	// collected and sorted again only then.
-	loaded := 0
-	for _, t := range f.ltiles {
-		if _, ok := m.labelsFor(labelKey{t: t, style: si}, pass); ok {
-			loaded++
-		}
-	}
-	key := candKey{style: si, level: lz, quarter: int(math.Floor(v.zoom * 4)), loaded: loaded}
+	key := candKey{style: si, level: lz, quarter: int(math.Floor(v.zoom * 4))}
 	if key != f.candKey || !slices.Equal(f.ltiles, f.candTiles) {
 		f.candKey = key
 		f.candTiles = append(f.candTiles[:0], f.ltiles...)
@@ -336,7 +376,7 @@ func (n *node) layoutLabels(ctx *gift.LayoutContext, v projection, pass uint64) 
 			continue
 		}
 		r := &st.Labels[c.rule]
-		fs := float32(r.Size.At(v.zoom))
+		fs := labelFontSize(r, v.zoom)
 		size, ok := m.measured(c.text, fs)
 		if !ok {
 			// A string seen for the first time is shaped, which costs a
@@ -381,30 +421,29 @@ func (n *node) layoutLabels(ctx *gift.LayoutContext, v projection, pass uint64) 
 		f.addBox(box)
 	}
 
-	// Fading in: a label is new when it was not placed in the frame before.
+	// Fading in: a label is new when it was not placed for a while. One
+	// that misses a few frames, because the order of the candidates changed
+	// or its tile's labels were read again, comes back as it was rather than
+	// fading in once more, which would make it blink.
 	if m.fade == nil {
-		m.fade = make(map[string]time.Duration)
-	}
-	clear(f.seen)
-	if f.seen == nil {
-		f.seen = make(map[string]bool)
+		m.fade = make(map[string]labelFadeState)
 	}
 	f.fading = false
 	for i := range f.labels {
 		p := &f.labels[i]
-		since, ok := m.fade[p.text]
-		if !ok {
-			since = now
-			m.fade[p.text] = now
+		st, ok := m.fade[p.text]
+		if !ok || now-st.seen > labelGrace {
+			st.since = now
 		}
-		f.seen[p.text] = true
-		p.alpha = float32(min(1, float64(now-since)/float64(labelFade)))
+		st.seen = now
+		m.fade[p.text] = st
+		p.alpha = float32(min(1, float64(now-st.since)/float64(labelFade)))
 		if p.alpha < 1 {
 			f.fading = true
 		}
 	}
-	for k := range m.fade {
-		if !f.seen[k] {
+	for k, st := range m.fade {
+		if now-st.seen > labelGrace {
 			delete(m.fade, k)
 		}
 	}
@@ -450,8 +489,11 @@ type candKey struct {
 	style   uint8
 	level   int
 	quarter int
-	loaded  int
 }
+
+// labelFadeState is when a label was first placed, for its fade in, and
+// when it was placed last.
+type labelFadeState struct{ since, seen time.Duration }
 
 // resetBoxes empties the placed boxes and sizes the grid to a w by h map.
 func (f *frame) resetBoxes(w, h float32) {
@@ -493,7 +535,7 @@ func (n *node) paintLabels(ctx *gift.PaintContext, origin geom.Point) {
 		p := &n.f.labels[i]
 		r := &st.Labels[p.rule]
 		ts := ui.TextStyle{
-			Size:  float32(r.Size.At(n.f.proj.zoom)),
+			Size:  labelFontSize(r, n.f.proj.zoom),
 			Color: fade(ui.ResolveColor(r.Color), p.alpha),
 			Halo:  fade(ui.ResolveColor(r.Halo), p.alpha),
 		}

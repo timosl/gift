@@ -22,11 +22,20 @@ type srcKey struct {
 }
 
 // tileCache is the map's side of the tiles: one [asset.Source] per tile and
-// size, created once and kept, and the passes at which each was last seen
-// ready, which is what the coarser and finer stand-ins are chosen from.
+// size, created once and kept, the passes at which each was last seen
+// ready, which is what the coarser and finer stand-ins are chosen from, and
+// whether its texture was there when it was last drawn.
+//
+// Ready and drawn are two things. A tile is ready when its pixels are
+// decoded; its texture is uploaded by the frame that first draws it, within
+// the backend's upload budget, which a screenful of tiles after a zoom
+// exceeds many times over. Until a tile has been drawn, its stand-in stays
+// under it, or the map would be blank where the tile is still on its way to
+// the GPU.
 type tileCache struct {
-	srcs   map[srcKey]*srcEntry
-	loaded map[srcKey]uint64
+	srcs     map[srcKey]*srcEntry
+	loaded   map[srcKey]uint64
+	resident map[srcKey]bool
 }
 
 // srcEntry is the source of a tile and the pass it was last used in.
@@ -38,6 +47,7 @@ type srcEntry struct {
 func (c *tileCache) init() {
 	c.srcs = make(map[srcKey]*srcEntry)
 	c.loaded = make(map[srcKey]uint64)
+	c.resident = make(map[srcKey]bool)
 }
 
 // prune forgets what has not been used for a while, once there is much of
@@ -52,6 +62,7 @@ func (c *tileCache) prune(pass uint64) {
 		if pass-e.used > 600 {
 			delete(c.srcs, k)
 			delete(c.loaded, k)
+			delete(c.resident, k)
 		}
 	}
 }
@@ -181,6 +192,7 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 
 	s := Stats{Level: z}
 	n.f.coarse = n.f.coarse[:0]
+	n.f.vtiles = n.f.vtiles[:0]
 	n.f.loading = false
 	for r := r0; r <= r1; r++ {
 		if r < br0 || r > br1 {
@@ -197,6 +209,7 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 				continue
 			}
 			s.Tiles++
+			n.f.vtiles = append(n.f.vtiles, TileID{Z: z, X: wc, Y: r})
 			k := srcKey{t: TileID{Z: z, X: wc, Y: r}, px: px, style: style}
 			pic := ui.RequestPicture(ctx, m.source(k, pass), px)
 			rect := geom.Rect{
@@ -207,6 +220,13 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 				m.tiles.loaded[k] = pass
 				n.f.refs = append(n.f.refs, tileRef{k: k, r: rect, pic: pic, kind: refExact})
 				s.Drawn++
+				if !m.tiles.resident[k] {
+					// Decoded, and not yet drawn: its upload may take
+					// frames, and its stand-in stays under it until a
+					// layout after it.
+					n.f.loading = true
+					s.Fallbacks += n.standIn(ctx, k, c, x0, y0, ts, pass)
+				}
 				continue
 			}
 			if pic.Err() == nil {
@@ -251,10 +271,16 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 
 // standIn finds what can be drawn in place of the tile k, whose unwrapped
 // column is c and whose square starts at x0, y0 with edge ts: the nearest
-// coarser tile that was ever ready, or else the finer ones that were. It
-// returns how many it added.
+// coarser tile whose texture is there, or else the finer ones whose
+// textures are, or else the nearest coarser tile that was ever ready, which
+// is uploaded first. It returns how many it added.
+//
+// A texture that is there is preferred to a nearer one that is not: a zoom
+// out comes back to a level that was evicted from the GPU long ago, and the
+// tiles of the level it left are still there and show the place now.
 func (n *node) standIn(ctx *gift.LayoutContext, k srcKey, c int, x0, y0, ts float64, pass uint64) int {
 	m := n.m
+	var alt tileRef
 	for d := 1; d <= 8 && k.t.Z-d >= m.info.MinZoom; d++ {
 		a := srcKey{t: k.t.Ancestor(k.t.Z - d), px: k.px, style: k.style}
 		if _, ok := m.tiles.loaded[a]; !ok {
@@ -270,22 +296,29 @@ func (n *node) standIn(ctx *gift.LayoutContext, k srcKey, c int, x0, y0, ts floa
 		if !pic.Ready() {
 			continue
 		}
-		n.f.coarse = append(n.f.coarse, a)
 		f := float64(int(1) << d)
 		// The coarse tile's square, from the unwrapped column of k.
 		ac := math.Floor(float64(c) / f)
 		ax := x0 - (float64(c)-ac*f)*ts
 		ay := y0 - float64(k.t.Y-a.t.Y*int(f))*ts
-		n.f.refs = append(n.f.refs, tileRef{k: a, pic: pic, kind: refCoarser, r: geom.Rect{
+		ref := tileRef{k: a, pic: pic, kind: refCoarser, r: geom.Rect{
 			Min: geom.Pt(float32(ax), float32(ay)),
 			Max: geom.Pt(float32(ax+ts*f), float32(ay+ts*f)),
-		}})
+		}}
+		if !m.tiles.resident[a] {
+			if !alt.pic.Ready() {
+				alt = ref
+			}
+			continue
+		}
+		n.f.coarse = append(n.f.coarse, a)
+		n.f.refs = append(n.f.refs, ref)
 		return 1
 	}
 	added := 0
 	for i := range 4 {
 		ch := srcKey{t: TileID{Z: k.t.Z + 1, X: 2*k.t.X + i%2, Y: 2*k.t.Y + i/2}, px: k.px, style: k.style}
-		if _, ok := m.tiles.loaded[ch]; !ok {
+		if !m.tiles.resident[ch] {
 			continue
 		}
 		pic := ui.RequestPicture(ctx, m.source(ch, pass), ch.px)
@@ -300,19 +333,35 @@ func (n *node) standIn(ctx *gift.LayoutContext, k srcKey, c int, x0, y0, ts floa
 		}})
 		added++
 	}
+	if added < 4 && alt.pic.Ready() {
+		n.f.coarse = append(n.f.coarse, alt.k)
+		n.f.refs = append(n.f.refs, alt)
+		added++
+	}
 	return added
 }
 
 // paintTiles draws the tiles of the frame, stand-ins first: coarser, then
-// finer, then the exact ones over both.
+// finer, then the exact ones over both. What it draws, and what it could
+// not because the texture is still on its way, is what the next layout
+// chooses the stand-ins by.
 func (n *node) paintTiles(ctx *gift.PaintContext, origin geom.Point) {
+	// Without a GPU nothing is ever drawn, and nothing is waited for.
+	headless := ctx.Images() == nil
 	for _, kind := range [...]uint8{refCoarser, refFiner, refExact} {
 		for i := range n.f.refs {
 			ref := &n.f.refs[i]
 			if ref.kind != kind {
 				continue
 			}
-			ref.pic.DrawTile(ctx, ref.r.Translate(origin), ui.OpaqueWhite)
+			ok := ref.pic.DrawTile(ctx, ref.r.Translate(origin), ui.OpaqueWhite) || headless
+			if ok != n.m.tiles.resident[ref.k] {
+				if ok {
+					n.m.tiles.resident[ref.k] = true
+				} else {
+					delete(n.m.tiles.resident, ref.k)
+				}
+			}
 		}
 	}
 }

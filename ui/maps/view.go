@@ -137,8 +137,9 @@ type frame struct {
 	cands  []labelCand
 	ltiles []TileID
 	boxes  []geom.Rect
-	seen   map[string]bool
 	fading bool
+	// vtiles are the tiles under the viewport, at the level of the frame.
+	vtiles []TileID
 	// more is set when labels were left unmeasured for a later frame.
 	more bool
 	// markers are the markers of the frame, hits the scratch of their

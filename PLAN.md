@@ -3349,6 +3349,28 @@ Gebaut wie geplant, mit diesen Abweichungen und Ergaenzungen:
   aufgeschobenen Uploads, und ein Bild, das auf ein Band wartete, galt als
   abgelehnt statt als aufgeschoben. Beide liessen eine Ansicht, die nur bei
   Bedarf zeichnet, mit fehlenden Bildern stehen. Behoben in 2ed5a14.
+- **Flackern beim Zoomen und Verschieben** auf dem Mac (Dichte 2), Bild fuer
+  Bild mit dem `capture` der Automatisierung gefunden; drei Ursachen:
+  - Bereit hiess dekodiert, nicht hochgeladen. Nach einem Zoom fielen die
+    Ersatzkacheln weg, sobald die neuen dekodiert waren, und die Karte war
+    leer, bis das Upload-Budget sie Frame fuer Frame nachgeliefert hatte.
+    Jetzt bleibt der Ersatz liegen, bis die Kachel einmal gezeichnet ist,
+    und bevorzugt wird Ersatz, dessen Textur schon da ist. Das Beispiel
+    laedt zwei Kacheln je Frame: 512 KiB unter Linux, sonst 2 MiB.
+  - Die Schriftgroesse der Beschriftungen folgte dem Zoom stufenlos; jede
+    neue Groesse wurde neu vermessen (zwoelf je Frame) und neu gerastert.
+    Waehrend eines Zooms verschwanden fast alle Beschriftungen und blendeten
+    danach wieder ein. Jetzt einmal vermessen und skaliert, in halben
+    Punkten gestuft; Beschriftungen noch nicht gelesener Kacheln ersetzen
+    die der Eltern- oder Kindkacheln, und eine kurz verdraengte
+    Beschriftung blendet nicht neu ein. Fehlgriffe im Glyphenatlas der
+    Pi-Messfolge: rund 410 statt rund 1000.
+  - Eine neue Wetterberechnung verwarf die alte Textur vor dem Upload der
+    neuen. Jetzt bleibt die alte bis dahin; beim Verschieben wird
+    nachgerechnet, sobald die Ansicht dem Rand naeher kommt als ein
+    Viertel ihrer Groesse, und die Raender laufen weich aus.
+  Auf dem Pi unveraendert innerhalb der Streuung (Vektorkarte p95 17,4 ms
+  wie vorher).
 
 Raspberry Pi 5, Vollbild 1920 x 1080, Gestenfolge ueber die
 Automatisierung (vier Wuerfe, sechs Raststufen des Mausrads), Kiosk-

@@ -130,10 +130,11 @@ type weatherBake struct {
 	drift   [2]float64 // world units per second, the mean wind aloft
 }
 
+// texSlot is the texture of one layer and the bake it was made from.
 type texSlot struct {
-	key uint64
-	h   render.ImageHandle
-	ok  bool
+	bake *weatherBake
+	h    render.ImageHandle
+	ok   bool
 }
 
 type windParticle struct {
@@ -171,13 +172,16 @@ func (w *weatherOverlay) LayoutOverlay(ctx *gift.LayoutContext, p Projection) bo
 		w.cur = b
 	}
 	// A bake waits until the map rests, unless there is nothing to draw
-	// at all: it competes for the processor with the frame and with the
-	// rasterising of the tiles a zoom brings, and the textures of the last
-	// one, moved and scaled, stand in for a few frames.
+	// at all or a pan is about to leave the textures: it competes for the
+	// processor with the frame and with the rasterising of the tiles a zoom
+	// brings, and the textures of the last one, moved and scaled, stand in
+	// for a few frames.
 	moved := p.v != w.last.v
 	w.last = p
-	if run != nil && !w.baking.Load() && (w.cur == nil || !moved) && w.needsBake(run, p) {
-		w.startBake(run, p)
+	if run != nil && !w.baking.Load() {
+		if need, urgent := w.needsBake(run, p); need && (w.cur == nil || !moved || urgent) {
+			w.startBake(run, p)
+		}
 	}
 	if b := w.cur; b != nil {
 		c := geo.Point{X: (b.rect[0] + b.rect[2]) / 2, Y: (b.rect[1] + b.rect[3]) / 2}.Coordinate()
@@ -194,22 +198,26 @@ func (w *weatherOverlay) LayoutOverlay(ctx *gift.LayoutContext, p Projection) bo
 }
 
 // needsBake reports whether the textures no longer suit the view: a new
-// run, a zoom a level away, a view outside the rectangle, or ten minutes
-// of the forecast passed.
-func (w *weatherOverlay) needsBake(run *weather.Run, p Projection) bool {
+// run, a zoom a level away, a view near the edge of the rectangle, or ten
+// minutes of the forecast passed. Urgent is a view that will leave the
+// textures soon, closer to their edge than a quarter of its size, or has
+// already; that bake does not wait until the map rests.
+func (w *weatherOverlay) needsBake(run *weather.Run, p Projection) (need, urgent bool) {
 	b := w.cur
-	if b == nil || b.version != w.sky.Version() || math.Abs(b.zoom-p.Zoom()) > 0.75 {
-		return true
-	}
-	if w.now.Sub(b.at).Abs() > 10*time.Minute {
-		return true
+	if b == nil {
+		return true, true
 	}
 	minX, minY, maxX, maxY := worldBox(p)
 	dx := p.Center().X - (b.rect[0]+b.rect[2])/2
 	dx -= math.Round(dx)
 	cx := (b.rect[0] + b.rect[2]) / 2
 	minX, maxX = minX-p.Center().X+cx+dx, maxX-p.Center().X+cx+dx
-	return minX < b.rect[0] || maxX > b.rect[2] || minY < b.rect[1] || maxY > b.rect[3]
+	mx, my := (maxX-minX)/4, (maxY-minY)/4
+	urgent = minX-mx < b.rect[0] || maxX+mx > b.rect[2] ||
+		(minY-my < b.rect[1] && b.rect[1] > 0) || (maxY+my > b.rect[3] && b.rect[3] < 1)
+	need = urgent || b.version != w.sky.Version() || math.Abs(b.zoom-p.Zoom()) > 0.75 ||
+		w.now.Sub(b.at).Abs() > 10*time.Minute
+	return need, urgent
 }
 
 // worldBox is the world box of the turned viewport.
@@ -283,6 +291,24 @@ func bakeWeather(run *weather.Run, at time.Time, version uint64, zoom float64, r
 			coords[y*W+x] = geo.Point{X: wx, Y: wy}.Coordinate()
 		}
 	}
+	// The textures fade out at their edges, over a sixteenth of them, so
+	// that a pan which outruns the next bake sees the clouds thin out
+	// rather than end in a line. The poles of the world are no edge.
+	fadeX, fadeY := make([]float64, W), make([]float64, H)
+	for x := range W {
+		fadeX[x] = smoothstep(0, float64(W)/16, math.Min(float64(x)+0.5, float64(W-x)-0.5))
+	}
+	for y := range H {
+		top, bottom := float64(y)+0.5, float64(H-y)-0.5
+		if rect[1] <= 0 {
+			top = math.Inf(1)
+		}
+		if rect[3] >= 1 {
+			bottom = math.Inf(1)
+		}
+		fadeY[y] = smoothstep(0, float64(H)/16, math.Min(top, bottom))
+	}
+	fade := func(x, y int) float64 { return math.Min(fadeX[x], fadeY[y]) }
 	if layers&(WeatherClouds|WeatherShadows) != 0 {
 		for li, v := range [3]weather.Variable{weather.CloudLow, weather.CloudMid, weather.CloudHigh} {
 			f := run.At(v, at)
@@ -313,7 +339,7 @@ func bakeWeather(run *weather.Run, at time.Time, version uint64, zoom float64, r
 					if d <= 0 {
 						continue
 					}
-					a := d * layerOpacity[li]
+					a := d * layerOpacity[li] * fade(x, y)
 					// A little grey where the cloud is thin, as its underside
 					// shows through.
 					shade := 0.86 + 0.14*d
@@ -337,7 +363,11 @@ func bakeWeather(run *weather.Run, at time.Time, version uint64, zoom float64, r
 			if !ok || r < 0.1 {
 				continue
 			}
-			img.SetRGBA(i%W, i/W, radarColour(float64(r)))
+			c := radarColour(float64(r))
+			if k := fade(i%W, i/W); k < 1 {
+				c = color.RGBA{uint8(float64(c.R) * k), uint8(float64(c.G) * k), uint8(float64(c.B) * k), uint8(float64(c.A) * k)}
+			}
+			img.SetRGBA(i%W, i/W, c)
 			any = true
 		}
 		if any {
@@ -457,21 +487,26 @@ func (w *weatherOverlay) PaintOverlay(ctx *gift.PaintContext, p Projection, boun
 		if turned {
 			ctx.PushTransform(geom.Translate(geom.Pt(-mid.X, -mid.Y)).Mul(geom.Rotate(float32(-p.Heading()))).Mul(geom.Translate(mid)))
 		}
-		since := w.now.Sub(b.at).Seconds()
-		drift := [2]float64{b.drift[0] * since, b.drift[1] * since}
+		// How far the clouds of a bake have moved since it was made.
+		drift := func(b *weatherBake) [2]float64 {
+			since := w.now.Sub(b.at).Seconds()
+			return [2]float64{b.drift[0] * since, b.drift[1] * since}
+		}
 		day := math.Max(0, math.Min(1, w.sun.elev/(10*math.Pi/180)))
 		if w.o.Layers&WeatherShadows != 0 && day > 0 && w.sun.elev > 3*math.Pi/180 {
 			lat := p.Center().Coordinate().Lat
 			kmPerUnit := geo.MetresPerUnit(lat) / 1000
 			for li := range 3 {
-				if b.clouds[li] == nil {
+				id, lb, ok := w.texture(im, li, b, b.clouds[li])
+				if !ok {
 					continue
 				}
 				// Away from the sun, the further the higher the layer and
 				// the lower the sun.
 				dist := layerHeight[li] / math.Tan(w.sun.elev) / kmPerUnit
-				off := [2]float64{drift[0] - math.Sin(w.sun.az)*dist, drift[1] + math.Cos(w.sun.az)*dist}
-				w.drawLayer(ctx, im, p, bounds, li, b.clouds[li], b, off, 1, ui.RGBA(0, 0, 0, uint8(70*day)))
+				d := drift(lb)
+				off := [2]float64{d[0] - math.Sin(w.sun.az)*dist, d[1] + math.Cos(w.sun.az)*dist}
+				w.drawLayer(ctx, p, bounds, id, lb, off, 1, ui.RGBA(0, 0, 0, uint8(70*day)))
 			}
 		}
 		if turned {
@@ -489,19 +524,22 @@ func (w *weatherOverlay) PaintOverlay(ctx *gift.PaintContext, p Projection, boun
 			// under an overcast sky disappears.
 			light := 0.72 + 0.28*day
 			for li := range 3 {
-				if b.clouds[li] == nil {
+				id, lb, ok := w.texture(im, li, b, b.clouds[li])
+				if !ok {
 					continue
 				}
 				k := parallax(p, layerHeight[li])
 				g := uint8(255 * light)
-				w.drawLayer(ctx, im, p, bounds, li, b.clouds[li], b, drift, k, ui.RGB(g, g, g))
+				w.drawLayer(ctx, p, bounds, id, lb, drift(lb), k, ui.RGB(g, g, g))
 			}
 		}
 		// The radar picture over the clouds, as weather apps draw it: under
 		// an overcast sky it would be hidden, and it is what one wants to
 		// read.
-		if w.o.Layers&WeatherRadar != 0 && b.radar != nil {
-			w.drawLayer(ctx, im, p, bounds, 3, b.radar, b, [2]float64{}, 1, ui.OpaqueWhite)
+		if w.o.Layers&WeatherRadar != 0 {
+			if id, lb, ok := w.texture(im, 3, b, b.radar); ok {
+				w.drawLayer(ctx, p, bounds, id, lb, [2]float64{}, 1, ui.OpaqueWhite)
+			}
 		}
 		if turned {
 			ctx.PopTransform()
@@ -516,30 +554,49 @@ func (w *weatherOverlay) PaintOverlay(ctx *gift.PaintContext, p Projection, boun
 	}
 }
 
-// drawLayer draws one texture of the bake over its rectangle, moved by
-// off in world units and enlarged k times about the middle of the map, in
-// the unrotated space of the map.
-func (w *weatherOverlay) drawLayer(ctx *gift.PaintContext, im render.Images, p Projection, bounds geom.Rect,
-	slot int, img *image.RGBA, b *weatherBake, off [2]float64, k float64, tint ui.Color) {
+// texture returns the texture of a slot and the bake it was made from: the
+// current bake's once it is uploaded, and until then the one before it, so
+// that a new bake replaces the old on the screen without a frame between
+// them in which neither is there. A layer the current bake left clear has
+// no texture.
+func (w *weatherOverlay) texture(im render.Images, slot int, b *weatherBake, img *image.RGBA) (render.ImageID, *weatherBake, bool) {
 	s := &w.slots[slot]
-	if s.key != b.key || !s.ok {
+	if img == nil {
 		if s.ok {
 			im.Deallocate(s.h)
 		}
+		*s = texSlot{}
+		return 0, nil, false
+	}
+	if s.bake != b || !s.ok {
 		h, ok := im.Acquire(render.Pixels{Pix: img.Pix, W: img.Rect.Dx(), H: img.Rect.Dy(), Stride: img.Stride,
 			Key: b.key*8 + uint64(slot) + 1})
-		s.key, s.h, s.ok = b.key, h, ok
-		if !ok {
-			// Deferred by the upload budget; the next frame asks again.
-			s.key = 0
-			return
+		if ok {
+			if s.ok {
+				im.Deallocate(s.h)
+			}
+			*s = texSlot{bake: b, h: h, ok: true}
 		}
+		// Deferred by the upload budget, the old texture stays until a
+		// later frame has uploaded the new one.
+	}
+	if !s.ok {
+		return 0, nil, false
 	}
 	id, ok := im.Resolve(s.h)
 	if !ok {
-		s.ok = false
-		return
+		// Evicted; the next frame uploads it again.
+		*s = texSlot{}
+		return 0, nil, false
 	}
+	return id, s.bake, true
+}
+
+// drawLayer draws a texture of the bake b over its rectangle, moved by off
+// in world units and enlarged k times about the middle of the map, in the
+// unrotated space of the map.
+func (w *weatherOverlay) drawLayer(ctx *gift.PaintContext, p Projection, bounds geom.Rect,
+	id render.ImageID, b *weatherBake, off [2]float64, k float64, tint ui.Color) {
 	v := p.v
 	cx := (b.rect[0]+b.rect[2])/2 + off[0]
 	dx := cx - v.c.X

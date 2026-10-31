@@ -70,12 +70,12 @@ type Map struct {
 	frame  frame
 	stats  Stats
 	labels labelStore
-	// fade is when each label on the map was first placed, for its fade in;
-	// frameNo is the layout pass of the last frame.
-	fade    map[string]time.Duration
+	// fade is when each label on the map was first and last placed, for its
+	// fade in; frameNo is the layout pass of the last frame.
+	fade    map[string]labelFadeState
 	frameNo uint64
-	// sizes are the measured labels.
-	sizes map[sizeKey]geom.Size
+	// sizes are the measured labels, at measureSize.
+	sizes map[string]geom.Size
 	// layers is the state of each set of points across frames.
 	layers map[*Points]*layerState
 
