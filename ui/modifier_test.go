@@ -162,6 +162,19 @@ var views = []struct {
 		why: "a ring with a knob, sized by Size and LineWidth like the Slider it is the round form of",
 	},
 	{
+		name: "ui.ColorPicker", set: setMinimal, v: ui.ColorPicker(ui.RGB(0, 0, 0), nil),
+		why: "the panel of UIColorPickerViewController, 320 wide; Background is the colour it stands on",
+	},
+	{
+		name: "ui.ColorWell", set: setMinimal, v: ui.ColorWell(ui.RGB(0, 0, 0), nil),
+		why: "a swatch of one size in a ring of hues, as SwiftUI's ColorPicker",
+	},
+	{name: "ui.colorGrid", set: setInternal, why: "the swatches of a ui.ColorPicker"},
+	{name: "ui.colorSpectrum", set: setInternal, why: "the spectrum of a ui.ColorPicker"},
+	{name: "ui.colorSlider", set: setInternal, why: "a channel slider of a ui.ColorPicker"},
+	{name: "ui.colorSwatch", set: setInternal, why: "the colour shown by a ui.ColorPicker"},
+	{name: "ui.colorWellButton", set: setInternal, why: "the swatch of a ui.ColorWell"},
+	{
 		name: "ui.WheelPicker", set: setMinimal, v: ui.WheelPicker(),
 		why: "a wheel has the height of its rows and draws its own band and fading; its size is VisibleRows, RowHeight and Width",
 	},
