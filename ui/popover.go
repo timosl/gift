@@ -308,6 +308,21 @@ func (n *panelNode) paintArrow(ctx *gift.PaintContext, c Color) {
 	ctx.PopTransform()
 }
 
+// deviceRect is [deviceMapping] for one rectangle, without the closure, for
+// a painter on the frame path, which must not allocate.
+func deviceRect(ctx *gift.PaintContext, r geom.Rect) geom.Rect {
+	b, db := ctx.Bounds(), ctx.DeviceBounds()
+	sx, sy := float32(1), float32(1)
+	if b.Width() > 0 {
+		sx = db.Width() / b.Width()
+	}
+	if b.Height() > 0 {
+		sy = db.Height() / b.Height()
+	}
+	return geom.Rc(db.Min.X+(r.Min.X-b.Min.X)*sx, db.Min.Y+(r.Min.Y-b.Min.Y)*sy,
+		db.Min.X+(r.Max.X-b.Min.X)*sx, db.Min.Y+(r.Max.Y-b.Min.Y)*sy)
+}
+
 // deviceMapping returns the function that maps a rectangle in the local space
 // of the node being painted into device space, the space clips are in: the
 // two are a scale and an offset apart, the density and the scroll offsets

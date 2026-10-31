@@ -123,7 +123,7 @@ func (v TextAreaView) Build(*gift.BuildContext) gift.Element {
 		ed:          v.ed,
 		fr:          v.frame,
 		st:          st,
-		pad:         geom.Insets{Top: 7, Right: 8, Bottom: 7, Left: 8},
+		pad:         geom.InsetsAll(8),
 		placeholder: v.placeholder,
 		onChange:    v.onChange,
 		bind:        v.bind,
@@ -377,7 +377,11 @@ func (n *textAreaNode) revealCaret() {
 
 // --- paint ----------------------------------------------------------------------
 
-// Paint draws the area in the order of [textFieldNode.Paint].
+// Paint draws the area in the order of [textFieldNode.Paint], with the lines
+// clipped to the content box for the reason given there: a line scrolled
+// half out is cut at the inner edge of the padding, not drawn between the
+// border and the focus ring. The scroll indicator stands in the padding on
+// the right, between the ring and the text, so that it covers neither.
 func (n *textAreaNode) Paint(ctx *gift.PaintContext) {
 	assertResolvedBorder(n.focusRing, "the focus ring of a TextArea")
 	ia := ctx.Interaction()
@@ -387,9 +391,11 @@ func (n *textAreaNode) Paint(ctx *gift.PaintContext) {
 	}
 	b := ctx.Bounds()
 	paintBackground(ctx, st, b)
-	ctx.PushClip(ctx.DeviceBounds())
+	box := n.inner.Translate(b.Min)
+	ctx.PushClip(deviceRect(ctx, box))
 	n.paintContent(ctx, b, ia)
 	ctx.PopClip()
+	n.paintIndicator(ctx, b, box)
 	paintBorder(ctx, st, b)
 	if ia.FocusVisible && !ia.Disabled && n.focusRing.IsVisible() {
 		paintBorder(ctx, styleSpec{border: n.focusRing, radius: focusRingRadius(st.radius)}, focusRingRect(b))
@@ -456,13 +462,26 @@ func (n *textAreaNode) paintContent(ctx *gift.PaintContext, b geom.Rect, ia gift
 		ctx.Add(render.Op{Kind: render.OpFillRect, Bounds: geom.Rc(cx, top, cx+caretWidth, top+lh), Color: n.caretColor})
 	}
 
-	// The scroll indicator, for as long as a scroll view shows its own.
-	if ms := n.maxScroll(p); ms > 0 && ctx.Now()-n.ed.scrolledAt < gift.ScrollIndicatorLinger && n.ed.scrolledAt > 0 {
-		track := b.Inset(geom.Insets{Top: 3, Bottom: 3})
-		th := max(24, track.Height()*n.inner.Height()/(n.inner.Height()+ms))
-		ty := track.Min.Y + (track.Height()-th)*n.ed.scrollY/ms
-		ctx.Add(render.Op{Kind: render.OpFillRoundRect, Bounds: geom.Rc(b.Max.X-6, ty, b.Max.X-3, ty+th), Color: n.indicator, CornerRadius: 1.5})
+}
+
+// paintIndicator draws the scroll indicator for as long as a scroll view
+// shows its own: two pixels wide, beside the content box and as tall as it,
+// in the middle of the room between the box and the inner edge of the focus
+// ring, or of the bounds where the padding is too thin for that.
+func (n *textAreaNode) paintIndicator(ctx *gift.PaintContext, b, box geom.Rect) {
+	p := n.para()
+	ms := n.maxScroll(p)
+	if ms <= 0 || n.ed.scrolledAt == 0 || ctx.Now()-n.ed.scrolledAt >= gift.ScrollIndicatorLinger {
+		return
 	}
+	ring := b.Max.X - focusRingGap - n.focusRing.Width
+	mid := (max(box.Max.X, min(ring, b.Max.X)) + box.Max.X) / 2
+	if ring-box.Max.X < 2 {
+		mid = b.Max.X - 2
+	}
+	th := max(24, box.Height()*n.inner.Height()/(n.inner.Height()+ms))
+	ty := box.Min.Y + (box.Height()-th)*n.ed.scrollY/ms
+	ctx.Add(render.Op{Kind: render.OpFillRoundRect, Bounds: geom.Rc(mid-1, ty, mid+1, ty+th), Color: n.indicator, CornerRadius: 1})
 }
 
 // paintLines copies the glyphs of the lines of p that fall inside b into the

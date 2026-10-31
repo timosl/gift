@@ -735,10 +735,21 @@ func (n *textFieldNode) clampScroll() {
 // background, content, border — with the selection under the glyphs, the caret
 // over them, and the focus ring last of all.
 //
-// The content is clipped to the bounds and the clip is pushed here rather than
-// left to gift, for the reason [textNode.Paint] gives: the content of this
-// node is its glyphs and not its children, so [gift.PaintContext.PaintChildren],
-// where gift would apply [gift.Element.Clip], is never reached.
+// The content is clipped and the clip is pushed here rather than left to
+// gift, for the reason [textNode.Paint] gives: the content of this node is its
+// glyphs and not its children, so [gift.PaintContext.PaintChildren], where
+// gift would apply [gift.Element.Clip], is never reached.
+//
+// # Why the clip is the content box and not the bounds
+//
+// It was the bounds, and text scrolled out to the left was drawn in the
+// padding, between the border and the focus ring, which sits inside the
+// border; see [focusRingGap]. A cut glyph squeezed between two contours looks
+// broken. iOS has no such ring to collide with, and macOS and the web draw
+// theirs outside the control; with the ring inside, the clean cut is at the
+// inner edge of the padding, which is where Android's TextView makes it. The
+// clip is horizontal only: the line is centred vertically, and a field
+// shorter than its line keeps clipping at its bounds as before.
 func (n *textFieldNode) Paint(ctx *gift.PaintContext) {
 	// In front of the focus ring gate below; see [assertResolved] and
 	// [buttonNode.Paint], which has the same gate for the same reason.
@@ -752,7 +763,8 @@ func (n *textFieldNode) Paint(ctx *gift.PaintContext) {
 	b := ctx.Bounds()
 	paintBackground(ctx, st, b)
 
-	ctx.PushClip(ctx.DeviceBounds())
+	box := geom.Rc(b.Min.X+n.pad.Left, b.Min.Y, b.Max.X-n.pad.Right, b.Max.Y)
+	ctx.PushClip(deviceRect(ctx, box))
 	n.paintContent(ctx, b, ia)
 	ctx.PopClip()
 

@@ -261,3 +261,39 @@ func TestAFingerScrollsTheLinesAndAMouseSelectsThem(t *testing.T) {
 		t.Fatalf("a mouse drag down three lines selected %d..%d", lo, hi)
 	}
 }
+
+// TestScrolledTextIsCutAtThePaddingNotAtTheBorder pins the clip of the
+// lines: a line scrolled half out must not show between the border and the
+// focus ring, which sits inside the border.
+func TestScrolledTextIsCutAtThePaddingNotAtTheBorder(t *testing.T) {
+	f := newArea(t, "1\n2\n3\n4\n5\n6\n7\n8", func(v ui.TextAreaView) ui.TextAreaView { return v.Lines(3, 3) })
+	f.h.Wheel(centreOf(f.node().Bounds()), geom.Pt(0, -0.3))
+	b := f.node().Bounds()
+	l := f.h.List()
+	seen := false
+	for _, op := range f.h.Ops() {
+		if op.Kind != render.OpGlyphs {
+			continue
+		}
+		seen = true
+		c := l.Clip(op.Clip)
+		if c.Min.Y < b.Min.Y+8 || c.Max.Y > b.Max.Y-8 || c.Min.X < b.Min.X+8 || c.Max.X > b.Max.X-8 {
+			t.Fatalf("the lines are clipped to %v, which reaches into the padding of the area at %v", c, b)
+		}
+	}
+	if !seen {
+		t.Fatal("no lines drawn")
+	}
+	// The single line field cuts its scrolled text at its side padding.
+	g := newField(t, "a value much longer than the field is wide, so that it scrolls", nil)
+	g.node().Focus()
+	g.h.Key(gift.KeyEnd)
+	fb := g.node().Bounds()
+	for _, op := range g.h.Ops() {
+		if op.Kind == render.OpGlyphs {
+			if c := g.h.List().Clip(op.Clip); c.Min.X < fb.Min.X+fieldPadLeft || c.Max.X > fb.Max.X-fieldPadLeft {
+				t.Fatalf("the field's text is clipped to %v, which reaches into its padding at %v", c, fb)
+			}
+		}
+	}
+}
