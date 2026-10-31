@@ -2476,7 +2476,8 @@ hatte `EventLongPress` bisher verarbeitet.
 |----------------------|-----------------------------------------------|
 | Menuebreite          | 250 pt                                        |
 | Zeilenhoehe          | 44 pt, Titel 17 pt, Symbol hinten 20 pt       |
-| Abschnitte           | 8 pt Band, optionale Ueberschrift 13 pt       |
+| Abschnitte           | Haarlinie, 16 pt eingerueckt, 13 pt hoch (iOS 26), Ueberschrift 13 pt |
+| Hervorhebung         | eingerueckt 6 pt, Radius 7 pt, konzentrisch zur Karte |
 | Eckenradius          | 13 pt                                         |
 | Pfeil                | 10 pt hoch, 20 pt breit                       |
 | Abstand zum Rand     | 8 pt                                          |

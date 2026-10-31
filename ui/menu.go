@@ -22,7 +22,8 @@ const (
 	menuWidth      = float32(250)
 	menuRowHeight  = float32(44)
 	menuHeader     = float32(32)
-	menuSectionGap = float32(8)
+	menuSectionGap = float32(13)
+	menuListPad    = float32(6)
 	menuPadding    = float32(16)
 	menuIcon       = float32(20)
 	menuCheck      = float32(28)
@@ -86,7 +87,8 @@ type menuSection struct {
 func (menuSection) menuElement() {}
 
 // MenuSection returns items that belong together, set apart from the rest of
-// the menu by a band, under title when it is not empty.
+// the menu by a hairline with room above and below it, under title when it is
+// not empty.
 func MenuSection(title string, items ...MenuElement) MenuElement {
 	return menuSection{title: title, items: items}
 }
@@ -322,25 +324,29 @@ func (l menuList) Build(*gift.BuildContext) gift.Element {
 	return gift.Element{Key: "ui.menuList", Layouter: menuListLayout{}, Children: kids}
 }
 
-// menuListLayout stacks the rows at the menu's width.
+// menuListLayout stacks the rows at the menu's width, with room above the
+// first and below the last for the inset highlight; see [menuRowNode.Paint].
 type menuListLayout struct{}
 
 func (menuListLayout) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
 	w := min(menuWidth, c.Max.W)
-	var y float32
+	y := menuListPad
 	for i := range ctx.ChildCount() {
 		s := ctx.Measure(i, geom.Constraints{Min: geom.Sz(w, 0), Max: geom.Sz(w, geom.Unbounded())})
 		ctx.Place(i, geom.Pt(0, y))
 		y += s.H
 	}
 	ctx.ReportOverflow(geom.Size{})
-	return c.Constrain(geom.Sz(w, y))
+	return c.Constrain(geom.Sz(w, y+menuListPad))
 }
 
 var menuRuleType = gift.RegisterType("ui.menuRule")
 
-// menuRule is a hairline between two items, or the band between two
-// sections.
+// menuRule is a hairline between two items, or the space between two
+// sections with a hairline across its middle: the separators of iOS 26,
+// inset by the padding of the rows. The band of earlier versions of iOS, a
+// strip of the separator colour eight points tall, read as a heavy bar on a
+// light menu.
 type menuRule struct{ gap bool }
 
 func (menuRule) ViewType() gift.TypeID { return menuRuleType }
@@ -350,26 +356,28 @@ func (r menuRule) Build(*gift.BuildContext) gift.Element {
 	if r.gap {
 		h = menuSectionGap
 	}
-	n := &ruleNode{h: h, gap: r.gap, c: ResolveColor(ColorSeparator)}
+	n := &ruleNode{h: h, c: ResolveColor(ColorSeparator)}
 	return gift.Element{Layouter: n, Painter: n}
 }
 
 type ruleNode struct {
-	h   float32
-	gap bool
-	c   Color
+	h       float32
+	c       Color
+	density float32
 }
 
-func (n *ruleNode) Layout(_ *gift.LayoutContext, c geom.Constraints) geom.Size {
+func (n *ruleNode) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
+	n.density = ctx.Density()
 	return c.Constrain(geom.Sz(c.Max.W, n.h))
 }
 
+// Paint draws half a point, which is one device pixel on a panel of twice the
+// density and, snapped, one on the Pi.
 func (n *ruleNode) Paint(ctx *gift.PaintContext) {
 	b := ctx.Bounds()
-	if !n.gap {
-		b = geom.Rc(b.Min.X, b.Min.Y, b.Max.X, b.Min.Y+0.5)
-	}
-	ctx.Add(render.Op{Kind: render.OpFillRect, Bounds: b, Color: n.c})
+	mid := roundf(b.Min.Y + (b.Height()-0.5)/2)
+	top, th := snapHairline(mid, 0.5, b.Min.Y, ctx.DeviceBounds().Min.Y, n.density)
+	ctx.Add(render.Op{Kind: render.OpFillRect, Bounds: geom.Rc(b.Min.X+menuPadding, top, b.Max.X-menuPadding, top+th), Color: n.c})
 }
 
 // menuRow is one item: a check mark column when the menu has one, the title,
@@ -439,7 +447,10 @@ func (n *menuRowNode) Paint(ctx *gift.PaintContext) {
 	b := ctx.Bounds()
 	ia := ctx.Interaction()
 	if !n.r.spec.item.disabled && (st.highlight == i || ia.Pressed || ia.Hover) {
-		ctx.Add(render.Op{Kind: render.OpFillRect, Bounds: b, Color: ResolveColor(Fade(ColorLabel, 0.1))})
+		// Inset and rounded as on iOS 26, concentric with the corners of
+		// the card, so that the first and the last row stay inside them.
+		hl := geom.Rc(b.Min.X+menuListPad, b.Min.Y, b.Max.X-menuListPad, b.Max.Y)
+		ctx.Add(render.Op{Kind: render.OpFillRoundRect, Bounds: hl, Color: ResolveColor(Fade(ColorLabel, 0.1)), CornerRadius: panelRadius - menuListPad})
 	}
 	if n.r.spec.item.checked {
 		paintCheck(ctx, geom.Pt(b.Min.X+menuPadding+5, (b.Min.Y+b.Max.Y)/2), n.r.color)

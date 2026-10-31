@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	register(Demo{Name: "menu", Group: "dialogs", Width: 440, Height: 400, FullWindow: true,
+	register(Demo{Name: "menu", Group: "dialogs", Width: 440, Height: 420, FullWindow: true,
 		// A tap on the button opens the menu for the screenshot.
 		Input: `{"steps":[{"op":"waitFrames","frames":4},{"op":"tap","x":52,"y":44},{"op":"waitFrames","frames":40}]}`},
 		menuDemo)

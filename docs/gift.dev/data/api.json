@@ -5945,7 +5945,7 @@
           {
             "name": "MenuSection",
             "signature": "MenuSection(title string, items ...MenuElement) MenuElement",
-            "synopsis": "MenuSection returns items that belong together, set apart from the rest of the menu by a band, under title when it is not empty."
+            "synopsis": "MenuSection returns items that belong together, set apart from the rest of the menu by a hairline with room above and below it, under title when it is not empty."
           }
         ],
         "methods": []

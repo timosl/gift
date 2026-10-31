@@ -35,7 +35,7 @@ ui.Menu(ui.Icon(outline.DotsHorizontal),
 | `.Destructive()`              | drawn in `ColorDanger`                                                           |
 | `.Disabled(b)`                | shown, not choosable                                                             |
 | `MenuDivider()`               | a hairline                                                                        |
-| `MenuSection(title, items...)` | items set apart by a band, under a small title when there is one                |
+| `MenuSection(title, items...)` | items set apart by a hairline with room around it, under a small title when there is one |
 
 ## Choosing
 
