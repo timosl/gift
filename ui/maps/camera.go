@@ -91,9 +91,13 @@ func (v projection) worldVector(dx, dy float64) geo.Point {
 // At heading zero it is the viewport itself; turned, it is the viewport
 // turned the other way about the middle, and its bounding box would hold up
 // to twice the tiles.
-func (v projection) corners() [4][2]float64 {
+func (v projection) corners() [4][2]float64 { return v.cornersOutset(0) }
+
+// cornersOutset is [projection.corners] of the viewport grown by r points
+// on every side.
+func (v projection) cornersOutset(r float64) [4][2]float64 {
 	var out [4][2]float64
-	for i, p := range [4][2]float64{{0, 0}, {v.w, 0}, {v.w, v.h}, {0, v.h}} {
+	for i, p := range [4][2]float64{{-r, -r}, {v.w + r, -r}, {v.w + r, v.h + r}, {-r, v.h + r}} {
 		out[i][0], out[i][1] = v.unrotate(p[0], p[1])
 	}
 	return out

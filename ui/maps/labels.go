@@ -307,10 +307,12 @@ func (n *node) layoutLabels(ctx *gift.LayoutContext, v projection, pass uint64) 
 	if st == nil || len(st.Labels) == 0 {
 		return
 	}
-	// The tiles of the label level under the viewport, whether their
-	// pictures have arrived or not. Of a tile whose labels have not been
-	// read, those of the level the map comes from stand in, its parent's or
-	// its children's, as its picture's stand-in does: a zoom across a level
+	// The tiles of the label level under the viewport and as far around it
+	// as a label reaches in from outside, whether their pictures have
+	// arrived or not: a name whose anchor is just outside is already set
+	// when a pan brings it in. Of a tile whose labels have not been read,
+	// those of the level the map comes from stand in, its parent's or its
+	// children's, as its picture's stand-in does: a zoom across a level
 	// would otherwise take the labels off the map until the new ones are
 	// read.
 	lz := m.labelLevel(v.zoom)
@@ -320,10 +322,8 @@ func (n *node) layoutLabels(ctx *gift.LayoutContext, v projection, pass uint64) 
 			f.ltiles = append(f.ltiles, t)
 		}
 	}
-	for _, t := range f.vtiles {
-		if t.Z > lz {
-			t = t.Ancestor(lz)
-		}
+	f.reach = m.tilesUnder(v, lz, v.cornersOutset(labelReach), f.reach[:0])
+	for _, t := range f.reach {
 		if _, ok := m.labelsFor(labelKey{t: t, style: si}, pass); ok {
 			add(t)
 			continue
@@ -409,9 +409,9 @@ func (n *node) layoutLabels(ctx *gift.LayoutContext, v projection, pass uint64) 
 			bh := float32(math.Abs(s)*float64(size.W) + math.Abs(co)*float64(size.H))
 			box = geom.Rect{Min: geom.Pt(p.c.X-bw/2, p.c.Y-bh/2), Max: geom.Pt(p.c.X+bw/2, p.c.Y+bh/2)}
 		}
-		// Nothing outside the map is placed, and nothing is drawn where it
-		// would be cut by the edge.
-		if box.Min.X < 0 || box.Min.Y < 0 || box.Max.X > w || box.Max.Y > h {
+		// A label leaves the map across its edge, cut by it, as the map
+		// under it does; one entirely outside is not placed.
+		if box.Max.X <= 0 || box.Max.Y <= 0 || box.Min.X >= w || box.Min.Y >= h {
 			continue
 		}
 		if n.collides(box, c.text, p.c) {

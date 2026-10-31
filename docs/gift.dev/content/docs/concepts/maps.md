@@ -38,6 +38,10 @@ A city is a few ten megabytes. The builds are kept for a while only; the current
 with `maps.PMTiles`, or put it on any static server that answers range requests — nginx, Caddy, an S3 compatible
 store — and open its URL with `maps.PMTilesURL`.
 
+An extract holds at every level the whole tiles that touch its region, so a coarse level shows further beyond
+the region than a fine one. The map keeps showing it when zoomed in: a tile outside the region is drawn from the
+geometry of its nearest coarser tile inside, up to four levels up, and only beyond that does the map end.
+
 Its tiles are vector tiles of the Protomaps basemap, schema `protomaps-v4`, which `maps.ProtomapsLight` and
 `maps.ProtomapsDark` draw. They are drawn on the processor, on the image pipeline's goroutines: the densest tile of
 Oldenburg takes 11 ms on a Raspberry Pi 5. Labels are not drawn into the tiles but set on the map in every frame,

@@ -11,12 +11,14 @@ import (
 // fetchVector reads a vector tile and wraps it for the rasterizer of the
 // pipeline; see [MIMEVectorJob]. Above the provider's last level the tile is
 // drawn from the geometry of its ancestor there, enlarged: sharp at any zoom,
-// because it is drawn again and not scaled.
+// because it is drawn again and not scaled. Outside the provider's bounds it
+// is drawn the same way from its nearest ancestor inside them; see
+// [Map.dataTile].
 func (m *Map) fetchVector(ctx context.Context, k srcKey) ([]byte, error) {
 	st := m.styles[k.style]
-	src := k.t
-	if src.Z > m.info.MaxZoom {
-		src = src.Ancestor(m.info.MaxZoom)
+	src, ok := m.dataTile(k.t)
+	if !ok {
+		return nil, ErrNoTile
 	}
 	t, err := m.cfg.Tiles.Tile(ctx, src)
 	if err != nil {

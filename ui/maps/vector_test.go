@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/binary"
 	"image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/worldiety/gift/geo"
 )
 
 // oldenburg is the extract of the project plan, section 37, when it has been
@@ -204,5 +207,46 @@ func BenchmarkRasterizeTheDensestTile(b *testing.B) {
 				}
 			}
 		})
+	}
+}
+
+// TestATileOutsideTheBoundsIsDrawnFromAnAncestorInside: a regional archive
+// holds at every level the tiles that touch its region, so a coarse level
+// reaches further beyond its edge than a fine one. A tile outside is drawn
+// from its nearest ancestor inside, a few levels up and no further.
+func TestATileOutsideTheBoundsIsDrawnFromAnAncestorInside(t *testing.T) {
+	m := &Map{info: ProviderInfo{Kind: Vector, MinZoom: 0, MaxZoom: 15,
+		Bounds: geo.Rect{Min: geo.LatLon(53.05, 8.05), Max: geo.LatLon(53.23, 8.35)}}}
+	at := func(lat, lon float64, z int) TileID {
+		p := geo.Project(geo.LatLon(lat, lon))
+		n := math.Exp2(float64(z))
+		return TileID{Z: z, X: int(p.X * n), Y: int(p.Y * n)}
+	}
+
+	inside := at(53.14, 8.21, 13)
+	if got, ok := m.dataTile(inside); !ok || got != inside {
+		t.Errorf("a tile inside is drawn from %v, %v; want itself", got, ok)
+	}
+	if got, ok := m.dataTile(at(53.14, 8.21, 17)); !ok || got != at(53.14, 8.21, 15) {
+		t.Errorf("a tile above the last level is drawn from %v, %v; want its ancestor at 15", got, ok)
+	}
+
+	// The Zwischenahner Meer, a few kilometres west of the region.
+	lake := at(53.20, 8.01, 13)
+	if m.inBounds(lake) {
+		t.Fatal("the lake is inside the bounds at level 13; the test needs a tile outside")
+	}
+	got, ok := m.dataTile(lake)
+	if !ok {
+		t.Fatal("the lake has no tile to be drawn from")
+	}
+	if got.Z >= lake.Z || got.Z < lake.Z-boundsReach || lake.Ancestor(got.Z) != got || !m.inBounds(got) {
+		t.Errorf("the lake at %v is drawn from %v, want an ancestor inside the bounds within %d levels",
+			lake, got, boundsReach)
+	}
+
+	// Hamburg is far beyond reach.
+	if got, ok := m.dataTile(at(53.55, 10.0, 13)); ok {
+		t.Errorf("Hamburg is drawn from %v; it is further than %d levels from the region", got, boundsReach)
 	}
 }

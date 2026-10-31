@@ -469,3 +469,57 @@ func TestATapOnAPlaceSelectsIt(t *testing.T) {
 		t.Fatalf("selected %v, want the theatre in the middle", got)
 	}
 }
+
+// TestTheMapGoesOnBeyondTheEdgeOfARegionalArchive: at the Zwischenahner Meer,
+// a few kilometres west of the Oldenburg extract, every tile of the view is
+// drawn, those outside the extract from the geometry of a coarser level. The
+// map used to end at the edge of the tiles of the current level, so what a
+// coarser level had shown went away when a zoom crossed into the next one.
+func TestTheMapGoesOnBeyondTheEdgeOfARegionalArchive(t *testing.T) {
+	s := newScene(t, maps.Config{
+		Tiles: extract(t), Style: maps.ProtomapsLight(),
+		Camera: maps.Camera{Center: geo.LatLon(53.20, 8.01), Zoom: 13},
+	}, geom.Sz(512, 384), nil)
+	s.load(t)
+	// 512 by 384 at a whole zoom: three by two tiles, or four by three when
+	// the centre does not fall on a tile corner; all of them, not only those
+	// east of 8.05 degrees.
+	if st := s.m.Stats(); st.Tiles < 6 || st.Drawn != st.Tiles {
+		t.Errorf("%d tiles drawn of %d at the edge of the extract, want all of at least 6", st.Drawn, st.Tiles)
+	}
+}
+
+// TestALabelAtTheEdgeIsCutNotDropped: a label leaves the map across its
+// edge, cut by it as the map under it is, rather than disappearing as soon
+// as its first letter reaches the edge.
+func TestALabelAtTheEdgeIsCutNotDropped(t *testing.T) {
+	s := newScene(t, maps.Config{
+		Tiles: extract(t), Style: maps.ProtomapsLight(),
+		Camera: maps.Camera{Center: geo.LatLon(53.1405, 8.2135), Zoom: 15},
+	}, geom.Sz(800, 600), nil)
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		s.load(t)
+		if s.m.Stats().Labels >= 20 {
+			break
+		}
+		s.Advance(gifttest.FrameInterval)
+	}
+	s.AdvanceTicks(20, gifttest.FrameInterval)
+	view := geom.Rect{Max: geom.Pt(s.Size().W, s.Size().H)}
+	l := s.List()
+	cut := 0
+	for _, op := range s.Ops() {
+		if op.Kind != render.OpGlyphs || op.Bounds.IsEmpty() {
+			continue
+		}
+		r := l.Xform(op.Xform).TransformRect(op.Bounds)
+		if r.Min.X < view.Min.X || r.Min.Y < view.Min.Y || r.Max.X > view.Max.X || r.Max.Y > view.Max.Y {
+			cut++
+		}
+	}
+	if cut == 0 {
+		t.Errorf("no label of %d crosses the edge of the map", s.m.Stats().Labels)
+	}
+	s.assertNothingOffscreen(t)
+}

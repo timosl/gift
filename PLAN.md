@@ -3392,6 +3392,28 @@ Gebaut wie geplant, mit diesen Abweichungen und Ergaenzungen:
   Layout den Invalidator des Anfragenden, ohne dass ihn je jemand leerte.
   Das Beispiel gibt dem CPU-Cache ausserhalb von Linux 256 MiB statt 64,
   weil eine Kachel bei Dichte 2 1 MiB gross ist.
+- **Ruckeln**: Ein Wurf von 2,2 s bekam auf dem Mac 141 Bildwechsel, davon 14
+  ohne Update, die das Bild davor noch einmal zeigten, und 8 mit zweien; auf
+  dem Pi 11 ohne und 10 mit zweien. Die Bildwechsel kamen puenktlich, aber
+  Ebitengine zaehlt die Ticks eines Bildwechsels gegen die Uhr und rundet,
+  und sechzig Bildwechsel zu sechzig Ticks liegen genau auf der Grenze.
+  Ohne gesetzte `TPS` laeuft das Backend jetzt ein Update je Bildwechsel
+  (`SyncWithFPS`); die Zeit von gift ist die Wanduhr und nicht der Tick, im
+  Leerlauf gilt `IdleTPS` wie bisher. Danach auf beiden Geraeten jeder
+  Bildwechsel eines Wurfs mit genau einem Update gezeichnet.
+- **Beschriftungen am Rand** verschwanden, sobald ihr Kasten den Kartenrand
+  beruehrte, und Kandidaten kamen nur aus Kacheln im Bild. Jetzt verlassen sie
+  die Karte ueber den Rand, angeschnitten wie die Karte darunter, und die
+  Kandidaten kommen aus allen Kacheln, die das um `labelReach` vergroesserte
+  Sichtfeld schneidet.
+- **Jenseits eines regionalen Archivs**: Ein PMTiles-Ausschnitt haelt auf jeder
+  Stufe die ganzen Kacheln, die seine Region beruehren; eine grobe Stufe zeigt
+  deshalb weiter ueber den Rand hinaus als eine feine. Die Karte fragte
+  Kacheln ausserhalb nicht an, und beim Hineinzoomen verschwand, was die
+  groebere Stufe gezeigt hatte, etwa das Zwischenahner Meer westlich von
+  Oldenburg. Jetzt wird eine Kachel ausserhalb aus der Geometrie ihres
+  naechsten Vorfahren innerhalb gezeichnet, wie oberhalb der letzten Stufe,
+  bis vier Stufen hinauf; eine Rasterkachel steht dort vergroessert ein.
 
 Raspberry Pi 5, Vollbild 1920 x 1080, Gestenfolge ueber die
 Automatisierung (vier Wuerfe, sechs Raststufen des Mausrads), Kiosk-
@@ -3413,10 +3435,6 @@ Inhalt: der Compositor setzt das Fenster zusammen.
 
 ### Offen
 
-- Ruckeln: Ein Wurf von 2,2 s bekam auf dem Mac 136 Updates, aber nur 121
-  gezeichnete Frames; jeder neunte Bildwechsel zeigt das Bild davor noch
-  einmal. Vermutlich laufen in einem Bildwechsel keine und im naechsten zwei
-  Updates; zu pruefen ist ein an die Bildwechsel gebundener Takt.
 - Das Wetter unter geschlossener Bewoelkung haelt die 17,5 ms nicht; ohne
   neues Vorrechnen erreicht es beim Festhalten 58 Bilder je Sekunde, und
   woher die Spitzen der Messfolge kommen, ist nicht geklaert.

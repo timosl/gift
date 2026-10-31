@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"math"
+	"slices"
 	"strconv"
 
 	"github.com/worldiety/gift"
@@ -185,19 +186,11 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 	row := func(y float64) int { return int(math.Floor((v.c.Y + (y-v.h/2)/v.scale) * cells)) }
 	c0, c1 := col(minX), col(maxX)
 	r0, r1 := max(0, row(minY)), min(int(cells)-1, row(maxY))
-	// The provider's coverage, as columns and rows of this level.
-	nw, se := m.info.Bounds.Projected()
-	bc0, bc1 := int(math.Floor(nw.X*cells)), int(math.Ceil(se.X*cells))-1
-	br0, br1 := int(math.Floor(nw.Y*cells)), int(math.Ceil(se.Y*cells))-1
 
 	s := Stats{Level: z}
 	n.f.coarse = n.f.coarse[:0]
-	n.f.vtiles = n.f.vtiles[:0]
 	n.f.loading = false
 	for r := r0; r <= r1; r++ {
-		if r < br0 || r > br1 {
-			continue
-		}
 		for c := c0; c <= c1; c++ {
 			x0 := v.w/2 + (float64(c)/cells-v.c.X)*v.scale
 			y0 := v.h/2 + (float64(r)/cells-v.c.Y)*v.scale
@@ -205,12 +198,19 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 				continue
 			}
 			wc := ((c % int(cells)) + int(cells)) % int(cells)
-			if wc < bc0 || wc > bc1 {
+			t := TileID{Z: z, X: wc, Y: r}
+			if _, ok := m.dataTile(t); !ok {
 				continue
 			}
 			s.Tiles++
-			n.f.vtiles = append(n.f.vtiles, TileID{Z: z, X: wc, Y: r})
-			k := srcKey{t: TileID{Z: z, X: wc, Y: r}, px: px, style: style}
+			k := srcKey{t: t, px: px, style: style}
+			if m.info.Kind != Vector && !m.inBounds(t) {
+				// A raster tile outside the provider's region cannot be
+				// drawn again from its ancestor's data; the ancestor
+				// stands in, enlarged.
+				s.Fallbacks += n.standIn(ctx, k, c, x0, y0, ts, pass)
+				continue
+			}
 			pic := ui.RequestPicture(ctx, m.source(k, pass), px)
 			rect := geom.Rect{
 				Min: geom.Pt(float32(x0), float32(y0)),
@@ -246,14 +246,15 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 	if m.info.Prefetch {
 		n.f.prefetched = 0
 		ring := func(c, r int) {
-			if r < max(0, br0) || r > min(int(cells)-1, br1) {
+			if r < 0 || r > int(cells)-1 {
 				return
 			}
 			wc := ((c % int(cells)) + int(cells)) % int(cells)
-			if wc < bc0 || wc > bc1 {
+			t := TileID{Z: z, X: wc, Y: r}
+			if _, ok := m.dataTile(t); !ok || (m.info.Kind != Vector && !m.inBounds(t)) {
 				return
 			}
-			k := srcKey{t: TileID{Z: z, X: wc, Y: r}, px: px, style: style}
+			k := srcKey{t: t, px: px, style: style}
 			ui.PrefetchPicture(ctx, m.source(k, pass), px)
 			n.f.prefetched++
 		}
@@ -267,6 +268,81 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 		}
 	}
 	m.tiles.prune(pass)
+}
+
+// tilesUnder appends to out the tiles of level z that the polygon poly, in
+// the unrotated screen space of v, intersects, within the provider's
+// coverage and with their columns wrapped, each once.
+func (m *Map) tilesUnder(v projection, z int, poly [4][2]float64, out []TileID) []TileID {
+	cells := math.Exp2(float64(z))
+	ts := v.scale / cells
+	minX, minY, maxX, maxY := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+	for _, p := range poly {
+		minX, maxX = math.Min(minX, p[0]), math.Max(maxX, p[0])
+		minY, maxY = math.Min(minY, p[1]), math.Max(maxY, p[1])
+	}
+	col := func(x float64) int { return int(math.Floor((v.c.X + (x-v.w/2)/v.scale) * cells)) }
+	row := func(y float64) int { return int(math.Floor((v.c.Y + (y-v.h/2)/v.scale) * cells)) }
+	for r := max(0, row(minY)); r <= min(int(cells)-1, row(maxY)); r++ {
+		for c := col(minX); c <= col(maxX); c++ {
+			x0 := v.w/2 + (float64(c)/cells-v.c.X)*v.scale
+			y0 := v.h/2 + (float64(r)/cells-v.c.Y)*v.scale
+			if !polygonIntersectsRect(poly, x0, y0, x0+ts, y0+ts) {
+				continue
+			}
+			wc := ((c % int(cells)) + int(cells)) % int(cells)
+			// Outside the provider's region, the ancestor the place is
+			// drawn from, as its picture is.
+			t, ok := m.dataTile(TileID{Z: z, X: wc, Y: r})
+			if !ok {
+				continue
+			}
+			if !slices.Contains(out, t) {
+				out = append(out, t)
+			}
+		}
+	}
+	return out
+}
+
+// boundsReach is how many levels above a tile outside the provider's bounds
+// its data may come from: the nearest ancestor inside them.
+//
+// A regional archive holds at every level the whole tiles that touch its
+// region, so a coarse level shows further beyond the region's edge than a
+// fine one. Without this the map dropped what the coarser level had just
+// shown, a lake a few kilometres outside, at the zoom that crossed into the
+// next level, as if it had left the window. Four levels is a tile enlarged
+// sixteen times, drawn again from its ancestor's geometry for a vector map;
+// beyond that the map ends.
+const boundsReach = 4
+
+// inBounds reports whether the tile t touches the provider's bounds.
+func (m *Map) inBounds(t TileID) bool {
+	cells := math.Exp2(float64(t.Z))
+	nw, se := m.info.Bounds.Projected()
+	return t.X >= int(math.Floor(nw.X*cells)) && t.X <= int(math.Ceil(se.X*cells))-1 &&
+		t.Y >= int(math.Floor(nw.Y*cells)) && t.Y <= int(math.Ceil(se.Y*cells))-1
+}
+
+// dataTile returns the tile of the provider whose data draws the tile t: t
+// itself, its ancestor at the provider's last level when t is above it, and
+// for a t outside the provider's bounds its nearest ancestor inside them,
+// at most boundsReach levels up. It reports false where there is none.
+func (m *Map) dataTile(t TileID) (TileID, bool) {
+	src := t
+	if src.Z > m.info.MaxZoom {
+		src = src.Ancestor(m.info.MaxZoom)
+	}
+	for d := 0; ; d++ {
+		if m.inBounds(src) {
+			return src, true
+		}
+		if d >= boundsReach || src.Z <= m.info.MinZoom {
+			return TileID{}, false
+		}
+		src = src.Ancestor(src.Z - 1)
+	}
 }
 
 // standIn finds what can be drawn in place of the tile k, whose unwrapped

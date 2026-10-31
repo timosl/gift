@@ -138,8 +138,8 @@ type frame struct {
 	ltiles []TileID
 	boxes  []geom.Rect
 	fading bool
-	// vtiles are the tiles under the viewport, at the level of the frame.
-	vtiles []TileID
+	// reach is the scratch of the tiles a label can reach the map from.
+	reach []TileID
 	// more is set when labels were left unmeasured for a later frame.
 	more bool
 	// markers are the markers of the frame, hits the scratch of their
