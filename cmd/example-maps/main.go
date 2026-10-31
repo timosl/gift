@@ -9,6 +9,7 @@
 //	go run ./cmd/example-maps -fullscreen            # a kiosk
 //	go run ./cmd/example-maps -photos 2000           # a camera roll on the map
 //	go run ./cmd/example-maps -weather dwd           # the weather of the Deutscher Wetterdienst
+//	go run ./cmd/example-maps -weather dwd+gfs       # and NOAA's GFS beyond Germany
 //
 // Pan with a finger or the mouse, zoom with two fingers, the wheel or plus
 // and minus, turn with two fingers; a double tap zooms in. -dark draws the
@@ -35,6 +36,7 @@ import (
 	"github.com/worldiety/gift/ui/maps"
 	"github.com/worldiety/gift/weather"
 	"github.com/worldiety/gift/weather/dwd"
+	"github.com/worldiety/gift/weather/gfs"
 )
 
 func main() {
@@ -57,7 +59,7 @@ func main() {
 	noLabels := flag.Bool("nolabels", false, "draw the map without its labels, for measuring")
 	fullscreen := flag.Bool("fullscreen", false, "start full screen, as a kiosk does")
 	photos := flag.Int("photos", 0, "show this many sample photographs around Oldenburg, clustered")
-	weatherFrom := flag.String("weather", "", "dwd draws the weather of the Deutscher Wetterdienst over the map")
+	weatherFrom := flag.String("weather", "", "the weather over the map: dwd, gfs, or dwd+gfs for the one inside Germany and the other beyond")
 	reduced := flag.Bool("reduced", false, "the reduced quality of the weather, for a Raspberry Pi")
 	workers := flag.Int("workers", 2, "decode and rasterising goroutines: two leave the frame loop a core of its own on a Raspberry Pi 5")
 	upload := flag.Int("upload", 512, "texture upload budget per frame in KiB: on a Raspberry Pi 5 two tiles per frame keep a pan at 60 Hz")
@@ -132,17 +134,26 @@ func run(path, url, xyz, attribution string, debug, dark, noLabels bool, width, 
 	}
 	var sky maps.Overlay
 	if wo.from != "" {
-		if wo.from != "dwd" {
-			return fmt.Errorf("no weather provider %q, only dwd", wo.from)
-		}
 		dir, err := os.UserCacheDir()
 		if err != nil {
 			dir = os.TempDir()
 		}
-		s := weather.NewSky(dwd.ICOND2(dwd.Options{
-			CacheDir:  filepath.Join(dir, "gift", "weather", "dwd"),
-			UserAgent: "gift-example-maps/1 (+https://github.com/worldiety/gift)",
-		}), weather.SkyConfig{Region: geo.RectOf(geo.LatLon(cam.Center.Lat-0.5, cam.Center.Lon-0.8), geo.LatLon(cam.Center.Lat+0.5, cam.Center.Lon+0.8))})
+		const agent = "gift-example-maps/1 (+https://github.com/worldiety/gift)"
+		icon := dwd.ICOND2(dwd.Options{CacheDir: filepath.Join(dir, "gift", "weather", "dwd"), UserAgent: agent})
+		global := gfs.Global(gfs.Options{CacheDir: filepath.Join(dir, "gift", "weather", "gfs"), UserAgent: agent})
+		var p weather.Provider
+		switch wo.from {
+		case "dwd":
+			p = icon
+		case "gfs":
+			p = global
+		case "dwd+gfs":
+			// The Deutscher Wetterdienst over Germany, the GFS beyond.
+			p = weather.Combine(icon, global)
+		default:
+			return fmt.Errorf("no weather provider %q: dwd, gfs or dwd+gfs", wo.from)
+		}
+		s := weather.NewSky(p, weather.SkyConfig{Region: geo.RectOf(geo.LatLon(cam.Center.Lat-0.5, cam.Center.Lon-0.8), geo.LatLon(cam.Center.Lat+0.5, cam.Center.Lon+0.8))})
 		s.Start()
 		defer s.Stop()
 		q := maps.WeatherFull
