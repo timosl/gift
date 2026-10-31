@@ -22,6 +22,8 @@ Basic components display one piece of content or take one input. All of them liv
 - [Toggle](toggle/): a switch for a setting that takes effect at once.
 - [Slider](slider/): picks a number from a range by dragging a knob.
 - [Circular Slider](circular-slider/): a slider on a ring, for a thermostat or a dial.
+- [Color Picker](color-picker/): a colour from a grid, a spectrum or sliders, with opacity and hex code.
+- [Color Well](color-well/): a swatch that opens the colour picker in a popover.
 - [Segmented Control](segmented-control/): a row of mutually exclusive choices.
 - [Text Field](text-field/): one line of editable text.
 - [Text Area](text-area/): editable text of several lines, wrapped and scrolled.

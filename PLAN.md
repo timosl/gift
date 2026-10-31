@@ -2688,6 +2688,29 @@ Rechtecke, Glyphen und Bilder.
 Offen: Farbverlauf entlang eines Bogens (Apples Gauge mit Gradient), Skalen-
 striche, Wertmeldung fuer Anzeigen ohne Interactor.
 
+## 35. Farbwaehler
+
+Punkt 9 der iOS-Liste.
+
+- Waagerechte Verlaeufe im Renderer: `GradientParams.Horizontal`,
+  `render.HorizontalGradient`; die Eckfarben der Quads folgen x statt y, die
+  GPU interpoliert wie bisher. GPU-Test von links nach rechts.
+- `ui.ColorPicker` wie UIColorPickerViewController, 320 pt breit: Raster
+  (Grautoene, zwoelf Farbtoene von dunkel bis blass), Spektrum (sechs
+  waagerechte Verlaeufe zwischen Primaer- und Sekundaerfarben, darueber weiss
+  nach oben und schwarz nach unten, neun Quads, exakt) und Regler fuer Rot,
+  Gruen, Blau mit Spuren von Kanal 0 bis voll; Deckkraft ueber Schachbrett,
+  Vorschau und Hex-Feld, das beim Tippen uebernimmt. Runde Ecken von Raster und
+  Spektrum ueber eine Ringmaske in der Hintergrundfarbe, weil es keinen runden
+  Clip gibt.
+- `ui.ColorWell` wie das Feld von SwiftUIs ColorPicker: Farbe in einem Ring
+  aus 24 Boegen aller Farbtoene, oeffnet den Waehler im Popover.
+- `ui.HexColor` und `ui.ParseHexColor` fuer #RGB, #RRGGBB, #RRGGBBAA.
+
+Offen: gespeicherte Farben und Pipette von iOS, Display-P3, Spektrum fuer
+Farben, die weder volle Helligkeit noch volle Saettigung haben (die Lupe
+steht dann naeherungsweise).
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb

@@ -4667,6 +4667,11 @@
             "synopsis": "Fade returns c at f times its opacity, where f is between 0 and 1."
           },
           {
+            "name": "ParseHexColor",
+            "signature": "ParseHexColor(s string) (Color, bool)",
+            "synopsis": "ParseHexColor reads \"#RGB\", \"#RRGGBB\" or \"#RRGGBBAA\", with or without the hash, in straight alpha, and reports whether it was one."
+          },
+          {
             "name": "RGB",
             "signature": "RGB(r, g, b uint8) Color",
             "synopsis": "RGB returns the fully opaque Color for the given 8 bit components."
@@ -4683,6 +4688,77 @@
           }
         ],
         "methods": []
+      },
+      "ColorPickerView": {
+        "synopsis": "ColorPickerView chooses a colour.",
+        "decl": "type ColorPickerView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "ColorPicker",
+            "signature": "ColorPicker(value Color, onChange func(Color)) ColorPickerView",
+            "synopsis": "ColorPicker returns the colour picker of iOS, UIColorPickerViewController, as a panel 320 points wide: a grid of swatches, a spectrum of every hue and sliders for red, green and blue, one at a time under a segmented control, with an opacity slider, the colour and its hex code below them."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c Color) ColorPickerView",
+            "synopsis": "Background sets the colour the picker stands on, which rounds the corners of its grid and its spectrum; the default is ColorSurface, the colour of a popover."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) ColorPickerView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) ColorPickerView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) ColorPickerView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "SupportsOpacity",
+            "signature": "SupportsOpacity(b bool) ColorPickerView",
+            "synopsis": "SupportsOpacity with false hides the opacity slider and keeps every colour opaque, as supportsAlpha does on iOS."
+          }
+        ]
+      },
+      "ColorWellView": {
+        "synopsis": "ColorWellView is a swatch that opens a colour picker.",
+        "decl": "type ColorWellView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "ColorWell",
+            "signature": "ColorWell(value Color, onChange func(Color)) ColorWellView",
+            "synopsis": "ColorWell returns the control of SwiftUI's ColorPicker: the colour in a ring of every hue, 28 points across, that opens a ColorPicker in a Popover when it is tapped."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) ColorWellView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) ColorWellView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) ColorWellView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "SupportsOpacity",
+            "signature": "SupportsOpacity(b bool) ColorWellView",
+            "synopsis": "SupportsOpacity with false keeps the colour opaque; see ColorPickerView.SupportsOpacity."
+          }
+        ]
       },
       "ContextMenuView": {
         "synopsis": "ContextMenuView is content with a context menu.",
@@ -8619,6 +8695,11 @@
         "name": "ForgetImage",
         "signature": "ForgetImage(id asset.ID)",
         "synopsis": "ForgetImage drops everything the user interface remembers about one picture: the settled request state of Image and the resident textures of every revision of it."
+      },
+      {
+        "name": "HexColor",
+        "signature": "HexColor(c Color) string",
+        "synopsis": "HexColor is c as \"#RRGGBB\", or \"#RRGGBBAA\" when it is not opaque, in straight alpha."
       },
       {
         "name": "ImagePipeline",

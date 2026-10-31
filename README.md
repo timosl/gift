@@ -193,6 +193,9 @@ Rings are a shape of the renderer like rounded rectangles, drawn from a
 distance field in the same draw call: `ui.ProgressRing` (and its
 indeterminate spinner), `ui.Gauge` in the circular styles of SwiftUI and
 `ui.CircularSlider` for a thermostat or a dial.
+`ui.ColorPicker` is UIColorPickerViewController with its grid, spectrum and
+sliders, opacity and hex code, and `ui.ColorWell` the swatch of SwiftUI's
+ColorPicker that opens it in a popover.
 
 ### Video
 
