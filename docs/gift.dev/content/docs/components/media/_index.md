@@ -12,6 +12,7 @@ time, without cgo.
 
 - [Image Viewer](image-viewer/): the pictures of a catalogue full screen, opened out of their thumbnails, to swipe,
   zoom and drag away, with a card of details.
+- [Map](map/): a map after MapKit, from self hosted tiles, with photographs that cluster.
 - [Zoomable Image](zoomable-image/): one picture to pinch, double tap and wheel into, in place.
 
 - [Video Player](video-player/): a video with sound and touch controls for play, pause, position, volume and the

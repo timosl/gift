@@ -2741,7 +2741,9 @@ eine strukturierte ersetzt, die jede Komponente zeigt.
 
 ## 37. Karten: eine Kartenansicht nach dem Vorbild von MapKit
 
-Status: Plan zum Review, 31.10.2026. Nichts davon ist gebaut.
+Status: gebaut am 31.10.2026 in den Schritten M1 bis M7; was davon abweicht,
+was gemessen wurde und was offen ist, steht in "Umsetzung und Messungen" am
+Ende des Abschnitts.
 
 Angefordert: eine eigene Kartendarstellung wie MapKit. Einsatz sind
 klassische POI-Marker, vor allem aber Fotos mit Geokoordinaten wie in der
@@ -3297,6 +3299,88 @@ kann beides.
   `build.protomaps.com` in eine Konfiguration.
 - Lizenzpflichten: ODbL-Namensnennung, Quellenangabe des DWD, Lizenz des
   Protomaps-Stils pruefen.
+
+### Umsetzung und Messungen
+
+Gebaut wie geplant, mit diesen Abweichungen und Ergaenzungen:
+
+- **Pakete.** `geo`, `ui/maps`, `weather`, `weather/grib2`, `weather/dwd`,
+  `weather/gfs`; im Render-Vertrag `render.ImageTile`, `OpTriangles` mit der
+  Vertex-Seitentabelle; in `asset` `DefaultUserAgent`, `Pipeline.Post` und
+  `ReadExif`; in `ui` `MeasureText`, `DrawText`, `Picture.DrawTile` und
+  `Picture.DrawFit`; `gesture.WheelValue.Precise`;
+  `PaintContext.AppendVertex`. Beispiel `cmd/example-maps`, Demo `map` der
+  Kitchen Sink, Doku-Seiten "Map" und "Maps and Weather".
+- **Naehte zwischen Kacheln.** Bei gebrochenem Zoom und Drehung zeigten die
+  Kanten der Kacheln den Hintergrund: lineare Filterung mischt den Randtexel
+  mit dem transparenten Rand der Textur. `render.ImageTile` tastet nur
+  zwischen den Mittelpunkten der Randtexel ab; der GPU-Test bei Zoom 3,4 und
+  17 Grad zaehlte vorher 1364 Fugenpixel, jetzt keines.
+- **Vektorkacheln bleiben auf der CPU.** Die dichteste Kachel Oldenburgs
+  (z15, 4816 Objekte) brauchte auf dem Pi 5 bei 256 Pixeln 23,6 ms; das
+  Rastern in eine Alpha-Maske und Zusammensetzen nur der bedeckten Pixel
+  brachte 11,1 ms, unter den 15 ms der Entscheidung. Der Dreiecks-Op war
+  dafuer nicht noetig.
+- **Beschriftungen** werden in einer eigenen Goroutine aus denselben
+  Kacheln gelesen und ueber `asset.Pipeline.Post` uebergeben, weil ein Bild
+  aus dem Cache kommen kann, ohne dass gezeichnet wird. Ein Frame shapt
+  hoechstens zwoelf neue Namen; ein Schwenk in eine Strasse voller neuer
+  Namen kostete vorher 14 ms Update, jetzt 1,2 ms.
+- **Marker** sind keine gepoolten Views, sondern werden von der Karte selbst
+  gezeichnet und im eigenen Tap-Erkenner getroffen; das spart den Build beim
+  Schwenken. Sie werden in Ebenen ohne Ueberlappung Teil fuer Teil gezeichnet,
+  was die Draw-Calls einer Fotokarte halbierte. Der Clusterradius ist 80 pt
+  statt 60: bei 56 pt grossen Markern liessen 60 sie ueberlappen.
+- **Gesten auf einem Kind.** Ein Knoten hat einen Timer, und der der Karte
+  (naechstes Frame, Wiederholung, Einblenden) ersetzte den, mit dem ein Tap
+  einen Doppeltipp ausschliesst. Gesten und Tasten liegen deshalb auf einer
+  Eingabeflaeche ueber der Karte.
+- **Wetter ohne neuen Shader.** Wolken, Schatten und Radar werden in einer
+  Goroutine in Texturen gerechnet, wenn Lauf, Zoom oder Region wechseln, und
+  nur, wenn die Karte ruht; im Frame sind sie Bilder mit Drift und
+  Parallaxe. Wind und Niederschlag sind Partikel als `OpTriangles`; ein
+  ueber Frames bestehendes Offscreen-Ziel war nicht noetig. Das Radar liegt
+  ueber den Wolken, weil es unter einer geschlossenen Decke sonst
+  verschwindet.
+- **GRIB2.** DWD wie NOMADS-Filter liefern einfache Packung (5.0) mit
+  Bitmap, beide am 31.10.2026 geprueft; 5.3 und CCSDS waren nicht noetig.
+- **Zwei Fehler im Backend** zeigten sich an der Karte und betrafen jede
+  Ansicht: Unter `DirectToScreen` vergass `BeginFrame` die beim Malen
+  aufgeschobenen Uploads, und ein Bild, das auf ein Band wartete, galt als
+  abgelehnt statt als aufgeschoben. Beide liessen eine Ansicht, die nur bei
+  Bedarf zeichnet, mit fehlenden Bildern stehen. Behoben in 2ed5a14.
+
+Raspberry Pi 5, Vollbild 1920 x 1080, Gestenfolge ueber die
+Automatisierung (vier Wuerfe, sechs Raststufen des Mausrads), Kiosk-
+Einstellungen, zwei Worker, Upload-Budget zwei Kacheln je Frame:
+
+| Szene                                              | Frame-Intervall p95 |
+|----------------------------------------------------|---------------------|
+| Vektorkarte Oldenburg, Zoom 14,5, um 30 Grad gedreht | 17,4 ms           |
+| dieselbe, Zoom 15,5 (ueber die letzte Stufe hinaus) | 17,4 ms            |
+| 2000 Fotos, Zoom 13                                 | 17,4 ms            |
+| 2000 Fotos, Zoom 15, gedreht                        | 18,9 ms            |
+| Wetter des DWD, nur Wind                            | 17,3 ms            |
+| Wetter des DWD, geschlossene tiefe Wolkendecke      | 19 bis 21 ms       |
+
+Index von 100 000 Fotos: 264 ms im Hintergrund, Abfrage eines Full-HD-
+Ausschnitts 3,6 Mikrosekunden ohne Allokation. In einem Fenster statt im
+Vollbild schafft der Pi bei 1920 x 1080 keine 60 Hz, gleich mit welchem
+Inhalt: der Compositor setzt das Fenster zusammen.
+
+### Offen
+
+- Das Wetter unter geschlossener Bewoelkung haelt die 17,5 ms nicht; ohne
+  neues Vorrechnen erreicht es beim Festhalten 58 Bilder je Sekunde, und
+  woher die Spitzen der Messfolge kommen, ist nicht geklaert.
+- Fotos bei Zoom 15 gedreht: 104 Bild-Draw-Calls je Frame. Ein Texturatlas
+  fuer gleich grosse kleine Bilder, Kacheln wie Vorschaubilder, ist der
+  Kandidat.
+- Radar-Nowcast des DWD (RV, polarstereographisches RADOLAN-Gitter) ist
+  nicht gebaut; der Niederschlag kommt aus dem Modell.
+- Nicht gebaut: Zoom-Schwung nach einem Pinch, Zwei-Finger-Tipp zum
+  Herauszoomen, gebogene Strassennamen, Symbole fuer POIs, Clustering ueber
+  den Antimeridian, Neigung.
 
 ### Quellen
 

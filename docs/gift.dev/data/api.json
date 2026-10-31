@@ -613,6 +613,25 @@
       }
     ]
   },
+  "dwd": {
+    "importPath": "github.com/worldiety/gift/weather/dwd",
+    "synopsis": "Package dwd is the weather of the Deutscher Wetterdienst behind the seam of package weather: the ICON-D2 model, 2.2 km over Germany and its neighbours, from the open data server, free for any use with the source named.",
+    "types": {
+      "Options": {
+        "synopsis": "Options configures ICOND2.",
+        "decl": "type Options struct {\n\tBase      string\n\tCacheDir  string\n\tClient    *http.Client\n\tUserAgent string\n\tNow       func() time.Time\n}",
+        "constructors": [],
+        "methods": []
+      }
+    },
+    "funcs": [
+      {
+        "name": "ICOND2",
+        "signature": "ICOND2(o Options) weather.Provider",
+        "synopsis": "ICOND2 returns the provider of the ICON-D2 model."
+      }
+    ]
+  },
   "ebiten": {
     "importPath": "github.com/worldiety/gift/backend/ebiten",
     "synopsis": "Package ebiten is gift's Ebitengine backend: the window, the frame loop and the GPU output.",
@@ -1391,6 +1410,151 @@
     },
     "funcs": []
   },
+  "geo": {
+    "importPath": "github.com/worldiety/gift/geo",
+    "synopsis": "Package geo is positions on the earth and the Web Mercator projection gift's maps draw them in.",
+    "types": {
+      "Coordinate": {
+        "synopsis": "Coordinate is a position on the earth in degrees of latitude, positive north, and longitude, positive east.",
+        "decl": "type Coordinate struct{ Lat, Lon float64 }",
+        "constructors": [
+          {
+            "name": "LatLon",
+            "signature": "LatLon(lat, lon float64) Coordinate",
+            "synopsis": "LatLon returns the coordinate at lat and lon degrees."
+          }
+        ],
+        "methods": [
+          {
+            "name": "String",
+            "signature": "String() string",
+            "synopsis": "String formats c as \"53.14350, 8.21460\", latitude first, as maps and photographs show it."
+          },
+          {
+            "name": "Valid",
+            "signature": "Valid() bool",
+            "synopsis": "Valid reports whether c is a position on the earth: both numbers finite, the latitude within ±90 and the longitude within ±180."
+          }
+        ]
+      },
+      "Point": {
+        "synopsis": "Point is a position in Web Mercator, normalised to the unit square: X from 0 at 180° west to 1 at 180° east, Y from 0 at MaxLatitude north to 1 at the same latitude south.",
+        "decl": "type Point struct{ X, Y float64 }",
+        "constructors": [
+          {
+            "name": "Project",
+            "signature": "Project(c Coordinate) Point",
+            "synopsis": "Project returns the Web Mercator point of c."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Add",
+            "signature": "Add(q Point) Point",
+            "synopsis": "Add returns p moved by q."
+          },
+          {
+            "name": "Coordinate",
+            "signature": "Coordinate() Coordinate",
+            "synopsis": "Coordinate returns the coordinate of p, the inverse of Project."
+          },
+          {
+            "name": "Scale",
+            "signature": "Scale(f float64) Point",
+            "synopsis": "Scale returns p multiplied by f."
+          },
+          {
+            "name": "Sub",
+            "signature": "Sub(q Point) Point",
+            "synopsis": "Sub returns the vector from q to p."
+          },
+          {
+            "name": "Wrapped",
+            "signature": "Wrapped() Point",
+            "synopsis": "Wrapped returns p with X brought into [0, 1)."
+          }
+        ]
+      },
+      "Rect": {
+        "synopsis": "Rect is the area between two parallels and two meridians: Min is its south west corner and Max its north east corner.",
+        "decl": "type Rect struct{ Min, Max Coordinate }",
+        "constructors": [
+          {
+            "name": "RectOf",
+            "signature": "RectOf(cs ...Coordinate) Rect",
+            "synopsis": "RectOf returns the smallest rectangle that contains every coordinate, or the zero rectangle for none."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Center",
+            "signature": "Center() Coordinate",
+            "synopsis": "Center returns the coordinate halfway between the corners."
+          },
+          {
+            "name": "Contains",
+            "signature": "Contains(c Coordinate) bool",
+            "synopsis": "Contains reports whether c lies inside r or on its edge."
+          },
+          {
+            "name": "Extend",
+            "signature": "Extend(c Coordinate) Rect",
+            "synopsis": "Extend returns r grown to contain c."
+          },
+          {
+            "name": "Intersect",
+            "signature": "Intersect(o Rect) Rect",
+            "synopsis": "Intersect returns the area r and o share, or the zero rectangle."
+          },
+          {
+            "name": "Intersects",
+            "signature": "Intersects(o Rect) bool",
+            "synopsis": "Intersects reports whether r and o share area."
+          },
+          {
+            "name": "IsEmpty",
+            "signature": "IsEmpty() bool",
+            "synopsis": "IsEmpty reports whether r covers no area."
+          },
+          {
+            "name": "Projected",
+            "signature": "Projected() (nw, se Point)",
+            "synopsis": "Projected returns the Web Mercator rectangle of r as its north west and south east points, the order in which Y grows."
+          }
+        ]
+      },
+      "Region": {
+        "synopsis": "Region is an area given by its centre and its extent in degrees, the way MapKit's MKCoordinateRegion gives one: what a map is asked to show when the application knows where something is and roughly how much around it.",
+        "decl": "type Region struct {\n\tCenter           Coordinate\n\tLatSpan, LonSpan float64\n}",
+        "constructors": [
+          {
+            "name": "RegionOf",
+            "signature": "RegionOf(r Rect) Region",
+            "synopsis": "RegionOf returns the region of r."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Rect",
+            "signature": "Rect() Rect",
+            "synopsis": "Rect returns the rectangle of the region."
+          }
+        ]
+      }
+    },
+    "funcs": [
+      {
+        "name": "Distance",
+        "signature": "Distance(a, b Coordinate) float64",
+        "synopsis": "Distance returns the great circle distance between a and b in metres, by the haversine formula on a sphere of EarthRadius."
+      },
+      {
+        "name": "MetresPerUnit",
+        "signature": "MetresPerUnit(lat float64) float64",
+        "synopsis": "MetresPerUnit is the length on the ground of one unit of Web Mercator at latitude lat: the circumference of the parallel."
+      }
+    ]
+  },
   "geom": {
     "importPath": "github.com/worldiety/gift/geom",
     "synopsis": "Package geom provides the numeric geometry primitives shared by the layout, input and rendering layers of gift.",
@@ -2075,6 +2239,25 @@
         "name": "NeedsMultiTouch",
         "signature": "NeedsMultiTouch(gs []Gesture) bool",
         "synopsis": "NeedsMultiTouch reports whether a set contains a recogniser that needs more than one finger."
+      }
+    ]
+  },
+  "gfs": {
+    "importPath": "github.com/worldiety/gift/weather/gfs",
+    "synopsis": "Package gfs is NOAA's Global Forecast System behind the seam of package weather: the whole earth at 0.25 degrees, about 28 km, every hour to five days ahead, in the public domain.",
+    "types": {
+      "Options": {
+        "synopsis": "Options configures Global.",
+        "decl": "type Options struct {\n\tFilter, Files string\n\tCacheDir      string\n\tClient        *http.Client\n\tUserAgent     string\n\tNow           func() time.Time\n}",
+        "constructors": [],
+        "methods": []
+      }
+    },
+    "funcs": [
+      {
+        "name": "Global",
+        "signature": "Global(o Options) weather.Provider",
+        "synopsis": "Global returns the provider of the GFS."
       }
     ]
   },
@@ -4085,6 +4268,467 @@
       }
     },
     "funcs": []
+  },
+  "maps": {
+    "importPath": "github.com/worldiety/gift/ui/maps",
+    "synopsis": "",
+    "types": {
+      "Camera": {
+        "synopsis": "Camera is what a map shows: where, how close and which way up.",
+        "decl": "type Camera struct {\n\tCenter  geo.Coordinate\n\tZoom    float64\n\tHeading float64\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Cluster": {
+        "synopsis": "Cluster is a point or a group of points as a map shows them at a zoom.",
+        "decl": "type Cluster struct {\n\tAt             geo.Coordinate\n\tCount          int\n\tRepresentative Point\n\t// Has unexported fields.\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Bounds",
+            "signature": "Bounds() geo.Rect",
+            "synopsis": "Bounds returns the smallest rectangle that holds the cluster's points."
+          },
+          {
+            "name": "Points",
+            "signature": "Points() []Point",
+            "synopsis": "Points returns the points of the cluster."
+          }
+        ]
+      },
+      "Clustering": {
+        "synopsis": "Clustering configures how points that would cover each other merge.",
+        "decl": "type Clustering struct {\n\tRadius  float64\n\tMaxZoom int\n\tOff     bool\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Config": {
+        "synopsis": "Config configures a Map.",
+        "decl": "type Config struct {\n\tTiles            Provider\n\tStyle            *Style\n\tDarkStyle        *Style\n\tCamera           Camera\n\tMinZoom, MaxZoom float64\n\tRotation         RotationMode\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "LabelRule": {
+        "synopsis": "LabelRule chooses features to label with their \"name\".",
+        "decl": "type LabelRule struct {\n\tSource           string\n\tKinds            []string\n\tMinZoom, MaxZoom float64\n\tSize             Stops\n\tColor, Halo      ui.Color\n\tRank             int\n\tAlong            bool\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Layer": {
+        "synopsis": "Layer is one drawing rule: the features of one source layer, chosen by their kind, filled, stroked, or both.",
+        "decl": "type Layer struct {\n\tSource           string\n\tKinds, Details   []string\n\tMinZoom, MaxZoom float64\n\tFill             ui.Color\n\tLine             ui.Color\n\tWidth            Stops\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Map": {
+        "synopsis": "Map is one map: its provider, its style and its camera.",
+        "decl": "type Map struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "New",
+            "signature": "New(cfg Config) (*Map, error)",
+            "synopsis": "New returns a map over cfg.Tiles."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Camera",
+            "signature": "Camera() Camera",
+            "synopsis": "Camera returns the camera as of the last frame, in motion or not."
+          },
+          {
+            "name": "Info",
+            "signature": "Info() ProviderInfo",
+            "synopsis": "Info returns what the provider says about itself."
+          },
+          {
+            "name": "OnCameraChange",
+            "signature": "OnCameraChange(fn func(Camera))",
+            "synopsis": "OnCameraChange sets the function called when the camera comes to rest after a gesture or an animation, as MapKit's regionDidChangeAnimated: not on every frame of the motion."
+          },
+          {
+            "name": "SetCamera",
+            "signature": "SetCamera(c Camera, animated bool)",
+            "synopsis": "SetCamera moves the map to c, along the flight path of van Wijk and Nuij when animated: out, across and in again, as MapKit and Mapbox fly."
+          },
+          {
+            "name": "ShowRect",
+            "signature": "ShowRect(r geo.Rect, animated bool)",
+            "synopsis": "ShowRect moves the map so that r fills it, at the current heading."
+          },
+          {
+            "name": "Stats",
+            "signature": "Stats() Stats",
+            "synopsis": "Stats returns what the last frame drew."
+          }
+        ]
+      },
+      "MapView": {
+        "synopsis": "MapView is the declaration of a Map in a build.",
+        "decl": "type MapView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "View",
+            "signature": "View(m *Map) MapView",
+            "synopsis": "View returns the view of m."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) MapView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Frame",
+            "signature": "Frame(w, h float32) MapView",
+            "synopsis": "Frame fixes the size of the map."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) MapView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) MapView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "OnCluster",
+            "signature": "OnCluster(fn func(Cluster)) MapView",
+            "synopsis": "OnCluster sets the function called when a cluster is tapped."
+          },
+          {
+            "name": "OnSelect",
+            "signature": "OnSelect(fn func(Point)) MapView",
+            "synopsis": "OnSelect sets the function called when a single point is tapped."
+          },
+          {
+            "name": "OnTap",
+            "signature": "OnTap(fn func(geo.Coordinate)) MapView",
+            "synopsis": "OnTap sets the function called with the coordinate of a single tap on the map itself, not on a marker."
+          },
+          {
+            "name": "Overlay",
+            "signature": "Overlay(o Overlay) MapView",
+            "synopsis": "Overlay adds o above the tiles and below the markers, in the order the overlays were added."
+          },
+          {
+            "name": "Points",
+            "signature": "Points(p *Points, style MarkerStyle) MapView",
+            "synopsis": "Points adds a set of points to the map, drawn in style; see Points and MarkerStyle."
+          }
+        ]
+      },
+      "MarkerKind": {
+        "synopsis": "MarkerKind is how the points of a layer are drawn.",
+        "decl": "type MarkerKind uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "MarkerStyle": {
+        "synopsis": "MarkerStyle is how the points of a layer look.",
+        "decl": "type MarkerStyle struct {\n\tKind  MarkerKind\n\tSize  float32\n\tColor ui.Color\n}",
+        "constructors": [
+          {
+            "name": "PhotoMarkers",
+            "signature": "PhotoMarkers() MarkerStyle",
+            "synopsis": "PhotoMarkers is the style of a map of photographs."
+          },
+          {
+            "name": "PinMarkers",
+            "signature": "PinMarkers(c ui.Color) MarkerStyle",
+            "synopsis": "PinMarkers is the style of places, in c."
+          }
+        ],
+        "methods": []
+      },
+      "Overlay": {
+        "synopsis": "Overlay draws above the tiles of a map and below its markers: the weather of package weather, a route, a heat map.",
+        "decl": "type Overlay interface {\n\tLayoutOverlay(ctx *gift.LayoutContext, p Projection) (animating bool)\n\tPaintOverlay(ctx *gift.PaintContext, p Projection, bounds geom.Rect)\n}",
+        "constructors": [
+          {
+            "name": "Weather",
+            "signature": "Weather(sky *weather.Sky, o WeatherOptions) Overlay",
+            "synopsis": "Weather returns an overlay that draws the weather of sky over a map, as the project plan, section 37, describes it: clouds in three layers at their heights, which move against the ground as the map is panned and cast shadows away from the sun, precipitation on the ground and in the air, and the wind near the ground."
+          }
+        ],
+        "methods": []
+      },
+      "PMTilesOptions": {
+        "synopsis": "PMTilesOptions adjusts what PMTiles and PMTilesURL report about an archive.",
+        "decl": "type PMTilesOptions struct {\n\tSchema      string\n\tAttribution string\n\tClient      *http.Client\n\tUserAgent   string\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Point": {
+        "synopsis": "Point is one thing on a map: a photograph, a place of interest.",
+        "decl": "type Point struct {\n\tID    string\n\tAt    geo.Coordinate\n\tTitle string\n\tPhoto asset.Source\n\tTime  time.Time\n\tScore float64\n}",
+        "constructors": [
+          {
+            "name": "LocatePhotos",
+            "signature": "LocatePhotos(ctx context.Context, srcs []asset.Source) ([]Point, error)",
+            "synopsis": "LocatePhotos reads where and when each source was taken, with asset.ReadExif on a few goroutines, and returns a point for each that says where: the points a map of photographs is made of."
+          }
+        ],
+        "methods": []
+      },
+      "Points": {
+        "synopsis": "Points is a set of points and its cluster index.",
+        "decl": "type Points struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "NewPoints",
+            "signature": "NewPoints(pts []Point, c Clustering) *Points",
+            "synopsis": "NewPoints returns a set of pts, clustered by c, and starts building its index."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Len",
+            "signature": "Len() int",
+            "synopsis": "Len returns the number of points the current index holds."
+          },
+          {
+            "name": "Set",
+            "signature": "Set(pts []Point)",
+            "synopsis": "Set replaces the points and rebuilds the index in the background."
+          },
+          {
+            "name": "Wait",
+            "signature": "Wait()",
+            "synopsis": "Wait blocks until the index of the last Points.Set is ready."
+          }
+        ]
+      },
+      "Projection": {
+        "synopsis": "Projection is the camera of one frame on the map's viewport: the arithmetic between world points and the map's own coordinates, in logical pixels from its top left corner.",
+        "decl": "type Projection struct {\n\t// Has unexported fields.\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Center",
+            "signature": "Center() geo.Point",
+            "synopsis": "Center returns the world point in the middle of the map."
+          },
+          {
+            "name": "Heading",
+            "signature": "Heading() float64",
+            "synopsis": "Heading returns the heading in radians, clockwise from north."
+          },
+          {
+            "name": "Scale",
+            "signature": "Scale() float64",
+            "synopsis": "Scale returns the logical pixels per world unit, TileSize·2^Zoom."
+          },
+          {
+            "name": "Size",
+            "signature": "Size() (w, h float64)",
+            "synopsis": "Size returns the size of the map."
+          },
+          {
+            "name": "ToScreen",
+            "signature": "ToScreen(w geo.Point) (x, y float64)",
+            "synopsis": "ToScreen returns the map position of a world point, taking the copy of the world nearest the centre."
+          },
+          {
+            "name": "ToWorld",
+            "signature": "ToWorld(x, y float64) geo.Point",
+            "synopsis": "ToWorld returns the world point under a map position."
+          },
+          {
+            "name": "Visible",
+            "signature": "Visible() geo.Rect",
+            "synopsis": "Visible returns the smallest rectangle of coordinates that contains the whole viewport, turned or not."
+          },
+          {
+            "name": "Zoom",
+            "signature": "Zoom() float64",
+            "synopsis": "Zoom returns the zoom level."
+          }
+        ]
+      },
+      "Provider": {
+        "synopsis": "Provider delivers the tiles of one map.",
+        "decl": "type Provider interface {\n\tInfo() ProviderInfo\n\tTile(ctx context.Context, t TileID) (Tile, error)\n}",
+        "constructors": [
+          {
+            "name": "DebugTiles",
+            "signature": "DebugTiles() Provider",
+            "synopsis": "DebugTiles returns a provider that draws every tile itself: a tint per zoom level, the tile's outline, a finer grid and its z/x/y in the corner."
+          },
+          {
+            "name": "PMTiles",
+            "signature": "PMTiles(path string, opts ...PMTilesOptions) (Provider, error)",
+            "synopsis": "PMTiles opens a PMTiles archive (version 3) in a local file: a whole map, or a region of one, in a single file and without a tile server."
+          },
+          {
+            "name": "PMTilesURL",
+            "signature": "PMTilesURL(url string, opts ...PMTilesOptions) (Provider, error)",
+            "synopsis": "PMTilesURL opens a PMTiles archive on an HTTP server, read with range requests: self hosting is a static file on any server that answers them, nginx, Caddy or an S3 compatible store."
+          },
+          {
+            "name": "XYZ",
+            "signature": "XYZ(template string, o XYZOptions) (Provider, error)",
+            "synopsis": "XYZ returns a provider for a tile service with a URL template, the most common form there is: {z}, {x} and {y} are replaced by the tile, {s} by a subdomain."
+          }
+        ],
+        "methods": []
+      },
+      "ProviderInfo": {
+        "synopsis": "ProviderInfo is everything that makes a map provider what it is, beyond the tiles themselves: the map follows it instead of assumptions.",
+        "decl": "type ProviderInfo struct {\n\tName             string\n\tKind             TileKind\n\tSchema           string\n\tMinZoom, MaxZoom int\n\tBounds           geo.Rect\n\tAttribution      string\n\tPrefetch         bool\n\tRevision         string\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "RotationMode": {
+        "synopsis": "RotationMode says whether a map can be turned.",
+        "decl": "type RotationMode uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "SourceProvider": {
+        "synopsis": "SourceProvider is an optional extension of Provider: a provider whose raster tiles the image pipeline fetches itself, as [asset.Source]s of its own — asset.HTTP for a tile service, so that the pipeline's HTTP cache with its revalidation applies, rather than the bytes of Provider.Tile under the provider's revision.",
+        "decl": "type SourceProvider interface {\n\tProvider\n\tTileSource(t TileID) asset.Source\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Stats": {
+        "synopsis": "Stats is what the last frame drew, for tests and metrics.",
+        "decl": "type Stats struct {\n\tLevel                   int\n\tTiles, Drawn, Fallbacks int\n\tPoints, Labels          int\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Stop": {
+        "synopsis": "Stop is a value at a zoom.",
+        "decl": "type Stop struct{ Zoom, Value float64 }",
+        "constructors": [],
+        "methods": []
+      },
+      "Stops": {
+        "synopsis": "Stops is a value that changes with the zoom: linear between the stops, constant before the first and after the last.",
+        "decl": "type Stops []Stop",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "At",
+            "signature": "At(z float64) float64",
+            "synopsis": "At returns the value at zoom z."
+          }
+        ]
+      },
+      "Style": {
+        "synopsis": "Style draws the vector tiles of one schema: which features of which layer are filled or stroked in what colour and width, and which are labelled.",
+        "decl": "type Style struct {\n\tSchema      string\n\tName        string\n\tBackground  ui.Color\n\tPlaceholder ui.Color\n\tLayers      []Layer\n\tLabels      []LabelRule\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "ProtomapsDark",
+            "signature": "ProtomapsDark() *Style",
+            "synopsis": "ProtomapsDark is the dark counterpart of ProtomapsLight."
+          },
+          {
+            "name": "ProtomapsLight",
+            "signature": "ProtomapsLight() *Style",
+            "synopsis": "ProtomapsLight is a light style for the Protomaps basemap, schema version 4, after the colours of Apple Maps: pale land, blue water, green parks, white streets and yellow motorways."
+          }
+        ],
+        "methods": [
+          {
+            "name": "String",
+            "signature": "String() string",
+            "synopsis": "String names the style."
+          }
+        ]
+      },
+      "Tile": {
+        "synopsis": "Tile is one tile as a provider delivers it.",
+        "decl": "type Tile struct {\n\tData   []byte\n\tFormat TileFormat\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "TileFormat": {
+        "synopsis": "TileFormat is the encoding of a tile's bytes.",
+        "decl": "type TileFormat uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "TileID": {
+        "synopsis": "TileID names a tile of the XYZ scheme: zoom level Z, column X from the antimeridian eastward and row Y from the north.",
+        "decl": "type TileID struct{ Z, X, Y int }",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Ancestor",
+            "signature": "Ancestor(z int) TileID",
+            "synopsis": "Ancestor returns the tile at level z that contains t; z must not be below zero or above t.Z."
+          },
+          {
+            "name": "Parent",
+            "signature": "Parent() TileID",
+            "synopsis": "Parent returns the tile one level up that contains t."
+          },
+          {
+            "name": "String",
+            "signature": "String() string",
+            "synopsis": "String formats t as \"z/x/y\", the form of tile URLs."
+          },
+          {
+            "name": "Valid",
+            "signature": "Valid() bool",
+            "synopsis": "Valid reports whether t exists: a level of zero or more and a column and row inside the 2^Z by 2^Z grid."
+          }
+        ]
+      },
+      "TileKind": {
+        "synopsis": "TileKind says what a provider's tiles contain.",
+        "decl": "type TileKind uint8",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "String",
+            "signature": "String() string",
+            "synopsis": ""
+          }
+        ]
+      },
+      "WeatherLayers": {
+        "synopsis": "WeatherLayers chooses what a weather overlay draws.",
+        "decl": "type WeatherLayers uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "WeatherOptions": {
+        "synopsis": "WeatherOptions configures Weather.",
+        "decl": "type WeatherOptions struct {\n\tLayers  WeatherLayers\n\tQuality WeatherQuality\n\tTime    func() time.Time\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "WeatherQuality": {
+        "synopsis": "WeatherQuality is how much a weather overlay costs.",
+        "decl": "type WeatherQuality uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "XYZOptions": {
+        "synopsis": "XYZOptions describes a tile service with a URL template.",
+        "decl": "type XYZOptions struct {\n\tName             string\n\tKind             TileKind\n\tSchema           string\n\tMinZoom, MaxZoom int\n\tAttribution      string\n\tPrefetch         bool\n\tSubdomains       []string\n\tHeader           http.Header\n\tRevision         string\n\tClient           *http.Client\n}",
+        "constructors": [],
+        "methods": []
+      }
+    },
+    "funcs": [
+      {
+        "name": "DrawDebugTile",
+        "signature": "DrawDebugTile(t TileID, px int) *image.RGBA",
+        "synopsis": "DrawDebugTile draws the debug picture of t at px by px pixels."
+      },
+      {
+        "name": "EncodePixels",
+        "signature": "EncodePixels(img *image.RGBA) []byte",
+        "synopsis": "EncodePixels returns img in gift's raw pixel container: the magic, the width and height as little endian uint32 and the premultiplied RGBA rows."
+      }
+    ]
   },
   "motion": {
     "importPath": "github.com/worldiety/gift/ui/motion",
@@ -9130,6 +9774,170 @@
             "name": "OnTap",
             "signature": "OnTap(fn func()) SurfaceView",
             "synopsis": "OnTap calls fn when the picture is tapped or clicked without moving."
+          }
+        ]
+      }
+    },
+    "funcs": []
+  },
+  "weather": {
+    "importPath": "github.com/worldiety/gift/weather",
+    "synopsis": "Package weather is the weather a map of package ui/maps can show: the provider seam of the project plan, section 37, the fields of a model run on a regular grid, and a Sky that keeps the latest run of a provider.",
+    "types": {
+      "Field": {
+        "synopsis": "Field is one quantity at one time on a grid.",
+        "decl": "type Field struct {\n\tVar   Variable\n\tValid time.Time\n\tGrid  Grid\n\tData  []float32\n\tV     []float32\n}",
+        "constructors": [
+          {
+            "name": "Lerp",
+            "signature": "Lerp(a, b *Field, t time.Time) *Field",
+            "synopsis": "Lerp returns the field between a and b at t, which must lie between their valid times, on a's grid."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Sample",
+            "signature": "Sample(c geo.Coordinate) (float32, bool)",
+            "synopsis": "Sample returns the value at c, interpolated between the four grid points around it, and false outside the grid."
+          },
+          {
+            "name": "SampleVector",
+            "signature": "SampleVector(c geo.Coordinate) (u, v float32, ok bool)",
+            "synopsis": "SampleVector returns both components at c."
+          }
+        ]
+      },
+      "Grid": {
+        "synopsis": "Grid is a regular latitude and longitude grid: W columns from Lon0 eastward in steps of DLon, H rows from Lat0, the northernmost, southward in steps of DLat.",
+        "decl": "type Grid struct {\n\tLat0, Lon0 float64\n\tDLat, DLon float64\n\tW, H       int\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Bounds",
+            "signature": "Bounds() geo.Rect",
+            "synopsis": "Bounds returns the rectangle the grid's points span."
+          }
+        ]
+      },
+      "Provider": {
+        "synopsis": "Provider delivers the fields of a weather model.",
+        "decl": "type Provider interface {\n\tInfo() ProviderInfo\n\tFetch(ctx context.Context, q Query) (*Run, error)\n}",
+        "constructors": [
+          {
+            "name": "Combine",
+            "signature": "Combine(primary, fallback Provider) Provider",
+            "synopsis": "Combine returns a provider that takes primary where it covers the region and fallback everywhere else: the Deutscher Wetterdienst's 2.2 km over Germany and the GFS's 28 km around it, say."
+          }
+        ],
+        "methods": []
+      },
+      "ProviderInfo": {
+        "synopsis": "ProviderInfo is what makes a weather provider what it is.",
+        "decl": "type ProviderInfo struct {\n\tName                 string\n\tCoverage             geo.Rect\n\tResolution           float64\n\tStep, Horizon, Cycle time.Duration\n\tVariables            []Variable\n\tAttribution          string\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Query": {
+        "synopsis": "Query is what a provider is asked for: the variables over a region and a time window.",
+        "decl": "type Query struct {\n\tRegion    geo.Rect\n\tFrom, To  time.Time\n\tVariables []Variable\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Run": {
+        "synopsis": "Run is the fields of one model run.",
+        "decl": "type Run struct {\n\tProvider string\n\tIssued   time.Time\n\tFields   map[Variable][]*Field\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "At",
+            "signature": "At(v Variable, t time.Time) *Field",
+            "synopsis": "At returns the field of v at t, interpolated between the two steps around it and held at the ends; nil when the run has no such field."
+          }
+        ]
+      },
+      "Sky": {
+        "synopsis": "Sky keeps the latest run of a provider over a region, fetched on a goroutine of its own and published atomically, so that a map reads it in every frame without waiting for anything.",
+        "decl": "type Sky struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "NewSky",
+            "signature": "NewSky(p Provider, cfg SkyConfig) *Sky",
+            "synopsis": "NewSky returns a sky over p."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Err",
+            "signature": "Err() error",
+            "synopsis": "Err returns the error of the last fetch, or nil."
+          },
+          {
+            "name": "Fetch",
+            "signature": "Fetch(ctx context.Context) error",
+            "synopsis": "Fetch fetches once, now, and publishes the run."
+          },
+          {
+            "name": "Info",
+            "signature": "Info() ProviderInfo",
+            "synopsis": "Info returns what the provider says about itself."
+          },
+          {
+            "name": "Now",
+            "signature": "Now() time.Time",
+            "synopsis": "Now returns the time of the sky's clock."
+          },
+          {
+            "name": "Region",
+            "signature": "Region() geo.Rect",
+            "synopsis": "Region returns the area the sky keeps."
+          },
+          {
+            "name": "Run",
+            "signature": "Run() *Run",
+            "synopsis": "Run returns the latest run, or nil before the first has arrived."
+          },
+          {
+            "name": "SetRegion",
+            "signature": "SetRegion(r geo.Rect)",
+            "synopsis": "SetRegion changes the area, and fetches again when it is not inside the one fetched: a map panned far away gets the weather there."
+          },
+          {
+            "name": "Start",
+            "signature": "Start()",
+            "synopsis": "Start fetches in the background: now, then every refresh, and when the region moves away."
+          },
+          {
+            "name": "Stop",
+            "signature": "Stop()",
+            "synopsis": "Stop ends the background fetching."
+          },
+          {
+            "name": "Version",
+            "signature": "Version() uint64",
+            "synopsis": "Version counts the runs published, for a map to notice a new one."
+          }
+        ]
+      },
+      "SkyConfig": {
+        "synopsis": "SkyConfig configures a Sky.",
+        "decl": "type SkyConfig struct {\n\tRegion    geo.Rect\n\tVariables []Variable\n\tHorizon   time.Duration\n\tRefresh   time.Duration\n\tNow       func() time.Time\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Variable": {
+        "synopsis": "Variable is a normalised quantity.",
+        "decl": "type Variable uint8",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "IsVector",
+            "signature": "IsVector() bool",
+            "synopsis": "IsVector reports whether the variable has two components."
+          },
+          {
+            "name": "String",
+            "signature": "String() string",
+            "synopsis": ""
           }
         ]
       }

@@ -44,8 +44,20 @@ func Samples(dir string) error {
 		}
 		pictures = append(pictures, asset.File(path))
 	}
+	mp, err := MapPhotos(filepath.Join(dir, "map-photos"), mapPhotoCount)
+	if err != nil {
+		return err
+	}
+	mapPhotos = mp
 	return nil
 }
+
+// mapPhotos is the camera roll of the map demo, written by [Samples].
+var mapPhotos []asset.Source
+
+// mapPhotoCount is the size of that roll: enough to cluster, few enough to
+// write in a moment.
+const mapPhotoCount = 160
 
 func writeSample(path string, i int) error {
 	// Alternating aspect ratios, so that the gallery layouts have something
