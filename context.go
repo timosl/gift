@@ -75,6 +75,27 @@ func (c *Context) Read[T comparable](s *State[T]) T {
 	return s.v
 }
 
+// OnUnmount registers fn to run when this component instance is unmounted:
+// taken out of the tree, with its state, because its parent stopped building
+// it or built something else in its place. It is where a component lets go
+// of what it opened and keeps in its state — a video player, a file, a
+// subscription — which nothing else would close.
+//
+// Functions are kept by name, like states: a build that registers name again
+// replaces the function, so a component may call this on every build with a
+// closure over its current values. They run on the UI goroutine during the
+// update that unmounts the instance, children before parents, and before the
+// state is dropped, so a function may still read the states it closes over.
+// An instance that is merely hidden, an inactive tab say, is not unmounted.
+func (c *Context) OnUnmount(name string, fn func()) {
+	c.assertBuilding("Context.OnUnmount")
+	sc := c.scope
+	if sc.unmount == nil {
+		sc.unmount = make(map[string]func(), 1)
+	}
+	sc.unmount[name] = fn
+}
+
 // Key returns the key this component instance was mounted under. It is meant
 // for diagnostics, not for building identity on top of it.
 func (c *Context) Key() string {
@@ -130,6 +151,9 @@ type scope struct {
 
 	// gen is the request generation of this instance; see [Token].
 	gen uint64
+
+	// unmount are the functions of [Context.OnUnmount], by name.
+	unmount map[string]func()
 
 	ctx        Context
 	needsBuild bool

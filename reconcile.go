@@ -586,6 +586,10 @@ func (a *App) destroyScopes(h scene.Handle, depth int) {
 	}
 	a.forgetNode(h)
 	if sc := nd.scope; sc != nil {
+		for _, fn := range sc.unmount {
+			fn()
+		}
+		sc.unmount = nil
 		a.clearDeps(sc)
 		sc.alive = false
 		sc.states = nil
