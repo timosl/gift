@@ -465,7 +465,11 @@ func (n *canvasNode) paintHero(ctx *gift.PaintContext, b geom.Rect, f float64, t
 	if v.heroClip {
 		img := lerpRect(v.heroImage, coverRect(to, aspect), f)
 		clip := lerpRect(geom.Rc(0, 0, float32(v.vw), float32(v.vh)), to, f)
-		ctx.PushClip(clip.Translate(ctx.DeviceBounds().Min))
+		// Clips are in device space: the viewport rectangle scaled by the
+		// density and moved to where the canvas is.
+		b, db := ctx.Bounds(), ctx.DeviceBounds()
+		k := db.Width() / max(b.Width(), 1)
+		ctx.PushClip(geom.Rc(db.Min.X+clip.Min.X*k, db.Min.Y+clip.Min.Y*k, db.Min.X+clip.Max.X*k, db.Min.Y+clip.Max.Y*k))
 		st.draw(ctx, img.Translate(b.Min), ui.OpaqueWhite, 0)
 		ctx.PopClip()
 		return
