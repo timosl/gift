@@ -3003,13 +3003,13 @@
       },
       "ScrollInfo": {
         "synopsis": "ScrollInfo is a snapshot of the state of one scroll container.",
-        "decl": "type ScrollInfo struct {\n\tAxis           ScrollAxis\n\tOffset         float64\n\tMaxOffset      float64\n\tContentExtent  float64\n\tContentOrigin  float64\n\tViewportExtent float32\n\tVelocity       float32\n\tFlinging       bool\n\tDragging       bool\n\tVirtual        bool\n\tIdleFor        time.Duration\n}",
+        "decl": "type ScrollInfo struct {\n\tAxis           ScrollAxis\n\tOffset         float64\n\tMaxOffset      float64\n\tContentExtent  float64\n\tContentOrigin  float64\n\tViewportExtent float32\n\tVelocity       float32\n\tFlinging       bool\n\tDragging       bool\n\tVirtual        bool\n\tOverscroll     float32\n\tIdleFor        time.Duration\n}",
         "constructors": [],
         "methods": []
       },
       "ScrollSpec": {
         "synopsis": "ScrollSpec declares a node to be a scroll viewport.",
-        "decl": "type ScrollSpec struct {\n\tAxis    ScrollAxis\n\tConfig  ScrollConfig\n\tVirtual bool\n}",
+        "decl": "type ScrollSpec struct {\n\tAxis        ScrollAxis\n\tConfig      ScrollConfig\n\tVirtual     bool\n\tLeadingHold float32\n}",
         "constructors": [],
         "methods": []
       },
@@ -6609,6 +6609,11 @@
             "synopsis": "PaddingInsets sets the padding per edge, replacing any previous padding."
           },
           {
+            "name": "Refreshable",
+            "signature": "Refreshable(refreshing bool, onRefresh func()) ScrollView",
+            "synopsis": "Refreshable adds the pull-to-refresh of iOS to a vertical scroll view: content pulled down past its top far enough calls onRefresh, once per pull, and while refreshing is true the content rests a little below its top with a spinner turning in the room above it."
+          },
+          {
             "name": "ScrollBar",
             "signature": "ScrollBar(v ScrollBar) ScrollView",
             "synopsis": "ScrollBar sets the look and the timing of the scroll indicator."
@@ -7057,6 +7062,77 @@
             "name": "Wraps",
             "signature": "Wraps(b bool) StepperView",
             "synopsis": "Wraps makes a step past one end go to the other, as UIStepper's wraps does."
+          }
+        ]
+      },
+      "SwipeActionView": {
+        "synopsis": "SwipeActionView is one action behind a Swipe row.",
+        "decl": "type SwipeActionView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "SwipeAction",
+            "signature": "SwipeAction(title string, action func()) SwipeActionView",
+            "synopsis": "SwipeAction returns an action with a title that runs action when it is tapped or, as the first of its edge, swiped through."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Destructive",
+            "signature": "Destructive() SwipeActionView",
+            "synopsis": "Destructive marks the action as one that deletes, in ColorDanger."
+          },
+          {
+            "name": "Icon",
+            "signature": "Icon(s Symbol) SwipeActionView",
+            "synopsis": "Icon puts a symbol above the title."
+          },
+          {
+            "name": "Tint",
+            "signature": "Tint(c Color) SwipeActionView",
+            "synopsis": "Tint sets the colour of the action."
+          }
+        ]
+      },
+      "SwipeView": {
+        "synopsis": "SwipeView is a row with actions behind it.",
+        "decl": "type SwipeView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Swipe",
+            "signature": "Swipe(content gift.View) SwipeView",
+            "synopsis": "Swipe returns content as a row that a finger or a mouse drags sideways to uncover actions behind it, the swipe actions of UITableView and of SwiftUI's swipeActions."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c Color) SwipeView",
+            "synopsis": "Background sets the colour behind the content, which covers the actions."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) SwipeView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "FullSwipe",
+            "signature": "FullSwipe(b bool) SwipeView",
+            "synopsis": "FullSwipe with false stops a drag far through from running the first action; the row then only opens."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) SwipeView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Leading",
+            "signature": "Leading(actions ...SwipeActionView) SwipeView",
+            "synopsis": "Leading sets the actions a drag to the right uncovers, the first at the left edge."
+          },
+          {
+            "name": "Trailing",
+            "signature": "Trailing(actions ...SwipeActionView) SwipeView",
+            "synopsis": "Trailing sets the actions a drag to the left uncovers, the first at the right edge."
           }
         ]
       },

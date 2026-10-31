@@ -2639,6 +2639,32 @@ Offen: Stepper mit Wertanzeige wie SwiftUIs Stepper mit Label, eine
 Abbrechen-Taste am Suchfeld, viele Seiten mit schrumpfenden Randpunkten, eine
 Warteschlange fuer mehrere Toasts.
 
+## 33. Wisch-Aktionen und Pull-to-Refresh
+
+Punkt 7 der iOS-Liste: die beiden Gesten einer iOS-Liste.
+
+- `ui.Swipe(row).Trailing(...).Leading(...)`: die Zeile laesst sich seitlich
+  ziehen und deckt Aktionen auf (mind. 74 pt, Symbol ueber Titel, grau,
+  destruktiv rot, eigene Toenung). Ueber die Haelfte oder mit Wurf bleibt sie
+  offen, ein Tipp auf eine Aktion fuehrt sie aus und schliesst. Ganz
+  durchgezogen waechst die erste Aktion ueber die Zeile und laeuft beim
+  Loslassen. Die Richtung entscheidet die Summe der Bewegungen innerhalb der
+  Schwelle, die von einem Knopf in der Zeile zu ihr aufsteigen; senkrecht
+  bleibt der Liste. Geschwindigkeit verfaellt nach 50 ms Stillstand.
+- Offen haengt die Zeile vier unsichtbare Faenger um ihre Aktionen in die
+  Top-Ebene: ein Tipp anderswo schliesst nur, wie bei iOS. Der offene Zustand
+  ist Komponentenzustand, damit Oeffnen und Schliessen die Faenger an- und
+  abbauen.
+- Pull-to-Refresh: im Kern `ScrollInfo.Overscroll` und
+  `ScrollSpec.LeadingHold`, eine Ruhelage hinter dem oberen Ende, zu der die
+  Feder des Gummibands statt zu 0 laeuft; ein Finger greift die Inhalte dort,
+  wo sie sich zeigen (`rubberInverse`). `ScrollView.Refreshable` loest bei 70 pt
+  noch waehrend des Ziehens aus und haelt 56 pt; der Spinner hat die acht
+  Speichen von UIActivityIndicatorView, beim Ziehen erscheinen sie einzeln.
+
+Offen: Pull-to-Refresh fuer `VirtualList`, das Auslaufen einer geloeschten
+Zeile nach links wie bei iOS, Aktionen per Tastatur.
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb

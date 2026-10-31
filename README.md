@@ -185,6 +185,10 @@ Smaller pieces of the same kind: `ui.Stepper` (minus and plus, repeating
 while held), `ui.SearchField` (glass, clear button, escape clears),
 `ui.PageControl` (dots to tap or scrub along) and `ui.Toast` (a capsule
 that slides in, stays two seconds and can be swiped away).
+Lists get the two gestures of iOS: `ui.Swipe` uncovers actions behind a row
+dragged sideways, with full swipe, and `VScroll(...).Refreshable` starts a
+refresh when the content is pulled down past its top, with the spinner of
+UIRefreshControl.
 
 ### Video
 

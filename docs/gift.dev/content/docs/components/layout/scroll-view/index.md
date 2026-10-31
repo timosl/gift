@@ -113,6 +113,11 @@ ui.VScroll(rows...).
 A transparent `Track` or `Thumb`, including `ui.ColorClear`, falls back to the default color. To get no bar at all,
 use `Hidden`.
 
+### Pull to refresh
+
+`Refreshable(refreshing, onRefresh)` adds the pull-to-refresh of iOS to a vertical scroll view; see
+[Pull to Refresh](../../lists/pull-to-refresh/).
+
 ### Long content
 
 A scroll view builds and lays out all of its children. That is fine for a screen of controls or a few dozen rows.
