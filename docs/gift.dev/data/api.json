@@ -608,7 +608,7 @@
       },
       "AtlasStats": {
         "synopsis": "AtlasStats are the glyph atlas counters.",
-        "decl": "type AtlasStats struct {\n\tHits, Misses                              uint64\n\tRasterised                                uint64\n\tBlanks                                    uint64\n\tUploadedBytes                             uint64\n\tPagesCreated, PageEvictions, AgeEvictions uint64\n\tGlyphEvictions                            uint64\n\tRejected                                  uint64\n\tRejectedRasterised                        uint64\n\tPages, Glyphs                             int\n\tBytes                                     int\n}",
+        "decl": "type AtlasStats struct {\n\tHits, Misses                                              uint64\n\tRasterised                                                uint64\n\tBlanks                                                    uint64\n\tUploadedBytes                                             uint64\n\tPagesCreated, PageEvictions, AgeEvictions, RetryEvictions uint64\n\tGlyphEvictions                                            uint64\n\tRejected                                                  uint64\n\tRejectedRasterised                                        uint64\n\tPages, Glyphs                                             int\n\tBytes                                                     int\n}",
         "constructors": [],
         "methods": []
       },
@@ -726,6 +726,11 @@
             "synopsis": "Page returns the image an entry lives on."
           },
           {
+            "name": "Retry",
+            "signature": "Retry() bool",
+            "synopsis": "Retry reports whether the frame last drawn turned glyphs away and GlyphAtlas.Tick has made room for them since, so that drawing again shows them."
+          },
+          {
             "name": "Stats",
             "signature": "Stats() AtlasStats",
             "synopsis": "Stats returns a snapshot of the atlas counters."
@@ -804,7 +809,7 @@
           {
             "name": "NeedsFrame",
             "signature": "NeedsFrame() bool",
-            "synopsis": "NeedsFrame reports whether the frame last drawn left work that only another frame can finish: picture uploads the per frame budget deferred."
+            "synopsis": "NeedsFrame reports whether the frame last drawn left work that only another frame can finish: picture uploads the per frame budget deferred, or glyphs the atlas turned away and has made room for since; see GlyphAtlas.Tick."
           },
           {
             "name": "PinGlassQuality",

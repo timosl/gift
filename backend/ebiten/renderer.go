@@ -535,10 +535,11 @@ func (r *Renderer) GlassLevel() render.GlassQuality {
 func (r *Renderer) SkipFrame() { r.lastDraw = time.Time{} }
 
 // NeedsFrame reports whether the frame last drawn left work that only another
-// frame can finish: picture uploads the per frame budget deferred. The
-// backend draws again while it is true even if the tree has not changed.
+// frame can finish: picture uploads the per frame budget deferred, or glyphs
+// the atlas turned away and has made room for since; see [GlyphAtlas.Tick].
+// The backend draws again while it is true even if the tree has not changed.
 func (r *Renderer) NeedsFrame() bool {
-	return r.textures != nil && r.textures.Deferred() > 0
+	return (r.textures != nil && r.textures.Deferred() > 0) || (r.atlas != nil && r.atlas.Retry())
 }
 
 // BeginFrame implements [render.Backend].

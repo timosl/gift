@@ -316,9 +316,19 @@ func TestAtlasCachesARejection(t *testing.T) {
 		a.Tick()
 	}
 	frame()
-	first := a.Stats()
-	if first.Rejected == 0 {
+	if a.Stats().Rejected == 0 {
 		t.Fatalf("a 32x32 page held all of %d glyphs at 24 px; the fixture is wrong", len(gs))
+	}
+	// Tick answers a frame that turned glyphs away with an eviction and
+	// another frame, once per page; see GlyphAtlas.Tick. Only after those is
+	// the scene known to be over budget, and from there on not one outline
+	// may be rasterised again.
+	for a.Retry() {
+		frame()
+	}
+	first := a.Stats()
+	if first.RetryEvictions != 1 {
+		t.Errorf("a one page atlas retried %d times, want once", first.RetryEvictions)
 	}
 	for range 10 {
 		frame()
@@ -377,6 +387,63 @@ func TestAtlasRejectionIsRetriedAfterAnEviction(t *testing.T) {
 	if _, ok := a.Lookup(refused, 1); !ok {
 		t.Fatal("the glyph was still refused after every page had been evicted; " +
 			"a cached rejection became permanent and that text would never draw again")
+	}
+}
+
+// TestAtlasRecoversAGlyphItTurnedAway pins the retry of GlyphAtlas.Tick. The
+// pages are full and the frame reads from every one of them, so a new glyph
+// is turned away; without the retry the refusal stayed cached on a screen
+// well within budget, and the glyph was missing for good — digits went
+// missing from a turning wheel that way.
+func TestAtlasRecoversAGlyphItTurnedAway(t *testing.T) {
+	a := NewGlyphAtlas(AtlasConfig{PageSize: 64, MaxPages: 2})
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+	// The glyphs of earlier frames, in the sizes an animation went through,
+	// until there is a second page. on is a glyph on each.
+	on := map[int32]render.Glyph{}
+	for size := float32(20); len(on) < 2; size += 0.5 {
+		for _, g := range shapeGlyphs(t, alphabet, size) {
+			if i, ok := a.Lookup(g, 1); ok && a.Entry(i).inked {
+				on[a.Entry(i).page] = g
+			}
+			if len(on) == 2 {
+				break
+			}
+		}
+		a.Tick()
+	}
+	if a.Stats().Rejected != 0 {
+		t.Fatal("the fixture turned glyphs away while filling")
+	}
+
+	// A frame that reads from both pages, as text that stays on screen does,
+	// and asks for new sizes until one does not fit.
+	frame := func(extra ...render.Glyph) (refused []render.Glyph) {
+		for _, g := range append([]render.Glyph{on[0], on[1]}, extra...) {
+			if _, ok := a.Lookup(g, 1); !ok {
+				refused = append(refused, g)
+			}
+		}
+		return refused
+	}
+	var away render.Glyph
+	for size := float32(40); a.Stats().Rejected == 0; size += 0.5 {
+		if r := frame(shapeGlyphs(t, alphabet, size)...); len(r) > 0 {
+			away = r[0]
+		}
+	}
+	a.Tick()
+	if !a.Retry() {
+		t.Fatal("a frame turned a glyph away and the atlas did not ask for another")
+	}
+
+	if r := frame(away); len(r) != 0 {
+		t.Fatalf("the frame after the retry still turned %d glyphs away", len(r))
+	}
+	a.Tick()
+	if a.Retry() {
+		t.Error("a frame that drew everything asked for another one")
 	}
 }
 

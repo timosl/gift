@@ -199,6 +199,14 @@ type GlyphAtlas struct {
 	// without a second scan of the index.
 	pageless int
 
+	// frameRejected counts the lookups of the frame in progress that the
+	// packer turned away; retries counts the frames in a row whose
+	// rejections Tick answered with an eviction, and retry says that the
+	// last frame was one of them. See [GlyphAtlas.Tick].
+	frameRejected int
+	retries       int
+	retry         bool
+
 	rast *text.Rasterizer
 	mask text.GlyphMask
 	// staging is the reused RGBA upload buffer.
@@ -288,6 +296,7 @@ func (a *GlyphAtlas) Lookup(g render.Glyph, scale float32) (int32, bool) {
 			// Known not to fit. The caller draws nothing, exactly as before,
 			// but the outline is not rasterised again; see insert.
 			a.stats.Rejected++
+			a.frameRejected++
 			return 0, false
 		}
 		if e.page >= 0 {
@@ -356,6 +365,7 @@ func (a *GlyphAtlas) insert(k glyphKey, f *text.Font, size float32, id render.Gl
 		a.pageless++
 		a.stats.Rejected++
 		a.stats.RejectedRasterised++
+		a.frameRejected++
 		return 0, false
 	}
 
@@ -506,8 +516,34 @@ func (a *GlyphAtlas) evictPage(idx int32) {
 // Tick advances the frame clock and evicts pages that have gone unread for
 // longer than [AtlasConfig.MaxAge]. The backend calls it once per drawn frame,
 // after the last draw call of that frame has been issued.
+//
+// # A frame that turned glyphs away
+//
+// While a frame is in progress, a page it has read from cannot be evicted, so
+// a frame whose text is spread over every page refuses what does not fit, and
+// the refusal is cached. The pages are then typically full of glyphs an
+// earlier frame needed and this one does not — the sizes a scale animation
+// passed through — and nothing would ever free them, because every page also
+// holds some text that is still on screen: the missing glyphs stayed missing
+// on a screen that was well within budget.
+//
+// Once the frame is complete no page is referenced any more. So Tick evicts
+// the least recently used page, the cached refusals go with it, and
+// [GlyphAtlas.Retry] asks for another frame, which rasterises the missing
+// glyphs into the room. At most MaxPages frames in a row do this, by which
+// time the atlas holds nothing but what is on screen; a screen that still
+// does not fit is over budget, and its refusals stay cached as before.
 func (a *GlyphAtlas) Tick() {
 	a.frame++
+	a.retry = false
+	if a.frameRejected == 0 {
+		a.retries = 0
+	} else if a.retries < a.cfg.MaxPages && a.evictLRU() {
+		a.retries++
+		a.retry = true
+		a.stats.RetryEvictions++
+	}
+	a.frameRejected = 0
 	if a.cfg.MaxAge < 0 {
 		return
 	}
@@ -523,6 +559,11 @@ func (a *GlyphAtlas) Tick() {
 		}
 	}
 }
+
+// Retry reports whether the frame last drawn turned glyphs away and
+// [GlyphAtlas.Tick] has made room for them since, so that drawing again shows
+// them.
+func (a *GlyphAtlas) Retry() bool { return a.retry }
 
 // alloc returns a free entry slot, recycling one if there is any.
 func (a *GlyphAtlas) alloc() int32 {
@@ -578,8 +619,9 @@ type AtlasStats struct {
 	// PagesCreated and PageEvictions are the page lifecycle. AgeEvictions is
 	// the subset of evictions caused by [GlyphAtlas.Tick] rather than by
 	// pressure, which is the distinction between "the budget is too small"
-	// and "this text is no longer on screen".
-	PagesCreated, PageEvictions, AgeEvictions uint64
+	// and "this text is no longer on screen". RetryEvictions is the subset
+	// Tick made for a frame that turned glyphs away; see there.
+	PagesCreated, PageEvictions, AgeEvictions, RetryEvictions uint64
 	// GlyphEvictions is the number of entries dropped with their pages.
 	GlyphEvictions uint64
 	// Rejected counts lookups that produced no glyph: an outline larger than
