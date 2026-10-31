@@ -91,7 +91,10 @@ type Line struct {
 	// no runs but still has a baseline and a height.
 	Runs []Run
 	// Start and End are the byte offsets into Request.Text that this line
-	// covers, including the newline that ended it, if any.
+	// covers. A line that wraps keeps the spaces it wraps at, so the next
+	// line starts at its End. A hard break belongs to neither line: its bytes
+	// lie between the End of the one and the Start of the next, which is how
+	// the two kinds of line end can be told apart.
 	Start, End int
 }
 

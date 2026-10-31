@@ -116,6 +116,25 @@ type TextEditor struct {
 	clickX  float32
 	clicks  int
 
+	// scrollY is the vertical counterpart of scroll, for a [TextArea]: how
+	// far its lines are scrolled up. goalX is the column, in pixels, that up
+	// and down keep to across lines of different lengths, valid while
+	// hasGoal is set; every other motion and every edit forgets it. up puts
+	// a caret that sits exactly at a soft line break at the end of the upper
+	// line instead of the start of the lower one, which is where End and a
+	// click past the end of a wrapped line leave it. scrolledAt is when an
+	// area last scrolled, for its scroll indicator.
+	scrollY    float32
+	goalX      float32
+	hasGoal    bool
+	up         bool
+	scrolledAt time.Duration
+	// placeOnUp is set while a finger that pressed an area has not yet
+	// shown whether it taps, selects or scrolls: the caret goes where it
+	// pressed only once it lifts without having moved, or starts a selection
+	// there, and not at all when it scrolls.
+	placeOnUp bool
+
 	// revealing is set while a secure field shows the character that ends
 	// at revealEnd in the clear, the one just typed; see
 	// [TextFieldView.ShowsLastCharacter].
@@ -203,7 +222,8 @@ func (e *TextEditor) SetText(s string) {
 	e.buf = append(e.buf[:0], s...)
 	e.str, e.strOK = s, true
 	e.caret, e.anchor = len(e.buf), len(e.buf)
-	e.scroll = 0
+	e.scroll, e.scrollY = 0, 0
+	e.hasGoal, e.up = false, false
 }
 
 // Caret returns the byte offset the next character would be inserted at.
@@ -464,6 +484,8 @@ const (
 	// double one.
 	dragChar
 	dragWord
+	// dragScroll is a finger scrolling the lines of a [TextArea].
+	dragScroll
 )
 
 // dragExtendWord is a word-wise drag: the run the double click selected stays

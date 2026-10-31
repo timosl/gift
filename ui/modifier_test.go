@@ -65,6 +65,7 @@ var views = []struct {
 	{name: "ui.Image", set: setStyled, v: ui.Image(asset.File("x.jpg"))},
 	{name: "ui.Icon", set: setStyled, v: ui.Icon(ui.Symbol{})},
 	{name: "ui.TextField", set: setStyled, v: ui.TextField(ui.NewTextEditor(""))},
+	{name: "ui.TextArea", set: setStyled, v: ui.TextArea(ui.NewTextEditor(""))},
 	{name: "ui.TimeField", set: setStyled, v: ui.TimeField()},
 	{name: "ui.DateField", set: setStyled, v: ui.DateField()},
 	{name: "ui.ImageGallery", set: setStyled, v: ui.ImageGallery(ui.NewGallery(asset.NewCollection(nil)))},

@@ -1285,8 +1285,12 @@ func (n *textFieldNode) key(ctx *gift.EventContext, e gift.Event) bool {
 // way to say anything else and refusing to cut into one would break every
 // clipboard that works. [MemoryClipboard], the default, is such an
 // implementation.
-func (n *textFieldNode) copy() bool {
-	s := n.ed.SelectedText()
+func (n *textFieldNode) copy() bool { return copySelection(n.ed) }
+
+// copySelection is [textFieldNode.copy] for any editor; a [TextArea] copies
+// the same way.
+func copySelection(ed *TextEditor) bool {
+	s := ed.SelectedText()
 	if s == "" {
 		return false
 	}
