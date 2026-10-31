@@ -87,15 +87,27 @@ func roundBoxNormal(p vec2, b vec2, r float) vec2 {
 	return vec2(0, s.y)
 }
 
-// hash21 is a cheap value noise for the grain of the Full level. It is the
-// usual sin-fract hash; it is not a good random number generator and does not
-// have to be, because the eye is looking at whether the surface has texture
-// and not at whether the texture is uncorrelated.
+// hash21 is a cheap value noise for the grain of the Full level: Dave
+// Hoskins' "hash without sine" (MIT). It is not a good random number
+// generator and does not have to be, because the eye is looking at whether
+// the surface has texture and not at whether the texture is uncorrelated.
+//
+// Not the usual fract(sin(dot(p, k)) * 43758.5453), which this was until the
+// glass goldens of a commit stopped matching that same commit a month later,
+// in the noise field and nowhere else. sin of an argument in the thousands is
+// only as precise as the GPU's range reduction, which differs between GPUs
+// and driver releases, and the factor of 43758 turns a difference in the
+// sixth digit into a different noise field. Products, sums and fract are
+// rounded alike everywhere, and the largest value here is about twenty
+// thousand, so a last-bit difference moves the grain by a few thousandths of
+// its amplitude: far below one unit of a channel.
 //
 // It must be fed a position that means the same thing in every frame. See the
 // grain block in Fragment for what happens when it is not.
 func hash21(p vec2) float {
-	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453)
+	p3 := fract(vec3(p.x, p.y, p.x) * 0.1031)
+	p3 += dot(p3, p3.yzx+33.33)
+	return fract((p3.x + p3.y) * p3.z)
 }
 
 func Fragment(dstPos vec4, src0Pos vec2, color vec4, custom vec4) vec4 {
@@ -187,7 +199,10 @@ func Fragment(dstPos vec4, src0Pos vec2, color vec4, custom vec4) vec4 {
 		//     panel that moves instead of the panel sliding across a fixed
 		//     screen-space noise field, which is the artefact that reads as a
 		//     dirty monitor rather than as a material.
-		g := (hash21(local) - 0.5) * grain * 0.25 * out.a
+		//
+		// floor, because the grain is one value per pixel and local is the
+		// interpolated centre of one, which a GPU may deliver a few ulps off.
+		g := (hash21(floor(local)) - 0.5) * grain * 0.25 * out.a
 		out += vec4(g, g, g, 0)
 	}
 

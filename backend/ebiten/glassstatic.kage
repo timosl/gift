@@ -43,8 +43,11 @@ func roundBoxNormal(p vec2, b vec2, r float) vec2 {
 	return vec2(0, s.y)
 }
 
+// hash21 is the grain hash of glass.kage; see there for why it has no sine.
 func hash21(p vec2) float {
-	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453)
+	p3 := fract(vec3(p.x, p.y, p.x) * 0.1031)
+	p3 += dot(p3, p3.yzx+33.33)
+	return fract((p3.x + p3.y) * p3.z)
 }
 
 func Fragment(dstPos vec4, src0Pos vec2, color vec4, custom vec4) vec4 {
@@ -97,7 +100,7 @@ func Fragment(dstPos vec4, src0Pos vec2, color vec4, custom vec4) vec4 {
 	k := lit * highlight * (0.18 + 0.62*max(facing, 0.0) + 0.2*max(-facing, 0.0))
 	out = vec4(out.rgb*(1.0-dark), out.a) + vec4(k, k, k, k)
 	if grain > 0.0 {
-		g := (hash21(local) - 0.5) * grain * 0.25 * out.a
+		g := (hash21(floor(local)) - 0.5) * grain * 0.25 * out.a
 		out += vec4(g, g, g, 0)
 	}
 	out.a = min(out.a, 1.0)
