@@ -62,4 +62,4 @@ fixed RGB values so the badge follows the theme; see [Theming](../../../concepts
 - [Button](../button/): wrap a badge in a button to make it tappable.
 - [Colors](../../styling/colors/): the semantic colors a badge uses.
 - [Theming](../../../concepts/theming/): how the colors change between the light and the dark theme.
-- [Kitchen sink](../../../examples/example-kitchensink/): badges in a complete application.
+- [Kitchen sink](../../../examples/example-kitchensink/): every component in one application.

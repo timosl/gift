@@ -197,5 +197,5 @@ tell a kiosk from a desktop. Passing the app instead of nil rebuilds the window 
 - [Scroll View](../../layout/scroll-view/), for a form taller than the window
 - [State](../../../concepts/state/), [Input and Focus](../../../concepts/input-and-focus/),
   [Text and Fonts](../../../concepts/text-and-fonts/) and [Kiosks](../../../concepts/kiosks/)
-- The example [kitchen sink](../../../examples/example-kitchensink/), whose form tab has a field with the
-  on-screen keyboard
+- The example [kitchen sink](../../../examples/example-kitchensink/), whose search field brings up the on-screen
+  keyboard once its keyboard button turns it on

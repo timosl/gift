@@ -261,8 +261,7 @@ func traceIcons(app *gift.App) {
 }
 ```
 
-The [kitchen sink example](../../examples/example-kitchensink/) does the same with the flag `-icons`: it prints the
-counters for the first one and a half seconds, next to `Diagnostics().Frames`. If the counters freeze, compare them
+If the counters freeze, compare them
 with the frame count first: a window in the background draws no frames, so nothing is uploaded either. See
 [Diagnostics](../diagnostics/) for the other counters.
 
@@ -275,4 +274,4 @@ with the frame count first: a window in the background draws no frames, so nothi
 - [Theming](../theming/) and [Colors](../../components/styling/colors/): the colors an icon is tinted with.
 - [Tab bar](../../components/navigation/tab-bar/), [Row](../../components/lists/row/) and
   [Navigation stack](../../components/navigation/navigation-stack/): components that take a symbol.
-- [Kitchen sink](../../examples/example-kitchensink/): an icon strip of 20 symbols and the cache trace.
+- [Kitchen sink](../../examples/example-kitchensink/): the icon demo among all components.

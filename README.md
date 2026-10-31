@@ -20,10 +20,11 @@ a target, not a verified performance guarantee.
 
 Actual framebuffer captures of the running examples, taken with `giftauto`.
 
-**Kitchen Sink:** Navigation, tabs, forms, an on-screen keyboard, icons and
-switchable light/dark themes.
+**Kitchen Sink:** every component, each with the live demo of its documentation
+page, behind a list grouped like the documentation, with search, an
+on-screen keyboard and switchable light/dark themes.
 
-<img src="docs/screenshots/kitchensink.png" alt="Kitchen Sink in dark mode with cards, navigation, images and a tab bar" width="780">
+<img src="docs/screenshots/kitchensink.png" alt="Kitchen Sink in dark mode: the list of components and the colour picker beside it" width="780">
 
 | Image Gallery | Effects |
 | --- | --- |

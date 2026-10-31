@@ -76,4 +76,4 @@ keys when cards on a screen come and go or change places, so that each one is ma
 - [Colors](../../styling/colors/): `ColorSurface`, `ColorSeparator` and the other roles
 - [Layout](../../../concepts/layout/): shrink-wrapping, greedy views and flex
 - [Views](../../../concepts/views/): keys and reconciliation
-- [Kitchen sink example](../../../examples/example-kitchensink/): cards with headers, lists and pictures
+- [Kitchen sink example](../../../examples/example-kitchensink/): every component, cards included, in one application

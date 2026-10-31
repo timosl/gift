@@ -68,8 +68,7 @@ ui.Window(ui.VStack(ui.Modal(nav, dialog).Flex(1)))
 is a layer, not a pause. If your application must stop work while a dialog is open, it stops the work itself.
 
 **Nesting decides the order.** A modal covers only the `content` it was given, and the outer container is drawn
-on top. `ui.Sheet(ui.Modal(body, alert), panel)` draws the sheet over the alert, which is how the
-[kitchen sink](../../../examples/example-kitchensink/) combines the two. To open a dialog over a sheet, put the
+on top. `ui.Sheet(ui.Modal(body, alert), panel)` draws the sheet over the alert. To open a dialog over a sheet, put the
 `Modal` outside the `Sheet` instead.
 
 ## API
@@ -85,4 +84,4 @@ on top. `ui.Sheet(ui.Modal(body, alert), panel)` draws the sheet over the alert,
 - [Navigation](../../../concepts/navigation/): modals, sheets, tab bars and navigation stacks
 - [Input and Focus](../../../concepts/input-and-focus/): the focus trap
 - [Animation](../../../concepts/animation/): how `Presented` moves the dialog
-- [Kitchen sink example](../../../examples/example-kitchensink/): an alert presented with `Modal`
+- [Kitchen sink example](../../../examples/example-kitchensink/): every component, the modal and the alert included

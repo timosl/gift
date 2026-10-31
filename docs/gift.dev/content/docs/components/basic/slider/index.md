@@ -93,4 +93,4 @@ callback: a slider with a nil `onChange` still focuses and reacts to the pointer
 - [Row](../../lists/row/) to put a slider into a settings list.
 - [State](../../../concepts/state/) for how `ctx.State` stores the value.
 - [Input and Focus](../../../concepts/input-and-focus/) for the focus order and keyboard input.
-- [Kitchen Sink](../../../examples/example-kitchensink/) has a volume slider in a settings list.
+- [Kitchen Sink](../../../examples/example-kitchensink/) shows the slider among all components.

@@ -458,4 +458,5 @@ Outside tests, `App.Focus`, `App.FocusVisible`, `App.HitTest` and `App.NodeInter
 - [State](../state/) for why interaction state is not your state, and [Custom views](../custom-views/) for writing
   an interactor.
 - [Kiosks](../kiosks/) for touch-only deployments.
-- [Kitchen sink example](../../examples/example-kitchensink/), which turns the on-screen keyboard on.
+- [Kitchen sink example](../../examples/example-kitchensink/), whose keyboard button turns the on-screen keyboard
+  on.

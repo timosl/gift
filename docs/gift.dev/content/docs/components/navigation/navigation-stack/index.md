@@ -128,4 +128,5 @@ The stack fills the area its parent gives it and stretches the top screen to fil
   instead of pushed
 - [Navigation](../../../concepts/navigation/), [State](../../../concepts/state/),
   [Animation](../../../concepts/animation/) and [Kiosks](../../../concepts/kiosks/)
-- The example [kitchen sink](../../../examples/example-kitchensink/), whose first tab is a navigation stack
+- The example [kitchen sink](../../../examples/example-kitchensink/), whose list of components becomes a navigation
+  stack in a narrow window

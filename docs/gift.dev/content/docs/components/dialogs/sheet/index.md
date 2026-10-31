@@ -84,10 +84,10 @@ input.
 ## Related
 
 - [Modal](../modal/) and [Alert](../alert/), the other dialogs
-- [File Picker](../file-picker/), which the kitchen sink shows in a sheet
+- [File Picker](../file-picker/), which its demo shows in a sheet
 - [Window](../../layout/window/), where a sheet belongs, and [Scroll View](../../layout/scroll-view/) for tall
   content
 - [List](../../lists/list/) and [Row](../../lists/row/), the content of the demo
 - [State](../../../concepts/state/), [Navigation](../../../concepts/navigation/),
   [Animation](../../../concepts/animation/) and [Input and Focus](../../../concepts/input-and-focus/)
-- The example [kitchen sink](../../../examples/example-kitchensink/), which opens a sheet from its Form tab
+- The example [kitchen sink](../../../examples/example-kitchensink/), which shows the sheet among all components

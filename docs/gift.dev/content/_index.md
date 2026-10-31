@@ -26,8 +26,8 @@ layout: hextra-home
 </div>
 
 <figure class="gift-shot" style="max-width: 720px">
-  <img class="gift-shot-light" src="docs/examples/example-kitchensink/screenshot-light.png" width="900" height="760" alt="The kitchen sink example: a title bar, a card with badges, a list of rows, a strip of pictures and a tab bar">
-  <img class="gift-shot-dark" src="docs/examples/example-kitchensink/screenshot-dark.png" width="900" height="760" alt="The kitchen sink example in the dark theme">
+  <img class="gift-shot-light" src="docs/examples/example-kitchensink/screenshot-light.png" width="1180" height="800" alt="The kitchen sink example: a list of every component grouped like the documentation, and beside it the colour picker">
+  <img class="gift-shot-dark" src="docs/examples/example-kitchensink/screenshot-dark.png" width="1180" height="800" alt="The kitchen sink example in the dark theme">
 </figure>
 
 <div class="hx:mt-12"></div>

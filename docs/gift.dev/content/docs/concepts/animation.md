@@ -350,8 +350,8 @@ external driver can wait for motion to stop instead of guessing frame counts. Se
 - [Kiosks](../kiosks/): running unattended with `IdleTPS` and `DrawOnDemand`.
 - [Button](../../components/basic/button/), [Sheet](../../components/dialogs/sheet/),
   [Modal](../../components/dialogs/modal/), [Progress bar](../../components/basic/progress-bar/).
-- [Kitchen sink example](../../examples/example-kitchensink/): tabs, a navigation stack, sheets and alerts in
-  motion.
+- [Kitchen sink example](../../examples/example-kitchensink/): every component, with its transitions, in one
+  application.
 - [`gift.TransitionSpec`](https://pkg.go.dev/github.com/worldiety/gift#TransitionSpec) and
   [`gift.EventContext.Animate`](https://pkg.go.dev/github.com/worldiety/gift#EventContext.Animate) on pkg.go.dev
   for the full reasoning.

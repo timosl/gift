@@ -155,7 +155,7 @@ Two details are worth copying:
   hover and pressed states change the ring, not the face: fading the accent would lower the contrast of the label.
 
 Nothing else in example-counter knows about the theme. No color is passed down and no view is styled twice. The
-[kitchen sink](../../examples/example-kitchensink/) carries the same switch, with an icon, on its overview screen.
+[kitchen sink](../../examples/example-kitchensink/) carries the same switch, with an icon, above its list.
 
 ### Switching from another goroutine
 

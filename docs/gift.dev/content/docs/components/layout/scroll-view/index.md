@@ -156,4 +156,4 @@ Negative or non-finite sizes and negative durations panic. `Hold` plus `Fade` sh
 - [Layout](../../../concepts/layout/) for constraints, `Flex` and why the scroll axis needs a bound.
 - [Input and Focus](../../../concepts/input-and-focus/) for drags, the wheel and the drag slop.
 - [Diagnostics](../../../concepts/diagnostics/) for `gift.Diagnostics.Scrolls` and the scroll info.
-- [Kitchen Sink](../../../examples/example-kitchensink/) puts its screens and an icon strip into scroll views.
+- [Kitchen Sink](../../../examples/example-kitchensink/) puts its list of components and each component into scroll views.

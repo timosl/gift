@@ -343,4 +343,4 @@ of the first two, or that a write in one component rebuilds one scope; see [Test
 - [Concurrency](../concurrency/) for `App.Post`, `ctx.Request` and tokens.
 - [Text field](../../components/basic/text-field/) for `ui.Editor` and `Bind` in detail.
 - [Counter example](../../examples/example-counter/) and [kitchen sink](../../examples/example-kitchensink/),
-  which keeps every control's value in state.
+  whose demos keep every control's value in state.

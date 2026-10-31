@@ -126,4 +126,4 @@ origin of the keyboard's bounds and tap there. It reports false while no keyboar
 - [Scroll View](../../layout/scroll-view/): the viewport that shrinks while the keyboard shows
 - [Kiosks](../../../concepts/kiosks/): running gift on a touch panel
 - [Input and Focus](../../../concepts/input-and-focus/): how the focus moves
-- [Kitchen sink example](../../../examples/example-kitchensink/): a form with the keyboard turned on
+- [Kitchen sink example](../../../examples/example-kitchensink/): a button that turns the keyboard on for every demo

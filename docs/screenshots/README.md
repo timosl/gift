@@ -6,7 +6,7 @@ These PNGs are framebuffer captures of the running examples, taken through
 Start one example at a time from the repository root:
 
 ```sh
-go run -tags giftauto ./cmd/example-kitchensink
+go run -tags giftauto ./cmd/example-kitchensink -show color-picker
 go run -tags giftauto ./cmd/example-gallery
 go run -tags giftauto ./cmd/example-effects -quality=full
 ```
@@ -19,7 +19,8 @@ curl -fsS 'http://127.0.0.1:7391/screenshot?settle=8' \
   -o docs/screenshots/kitchensink.png
 ```
 
-The kitchen sink screenshot uses the Home tab and the dark theme:
+The kitchen sink screenshot shows the colour picker, started with `-show color-picker`, in the dark
+theme:
 
 ```sh
 curl -fsS -X POST http://127.0.0.1:7391/theme -d '{"mode":"dark"}'

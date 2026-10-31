@@ -67,4 +67,4 @@ accepts a semantic color, so the bar follows the light and dark theme.
 - [Colors](../../styling/colors/) for the semantic colors you can pass to `Tint`
 - [Modifiers](../../../concepts/modifiers/) for `Frame`, `Flex` and the other common modifiers
 - [Animation](../../../concepts/animation/) for how gift schedules frames and why the indeterminate bar is the exception
-- [Kitchen sink example](../../../examples/example-kitchensink/) uses a determinate and an indeterminate bar
+- [Kitchen sink example](../../../examples/example-kitchensink/): every component, this one included, in one application

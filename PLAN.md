@@ -2711,6 +2711,34 @@ Offen: gespeicherte Farben und Pipette von iOS, Display-P3, Spektrum fuer
 Farben, die weder volle Helligkeit noch volle Saettigung haben (die Lupe
 steht dann naeherungsweise).
 
+## 36. Neue Kitchen Sink, Showcase und Video mit Dateiauswahl
+
+Die alte Kitchen Sink (vier Tabs, Stand der fruehen Arbeitspakete) ist durch
+eine strukturierte ersetzt, die jede Komponente zeigt.
+
+- Die Komponenten-Demos der Doku sind aus `docs/gallery` (package main) nach
+  `internal/showcase` gezogen und eine Bibliothek: `All`, `Lookup`, `Groups`,
+  `Samples`, je Demo `Title` und `Summary` aus den Doku-Seiten. Die Galerie,
+  das Capture-Tool und die Kitchen Sink nutzen dieselben Demos; Hugo haengt
+  das Verzeichnis weiter als `assets/gallery` ein. Ein Test baut und zeichnet
+  jede Demo in ihrer Groesse.
+- Kitchen Sink: Liste nach Abschnitten der Doku mit Suche, daneben die
+  Komponente mit Titel, Satz und ihrer Demo auf einer Buehne in ihrer Groesse;
+  unter 900 pt Breite wird die Liste zur Wurzel eines NavigationStack. Den
+  Wechsel meldet der Layouter der beiden Fenster ueber einen Knoten-Timer
+  (`LayoutContext.After`), weil ein Layout keinen State schreiben darf. Jede
+  Demo ist eine eigene Komponente mit ihrem Namen als Schluessel. Schalter fuer
+  Bildschirmtastatur und dunkles Design.
+- Neu im Kern: `Context.OnUnmount(name, fn)`, laeuft beim Abbau einer
+  Komponente vor dem Verwerfen ihres States; die Video-Demo schliesst damit
+  ihren Player.
+- Der Testclip liegt jetzt in `internal/sampleclip` und ist eingebettet
+  (`sampleclip.Path`), damit Kitchen Sink, Galerie und Video-Beispiel ihn
+  ueberall finden.
+- Video-Beispiel: ohne `-file` die Dateiauswahl ueber dem Home-Verzeichnis
+  (`-dir`), `-sample` fuer den eingebetteten Clip; `videoplayer.OnClose` setzt
+  einen Schliessen-Knopf oben links, der zur Auswahl zurueckfuehrt.
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb

@@ -89,4 +89,4 @@ Raspberry Pi 4 handles about 280 rows per rebuild within a frame. Above a few hu
 - [Toggle](../../basic/toggle/): the usual accessory of a settings row
 - [Navigation Stack](../../navigation/navigation-stack/): where a row with a chevron leads
 - [Layout](../../../concepts/layout/): tight and unbounded constraints
-- [Kitchen Sink example](../../../examples/example-kitchensink/): settings screens built from lists
+- [Kitchen Sink example](../../../examples/example-kitchensink/), whose list of every component is a `ui.List`

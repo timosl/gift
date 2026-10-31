@@ -144,4 +144,4 @@ is inside the viewport, so the rows scroll through it. `ScrollBar` styles the in
 - [Scroll View](../../layout/scroll-view/), the scroll bar and the gesture configuration
 - [State](../../../concepts/state/), [Input and Focus](../../../concepts/input-and-focus/) and
   [Diagnostics](../../../concepts/diagnostics/)
-- The example [kitchen sink](../../../examples/example-kitchensink/), whose list tab scrolls 100,000 rows
+- The example [kitchen sink](../../../examples/example-kitchensink/), which shows this demo among all components

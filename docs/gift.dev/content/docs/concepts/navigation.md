@@ -228,8 +228,8 @@ What it does cost:
 
 Wrap each tab's content in a [`gift.Component`](../views/#components-giftcomponent) that reads only the state of
 that tab, as the example above does. If the root function reads the state of every tab, a write to any of them
-rebuilds the root and therefore all tabs, including the hidden ones. The
-[kitchen sink](../../examples/example-kitchensink/) measured a factor of ten between the two for one tap.
+rebuilds the root and therefore all tabs, including the hidden ones. An earlier version of the kitchen sink
+example measured a factor of ten between the two for one tap.
 
 ### Tabs and stacks together
 
@@ -409,5 +409,5 @@ The full API of each view is on its component page. The specs you pass to the co
 - [State](../state/): how the navigation state is stored and what a write rebuilds.
 - [Views](../views/#hidden-is-not-unmounted): why hidden screens keep their state.
 - [Input and focus](../input-and-focus/): focus order, focus traps and key delivery.
-- [Kitchen sink example](../../examples/example-kitchensink/): a tab bar, a navigation stack in the first tab, an
-  alert and a sheet in one program.
+- [Kitchen sink example](../../examples/example-kitchensink/): a list that becomes a navigation stack in a narrow
+  window, and every navigation component in its demos.
