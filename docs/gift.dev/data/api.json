@@ -4802,6 +4802,75 @@
           }
         ]
       },
+      "DateOrder": {
+        "synopsis": "DateOrder is the order of the wheels of a DateWheel.",
+        "decl": "type DateOrder uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "DateWheelView": {
+        "synopsis": "DateWheelView chooses a date on three wheels.",
+        "decl": "type DateWheelView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "DateWheel",
+            "signature": "DateWheel() DateWheelView",
+            "synopsis": "DateWheel returns a date picker of a day, a month and a year wheel, the counterpart of SwiftUI's DatePicker with the wheel style."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c Color) DateWheelView",
+            "synopsis": "Background sets the colour behind the wheels; see WheelPickerView.Background."
+          },
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[Date]) DateWheelView",
+            "synopsis": "Bind reads the date from b and writes the choice back."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) DateWheelView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) DateWheelView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) DateWheelView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "MonthNames",
+            "signature": "MonthNames(names [12]string) DateWheelView",
+            "synopsis": "MonthNames sets the names of the month wheel, January first; see GermanMonths."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(fn func(Date)) DateWheelView",
+            "synopsis": "OnChange sets the function called with the date chosen."
+          },
+          {
+            "name": "Order",
+            "signature": "Order(o DateOrder) DateWheelView",
+            "synopsis": "Order sets the order of the wheels; see DateOrder."
+          },
+          {
+            "name": "Range",
+            "signature": "Range(min, max Date) DateWheelView",
+            "synopsis": "Range limits the dates that can be chosen."
+          },
+          {
+            "name": "Value",
+            "signature": "Value(d Date) DateWheelView",
+            "synopsis": "Value sets the date shown."
+          }
+        ]
+      },
       "DividerView": {
         "synopsis": "DividerView is a horizontal hairline.",
         "decl": "type DividerView struct {\n\t// Has unexported fields.\n}",
@@ -7529,6 +7598,59 @@
           }
         ]
       },
+      "TimeWheelView": {
+        "synopsis": "TimeWheelView chooses a time of day on an hour and a minute wheel.",
+        "decl": "type TimeWheelView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "TimeWheel",
+            "signature": "TimeWheel() TimeWheelView",
+            "synopsis": "TimeWheel returns a time picker of an hour and a minute wheel on the 24 hour clock, both turning round."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c Color) TimeWheelView",
+            "synopsis": "Background sets the colour behind the wheels; see WheelPickerView.Background."
+          },
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[TimeOfDay]) TimeWheelView",
+            "synopsis": "Bind reads the time from b and writes the choice back."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) TimeWheelView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) TimeWheelView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) TimeWheelView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "MinuteInterval",
+            "signature": "MinuteInterval(n int) TimeWheelView",
+            "synopsis": "MinuteInterval makes the minute wheel step by n minutes, as UIDatePicker's minuteInterval does; n divides 60."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(fn func(TimeOfDay)) TimeWheelView",
+            "synopsis": "OnChange sets the function called with the time chosen."
+          },
+          {
+            "name": "Value",
+            "signature": "Value(t TimeOfDay) TimeWheelView",
+            "synopsis": "Value sets the time shown."
+          }
+        ]
+      },
       "ToggleView": {
         "synopsis": "ToggleView is a switch: a two state control that applies its change immediately rather than on an \"apply\" button.",
         "decl": "type ToggleView struct {\n\t// Has unexported fields.\n}",
@@ -7703,6 +7825,107 @@
             "name": "Shadow",
             "signature": "Shadow(s Shadow) VirtualListView",
             "synopsis": "Shadow draws a blurred copy of the viewport box behind it."
+          }
+        ]
+      },
+      "WheelColumn": {
+        "synopsis": "WheelColumn is one wheel of a WheelPicker: its rows and which of them is chosen.",
+        "decl": "type WheelColumn struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Wheel",
+            "signature": "Wheel(count int, title func(int) string) WheelColumn",
+            "synopsis": "Wheel returns a wheel of count rows, row i reading title(i)."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Align",
+            "signature": "Align(a TextAlign) WheelColumn",
+            "synopsis": "Align sets how the rows line up in the wheel."
+          },
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[int]) WheelColumn",
+            "synopsis": "Bind reads the chosen row from b and writes the choice back."
+          },
+          {
+            "name": "Cyclic",
+            "signature": "Cyclic(b bool) WheelColumn",
+            "synopsis": "Cyclic turns the wheel round: after the last row comes the first, as the hours and minutes of iOS do."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) WheelColumn",
+            "synopsis": "Key sets the key of the wheel, for a test to find it by."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) WheelColumn",
+            "synopsis": "Label sets the accessible name of the wheel."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(fn func(int)) WheelColumn",
+            "synopsis": "OnChange sets the function called with the row the wheel comes to rest on."
+          },
+          {
+            "name": "Selected",
+            "signature": "Selected(i int) WheelColumn",
+            "synopsis": "Selected sets the chosen row."
+          },
+          {
+            "name": "Width",
+            "signature": "Width(px float32) WheelColumn",
+            "synopsis": "Width fixes the width of the wheel."
+          }
+        ]
+      },
+      "WheelPickerView": {
+        "synopsis": "WheelPickerView is one or more wheels side by side, with the chosen row of each in a band across the middle.",
+        "decl": "type WheelPickerView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "WheelPicker",
+            "signature": "WheelPicker(cols ...WheelColumn) WheelPickerView",
+            "synopsis": "WheelPicker returns wheels side by side, the counterpart of SwiftUI's Picker with the wheel style and of iOS's UIPickerView."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c Color) WheelPickerView",
+            "synopsis": "Background sets the colour behind the wheels and the colour the rows fade into."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) WheelPickerView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) WheelPickerView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) WheelPickerView",
+            "synopsis": "Label sets the accessible name of the picker."
+          },
+          {
+            "name": "RowHeight",
+            "signature": "RowHeight(h float32) WheelPickerView",
+            "synopsis": "RowHeight sets the height of a row."
+          },
+          {
+            "name": "VisibleRows",
+            "signature": "VisibleRows(n int) WheelPickerView",
+            "synopsis": "VisibleRows sets how many rows the picker is tall."
+          },
+          {
+            "name": "Width",
+            "signature": "Width(px float32) WheelPickerView",
+            "synopsis": "Width fixes the width of the picker."
           }
         ]
       }

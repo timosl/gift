@@ -2502,6 +2502,32 @@ innere Haelfte die Karte verdeckt; ein Dreieck-Primitiv gibt es nicht.
 - Ein Menue, das hoeher als das Fenster ist, wird abgeschnitten statt
   gescrollt.
 
+## 28. Wheel-Picker, Datums- und Uhrzeitrad
+
+Der zweite Baustein aus dem Abgleich mit iOS. Ein Rad ist auf einem
+Touch-Kiosk der natuerlichste Picker: drehen, werfen, anhalten, nichts tippen.
+
+- `ui.WheelPicker` mit beliebig vielen `ui.Wheel`-Spalten; die Zeilen liegen
+  auf einem Zylinder (Lage R·sin θ, θ = d/R, R halbe Hoehe), werden nach aussen
+  perspektivisch kleiner (0,7 + 0,3·cos θ) und blassen ueber zwei Verlaeufe in
+  den Hintergrund aus; ein Band hinterlegt die Auswahl ueber alle Spalten.
+- Nur vertikales Stauchen war die erste Fassung. Der Glyphen-Renderer rastert
+  dann kleiner, behaelt aber die Laufweite, und die Zeilen erscheinen gesperrt;
+  gleichmaessiges Skalieren hat das Problem nicht.
+- Physik: Rubberband an den Enden (`motion.Band`), ein Wurf wird mit Apples
+  Projektion (0,998/ms) auf eine Zeile gerundet und mit einer kritisch
+  gedaempften Feder dorthin gebracht, also ohne Ueberschwingen; ein Finger auf
+  einem drehenden Rad haelt es an; Tipp auf eine Zeile, Mausrad zeilenweise,
+  Pfeile, Bild auf/ab, Pos1/Ende.
+- `OnChange` meldet beim Loslassen die Zeile, auf der das Rad zur Ruhe kommt;
+  eine von der Anwendung gesetzte Auswahl dreht das Rad auf kuerzestem Weg.
+- `ui.DateWheel` (Tag, Monat, Jahr; Reihenfolge, Monatsnamen, Bereich,
+  Monatslaengen) und `ui.TimeWheel` (Stunde, Minute, Minutenintervall) sind
+  daraus gebaut. Zyklisch drehen Tag, Monat, Stunde und Minute.
+
+Offen: 12-Stunden-Uhr mit AM/PM, Lokalisierung ueber die Monatsnamen hinaus,
+eine Tonrueckmeldung beim Weiterrasten.
+
 ## Quellen der Architekturpruefung
 
 - Nago, untersuchter Stand: https://github.com/worldiety/nago/tree/76fb9e89b1169c9f6bc020a5b31971422898479c

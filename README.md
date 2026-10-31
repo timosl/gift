@@ -170,6 +170,10 @@ ui.Menu(ui.Icon(outline.DotsHorizontal),
 )
 ```
 
+Wheels choose values the way iOS does: `ui.WheelPicker` with any number of
+wheels that turn, flick and settle on a row, and `ui.DateWheel` and
+`ui.TimeWheel` built from it.
+
 ### Video
 
 `ui/videoplayer` plays a video with sound and touch controls laid out like the

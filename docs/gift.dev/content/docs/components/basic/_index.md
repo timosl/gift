@@ -21,3 +21,5 @@ Basic components display one piece of content or take one input. All of them liv
 - [Slider](slider/): picks a number from a range by dragging a knob.
 - [Segmented Control](segmented-control/): a row of mutually exclusive choices.
 - [Text Field](text-field/): one line of editable text.
+- [Wheel Picker](wheel-picker/): one or more turning wheels to choose values from, as on iOS.
+- [Date and Time Wheels](date-wheel/): a date or a time of day on wheels.
