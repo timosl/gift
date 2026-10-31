@@ -4587,6 +4587,64 @@
         "constructors": [],
         "methods": []
       },
+      "CircularSliderView": {
+        "synopsis": "CircularSliderView picks a number from a range on an open ring.",
+        "decl": "type CircularSliderView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "CircularSlider",
+            "signature": "CircularSlider(value float64, onChange func(float64)) CircularSliderView",
+            "synopsis": "CircularSlider returns a knob: an open ring, like a Gauge, whose knob a finger drags round it, the circular counterpart of Slider for a thermostat or a volume dial."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) CircularSliderView",
+            "synopsis": "Disabled takes the slider out of input."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) CircularSliderView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) CircularSliderView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) CircularSliderView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "LineWidth",
+            "signature": "LineWidth(px float32) CircularSliderView",
+            "synopsis": "LineWidth sets the width of the ring; the default is 10."
+          },
+          {
+            "name": "Range",
+            "signature": "Range(min, max float64) CircularSliderView",
+            "synopsis": "Range sets the smallest and the largest value."
+          },
+          {
+            "name": "Size",
+            "signature": "Size(px float32) CircularSliderView",
+            "synopsis": "Size sets the diameter; the default is 140."
+          },
+          {
+            "name": "Step",
+            "signature": "Step(s float64) CircularSliderView",
+            "synopsis": "Step makes the value move in steps of s from the minimum; zero is continuous, and the keys then step by a hundredth of the range."
+          },
+          {
+            "name": "Tint",
+            "signature": "Tint(c Color) CircularSliderView",
+            "synopsis": "Tint sets the colour of the filled part of the ring; the default is ColorAccent."
+          }
+        ]
+      },
       "Clipboard": {
         "synopsis": "Clipboard is the system clipboard as the text views of this package use it.",
         "decl": "type Clipboard interface {\n\tText() (string, bool)\n\tSetText(s string)\n}// Text returns the current clipboard contents and whether there are any.\n//\n// False means \"nothing to paste\": an empty clipboard, a clipboard holding\n// something that is not text, or a platform that declined to answer. A\n// caller pastes nothing in all three cases.\n// SetText replaces the clipboard contents with s.\n//\n// It cannot refuse and cannot report a truncation; an implementation that\n// caps the size documents the cap and what it does past it. See the type\n// documentation above.\n//\n// Under X11 the process that copied stays the owner of the selection, so\n// the content disappears when the process exits; the project plan,\n// section 19, records that as standard behaviour and not as a defect.\n",
@@ -5399,6 +5457,64 @@
             "name": "WheelStep",
             "signature": "WheelStep(f float32) GalleryView",
             "synopsis": "WheelStep sets how far one unit of wheel delta scrolls, in logical pixels."
+          }
+        ]
+      },
+      "GaugeView": {
+        "synopsis": "GaugeView shows a value within a range on a ring.",
+        "decl": "type GaugeView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Gauge",
+            "signature": "Gauge(value, min, max float64) GaugeView",
+            "synopsis": "Gauge returns value between min and max on a ring, the counterpart of SwiftUI's Gauge in its circular styles."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Capacity",
+            "signature": "Capacity(b bool) GaugeView",
+            "synopsis": "Capacity closes the ring and fills it clockwise from twelve o'clock, as SwiftUI's accessoryCircularCapacity style does."
+          },
+          {
+            "name": "CurrentValueLabel",
+            "signature": "CurrentValueLabel(s string) GaugeView",
+            "synopsis": "CurrentValueLabel sets the text in the middle of the ring."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) GaugeView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) GaugeView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) GaugeView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "LineWidth",
+            "signature": "LineWidth(px float32) GaugeView",
+            "synopsis": "LineWidth sets the width of the ring; the default is a tenth of the size."
+          },
+          {
+            "name": "MinMaxLabels",
+            "signature": "MinMaxLabels(min, max string) GaugeView",
+            "synopsis": "MinMaxLabels sets the texts at the two ends of an open ring."
+          },
+          {
+            "name": "Size",
+            "signature": "Size(px float32) GaugeView",
+            "synopsis": "Size sets the diameter; the default is 72."
+          },
+          {
+            "name": "Tint",
+            "signature": "Tint(c Color) GaugeView",
+            "synopsis": "Tint sets the colour of the filled part; the track is a quarter of it."
           }
         ]
       },
@@ -6407,6 +6523,54 @@
             "name": "Tint",
             "signature": "Tint(v Color) ProgressBarView",
             "synopsis": "Tint sets the colour of the filled part, replacing ColorAccent."
+          }
+        ]
+      },
+      "ProgressRingView": {
+        "synopsis": "ProgressRingView shows how far a task has come as a ring that fills clockwise, or that a task is under way as a spinner.",
+        "decl": "type ProgressRingView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "ProgressRing",
+            "signature": "ProgressRing(fraction float64) ProgressRingView",
+            "synopsis": "ProgressRing returns a ring that is fraction full, clockwise from twelve o'clock, over a faint track: the circular counterpart of ProgressBar, as iOS draws an activity ring."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) ProgressRingView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Indeterminate",
+            "signature": "Indeterminate() ProgressRingView",
+            "synopsis": "Indeterminate shows the turning spinner of iOS instead of a ring, for a task whose end nobody knows."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) ProgressRingView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) ProgressRingView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "LineWidth",
+            "signature": "LineWidth(px float32) ProgressRingView",
+            "synopsis": "LineWidth sets the width of the ring; the default is a seventh of the size."
+          },
+          {
+            "name": "Size",
+            "signature": "Size(px float32) ProgressRingView",
+            "synopsis": "Size sets the diameter; the default is 28."
+          },
+          {
+            "name": "Tint",
+            "signature": "Tint(c Color) ProgressRingView",
+            "synopsis": "Tint sets the colour of the ring, ColorAccent by default, or of the spinner, ColorSecondaryLabel by default."
           }
         ]
       },

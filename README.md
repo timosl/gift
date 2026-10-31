@@ -189,6 +189,10 @@ Lists get the two gestures of iOS: `ui.Swipe` uncovers actions behind a row
 dragged sideways, with full swipe, and `VScroll(...).Refreshable` starts a
 refresh when the content is pulled down past its top, with the spinner of
 UIRefreshControl.
+Rings are a shape of the renderer like rounded rectangles, drawn from a
+distance field in the same draw call: `ui.ProgressRing` (and its
+indeterminate spinner), `ui.Gauge` in the circular styles of SwiftUI and
+`ui.CircularSlider` for a thermostat or a dial.
 
 ### Video
 

@@ -13,12 +13,15 @@ Basic components display one piece of content or take one input. All of them liv
 - [Badge](badge/): a small capsule with a count or a one-word status.
 - [Divider](divider/): a horizontal hairline between groups of content.
 - [Progress Bar](progress-bar/): how much of a task is done, or an indeterminate bar.
+- [Progress Ring](progress-ring/): how much of a task is done as a ring, or the spinner of iOS.
+- [Gauge](gauge/): a value within a range on a ring.
 
 **Controls**
 
 - [Button](button/): runs a closure when the user taps, clicks or presses it.
 - [Toggle](toggle/): a switch for a setting that takes effect at once.
 - [Slider](slider/): picks a number from a range by dragging a knob.
+- [Circular Slider](circular-slider/): a slider on a ring, for a thermostat or a dial.
 - [Segmented Control](segmented-control/): a row of mutually exclusive choices.
 - [Text Field](text-field/): one line of editable text.
 - [Text Area](text-area/): editable text of several lines, wrapped and scrolled.

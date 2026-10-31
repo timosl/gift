@@ -2665,6 +2665,29 @@ Punkt 7 der iOS-Liste: die beiden Gesten einer iOS-Liste.
 Offen: Pull-to-Refresh fuer `VirtualList`, das Auslaufen einer geloeschten
 Zeile nach links wie bei iOS, Aktionen per Tastatur.
 
+## 34. Boegen: Ring, Messanzeige, kreisfoermiger Slider
+
+Punkt 8 der iOS-Liste. Die Display-Liste kannte nur Rechtecke, abgerundete
+Rechtecke, Glyphen und Bilder.
+
+- `render.OpArc`: der Bogen des Inkreises der Bounds, StrokeWidth breit, mit
+  runden Enden, Start und Ueberstreichung im Uhrzeigersinn ab zwoelf Uhr.
+  Die Winkel stehen als `MaterialArc` in der Material-Seitentabelle, damit
+  `Op` bei 72 Byte bleibt.
+- Im Backend ist der Bogen ein Fall desselben Shape-Shaders: ein negativer
+  erster Slot markiert ihn (minus Radius der Mittellinie, halbe Breite,
+  Start, Ueberstreichung, alles in Geraetepixeln), die Distanzfunktion ist
+  Inigo Quilez' Bogen im Rahmen der Bogenmitte. Ein Quad, derselbe Draw-Call
+  wie alles andere; GPU-Test `TestAnArcCoversItsSweepWithRoundEnds`.
+- `ui.ProgressRing` (mit Federung zum neuen Wert, `Indeterminate` ist der
+  Speichen-Spinner, jetzt mit Pull-to-Refresh geteilt), `ui.Gauge` (offen wie
+  ein Tacho oder geschlossen als Kapazitaet, Beschriftung in der Mitte und an
+  den Enden), `ui.CircularSlider` (Knopf des Sliders, Ziehen entlang des
+  Rings, haelt an den Enden der Luecke, Tasten und Rad).
+
+Offen: Farbverlauf entlang eines Bogens (Apples Gauge mit Gradient), Skalen-
+striche, Wertmeldung fuer Anzeigen ohne Interactor.
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb
