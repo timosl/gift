@@ -270,12 +270,13 @@ func (v ListView) Build(*gift.BuildContext) gift.Element {
 		rule:      separatorRule(v.items),
 	}
 	return gift.Element{
-		Key:      v.key,
-		Flex:     v.flex,
-		Layouter: n,
-		Painter:  n,
-		Children: v.items,
-		Clip:     v.style.clip,
+		Key:        v.key,
+		Flex:       v.flex,
+		Layouter:   n,
+		Painter:    n,
+		Children:   v.items,
+		Clip:       v.style.clip,
+		ClipRadius: v.style.radius,
 	}
 }
 

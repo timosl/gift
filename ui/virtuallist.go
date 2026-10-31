@@ -304,6 +304,7 @@ func (v VirtualListView) Build(*gift.BuildContext) gift.Element {
 		Interactor: n,
 		Focusable:  true,
 		Clip:       true,
+		ClipRadius: v.style.radius,
 		Scroll: &gift.ScrollSpec{
 			Axis:    gift.ScrollVertical,
 			Config:  v.cfg,

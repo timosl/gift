@@ -515,7 +515,9 @@ func element(b base, kind nodeKind, gap float32, axis layout.Axis, cross layout.
 		// The paint clip and the input clip come from this one field. The
 		// painter pushes the full bounds (see paintStyle) and gift clips hit
 		// testing to the same rectangle, so a clipped child cannot be
-		// invisible and clickable at the same time.
-		Clip: b.style.clip,
+		// invisible and clickable at the same time. The paint clip has the
+		// corners of the background.
+		Clip:       b.style.clip,
+		ClipRadius: b.style.radius,
 	}
 }

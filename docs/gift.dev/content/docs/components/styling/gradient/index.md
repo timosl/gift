@@ -49,8 +49,8 @@ ui.Box().
 A gradient with one transparent end still draws; only a gradient with two transparent ends draws nothing.
 
 **Shape and border.** `CornerRadius` rounds the gradient like any other background. A `Border` is stroked on top
-of it in its own, single color. A clip set with `Clip` is rectangular even with a corner radius, so an overlay
-that should end at the rounded corners needs the same `CornerRadius` itself.
+of it in its own, single color. A container with `Clip(true)` clips its children to the rounded shape, so an
+overlay ends at the rounded corners of a clipped container by itself.
 
 **The last background wins.** A gradient, a color and the glass material are mutually exclusive. Setting a
 color after a gradient replaces the gradient, and the other way round.

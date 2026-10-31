@@ -2448,7 +2448,7 @@
       },
       "Element": {
         "synopsis": "Element is the description of one retained node.",
-        "decl": "type Element struct {\n\tKey            string\n\tLabel          string\n\tLayouter       Layouter\n\tPainter        Painter\n\tChildren       []View\n\tFlex           float32\n\tInteractor     Interactor\n\tFocusable      bool\n\tDisabled       bool\n\tObstructs      bool\n\tClip           bool\n\tTransform      *geom.Affine2D\n\tScroll         *ScrollSpec\n\tHidden         bool\n\tLayer          bool\n\tFocusTrap      bool\n\tTransition     TransitionSpec\n\tKeyFallback    bool\n\tOverlay        View\n\tOverlayExit    time.Duration\n\tMultiTouch     bool\n\tPreservesFocus bool\n}",
+        "decl": "type Element struct {\n\tKey            string\n\tLabel          string\n\tLayouter       Layouter\n\tPainter        Painter\n\tChildren       []View\n\tFlex           float32\n\tInteractor     Interactor\n\tFocusable      bool\n\tDisabled       bool\n\tObstructs      bool\n\tClip           bool\n\tClipRadius     float32\n\tTransform      *geom.Affine2D\n\tScroll         *ScrollSpec\n\tHidden         bool\n\tLayer          bool\n\tFocusTrap      bool\n\tTransition     TransitionSpec\n\tKeyFallback    bool\n\tOverlay        View\n\tOverlayExit    time.Duration\n\tMultiTouch     bool\n\tPreservesFocus bool\n}",
         "constructors": [],
         "methods": []
       },

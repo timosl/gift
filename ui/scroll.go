@@ -149,8 +149,9 @@ func (s ScrollView) Build(*gift.BuildContext) gift.Element {
 		// Always. A viewport that did not clip would paint its whole content
 		// over its neighbours and would be indistinguishable from a stack;
 		// see [ScrollView.Clip].
-		Clip:   true,
-		Scroll: &gift.ScrollSpec{Axis: axis, Config: s.cfg, LeadingHold: hold},
+		Clip:       true,
+		ClipRadius: s.style.radius,
+		Scroll:     &gift.ScrollSpec{Axis: axis, Config: s.cfg, LeadingHold: hold},
 	}
 }
 

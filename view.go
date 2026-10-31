@@ -170,10 +170,21 @@ type Element struct {
 	// children has to apply the clip to that content itself, and ui.Text
 	// does.
 	//
-	// Honest limitation: the clip is the bounding rectangle and not the
-	// rounded shape, on both sides. A shape accurate clip needs stencil or
-	// shader support and is a backend concern.
+	// The clip is the bounding rectangle, rounded by ClipRadius; hit
+	// testing always uses the rectangle.
 	Clip bool
+
+	// ClipRadius rounds the corners of the paint clip of [Element.Clip], so
+	// that a child's square background does not cover the inside of a
+	// rounded container's corners. It does nothing without Clip.
+	//
+	// Two rounded rectangles do not intersect to a rounded rectangle, so the
+	// clip stack cannot carry a radius. The subtree is drawn into a layer
+	// instead, as UIKit does for masksToBounds with a corner radius, and the
+	// layer is composited through the rounded rectangle; see [Element.Layer]
+	// for what a layer costs and keeps. A layer with glass in it has no
+	// picture of its own and keeps the square clip.
+	ClipRadius float32
 
 	// Transform maps this node and its subtree into the space of its parent.
 	// A nil Transform, the default, is the identity.

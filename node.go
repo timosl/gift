@@ -39,6 +39,8 @@ type nodeData struct {
 	focusable  bool
 	disabled   bool
 	clip       bool
+	// clipRadius is [Element.ClipRadius].
+	clipRadius float32
 
 	// obstructs is [Element.Obstructs]. It is read by nothing in the frame
 	// path; the node it names is remembered in [softInputState] instead, and
@@ -188,6 +190,7 @@ func (nd *nodeData) release() {
 	nd.focusable = false
 	nd.disabled = false
 	nd.clip = false
+	nd.clipRadius = 0
 	// Both are refreshed from the element by [App.applyElement] — but a
 	// *component* node never goes through it: [App.mountChild] fills a
 	// component's payload by hand and then builds the scope. A component

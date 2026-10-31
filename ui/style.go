@@ -490,13 +490,12 @@ func paintBackground(ctx *gift.PaintContext, st styleSpec, b geom.Rect) {
 // content that deliberately overflows into the padding, such as a focus ring,
 // a selection glow or a badge.
 //
-// Honest limitation: the clip of a container is the bounding rectangle, not
-// the rounded shape, so a clipped child may cover the inside of a rounded
-// corner. A shape accurate clip for arbitrary children would need stencil
-// support in the backend, and two rounded rectangles do not intersect to a
-// rounded rectangle, so the clip stack cannot simply carry a radius. Pictures
-// are the exception, because a picture knows its own shape: [ImageView.Clip]
-// and gallery tiles round the picture itself; see [render.OpImage].
+// The clip of a container has the corners of its background: the node passes
+// its radius as [gift.Element.ClipRadius], which draws the children into a
+// layer composited through the rounded rectangle, so a child's square
+// background does not cover the inside of a rounded corner. Pictures do not
+// need the layer, because a picture knows its own shape: [ImageView.Clip] and
+// gallery tiles round the picture itself; see [render.OpImage].
 func paintBorder(ctx *gift.PaintContext, st styleSpec, b geom.Rect) {
 	// Before IsVisible, which is false for an unresolved colour; see
 	// [assertResolved].

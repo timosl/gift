@@ -128,7 +128,8 @@ const (
 	// layer key, stable for as long as the subtree lives. The operations of
 	// the layer are expressed in layer space – see [LayerXform] – so that
 	// moving the layer, as a page transition does, leaves them unchanged and
-	// the texture reusable.
+	// the texture reusable. CornerRadius, when positive, rounds the corners
+	// of the composite; see [List.RoundLayer].
 	//
 	// Two fields are reused rather than added, so that no other operation
 	// grows: GlyphCount is the number of operations in the layer and

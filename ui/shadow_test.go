@@ -31,6 +31,8 @@ func kindsOf(l *render.List) string {
 			b.WriteString("stroke")
 		case render.OpGlyphs:
 			b.WriteString("text")
+		case render.OpLayer:
+			b.WriteString("layer")
 		default:
 			b.WriteString("none")
 		}
@@ -74,7 +76,11 @@ func TestShadowDrawOrderInEveryCombination(t *testing.T) {
 						}
 						// The child is the content step, and it is always
 						// there so that "content between background and
-						// border" is observable.
+						// border" is observable. A rounded clip draws it
+						// into a layer; see gift.Element.ClipRadius.
+						if radius && clip {
+							want = append(want, "layer")
+						}
 						want = append(want, "fill")
 						if border {
 							v = v.Border(ui.Border{Width: 2, Color: ui.RGB(0, 0, 255)})

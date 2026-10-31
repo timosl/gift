@@ -262,10 +262,10 @@ gift clips nothing unless you ask for it, apart from the views that always clip 
 over its neighbors. `Clip(true)` confines the content to the bounds of the node, for drawing and for input together, so a
 clipped part can neither be seen nor clicked.
 
-The clip surrounds the content, not the node's own drawing: the node's shadow still extends past its bounds. The
-clip is the bounding rectangle, even with a corner radius, so a clipped child can cover a rounded corner. An
-[Image](../../components/basic/image/) is the exception: `Clip(true)` together with `CornerRadius` rounds the
-picture itself.
+The clip surrounds the content, not the node's own drawing: the node's shadow still extends past its bounds. With
+a corner radius the clip is rounded, so a clipped child leaves the corners free; gift draws the children into a
+layer for it, see `gift.Element.ClipRadius`. Input is clipped to the rectangle. An
+[Image](../../components/basic/image/) rounds the picture itself and needs no layer.
 
 ### Key
 

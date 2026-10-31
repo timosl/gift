@@ -57,7 +57,8 @@ content the flexible child there, so the header keeps its line and the content g
 
 **The corners are not a clip.** A card does not clip its children. A child that paints into a corner covers the
 rounding. Leave the corners to the card's face: a list inside a card draws no background of its own, so the
-face shows through.
+face shows through. Content that has to be cut at the corners goes into a stack with the card's `CornerRadius`
+and `Clip(true)`, whose clip is rounded.
 
 **Keys.** `Key` sets the reconciliation key of the card among its siblings, as on any other view. Give cards
 keys when cards on a screen come and go or change places, so that each one is matched to its previous self.

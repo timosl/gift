@@ -140,3 +140,33 @@ func TestImageViewCornerRadiusClipRoundsThePictureOnScreen(t *testing.T) {
 		}
 	}
 }
+
+// TestARoundedClipCutsTheCornersOfAChildOnScreen is the pixel half of
+// TestARoundedClipDrawsTheChildrenIntoARoundedLayer: a square child filling a
+// rounded, clipped stack leaves the corners to what is behind the stack.
+func TestARoundedClipCutsTheCornersOfAChildOnScreen(t *testing.T) {
+	child := color.RGBA{30, 160, 90, 255}
+	bg := color.RGBA{0, 0, 0, 255}
+	h := gifttest.New(t, gifttest.Options{
+		View: ui.VStack(
+			ui.VStack(ui.Box().Background(ui.RGB(30, 160, 90)).Frame(64, 64)).
+				Frame(64, 64).CornerRadius(16).Clip(true),
+		).Background(ui.RGB(0, 0, 0)).Frame(64, 64),
+		Size: geom.Sz(64, 64),
+	})
+	h.Frame()
+	img := h.Image()
+	if got := colorAt(img, 32, 32); !nearRGBA(got, child, 6) {
+		t.Fatalf("the middle = %v, want the child %v", got, child)
+	}
+	for _, c := range [][2]int{{0, 0}, {63, 0}, {0, 63}, {63, 63}, {2, 2}} {
+		if got := colorAt(img, c[0], c[1]); !nearRGBA(got, bg, 2) {
+			t.Errorf("corner pixel %v = %v, want the background: the clip is not rounded", c, got)
+		}
+	}
+	for _, c := range [][2]int{{0, 32}, {32, 0}, {63, 32}, {32, 63}} {
+		if got := colorAt(img, c[0], c[1]); !nearRGBA(got, child, 6) {
+			t.Errorf("edge pixel %v = %v, want the child", c, got)
+		}
+	}
+}

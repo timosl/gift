@@ -70,9 +70,11 @@ Content clipping is off by default, so a child may paint past the bounds of its 
 children to the bounds of the view, for painting and for input alike: a clipped part of a child neither shows nor
 receives taps. A few views always clip; see the end of this section.
 
-The clip of a container is the bounding rectangle, not the rounded shape. A child that fills a rounded stack covers
-its rounded corners even with `Clip(true)`. Pictures are the exception: `Image` with a `CornerRadius` and
-`Clip(true)` rounds the picture itself, as the last tile of the demo does.
+The clip of a container has its rounded shape: a child that fills a rounded stack with `Clip(true)` leaves the
+corners free. gift draws such children into a layer of their own and puts it on screen through the rounded
+rectangle, which costs a second pass over the children whenever they change; a container without a corner
+radius clips to its rectangle and needs none. Pictures round themselves: `Image` with a `CornerRadius` and
+`Clip(true)` rounds the picture, as the last tile of the demo does.
 
 ```go
 ui.Image(src).Fit(ui.FitCover).Frame(160, 96).

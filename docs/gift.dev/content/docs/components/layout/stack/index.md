@@ -85,7 +85,7 @@ width. If a `Spacer` seems to do nothing, give the stack a `Frame` or a `Flex` o
 
 When the children need more than the stack is allowed to take, the stack still reports the allowed size. The
 children keep their real sizes and positions and are not cut off; they draw past the edge. `Clip(true)` confines
-them to the bounds of the stack; the clip is a rectangle, even with a corner radius. Every overflowing node is
+them to the bounds of the stack, and with a `CornerRadius` to its rounded shape. Every overflowing node is
 counted in `gift.Diagnostics.OverflowNodes`, and a test asserts that there is none with
 `Harness.AssertNoOverflow` from `gifttest`.
 

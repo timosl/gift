@@ -325,6 +325,10 @@ func TestDrawOrderAllCombinations(t *testing.T) {
 			if hasBg {
 				want++
 			}
+			round := hasRadius && hasClip
+			if round {
+				want++ // the layer of the rounded clip; see gift.Element.ClipRadius
+			}
 			if hasBorder {
 				want++
 			}
@@ -343,6 +347,12 @@ func TestDrawOrderAllCombinations(t *testing.T) {
 				}
 				if ops[i].Clip != 0 {
 					t.Errorf("the background must be drawn outside the clip, got index %d", ops[i].Clip)
+				}
+				i++
+			}
+			if round {
+				if ops[i].Kind != render.OpLayer || ops[i].CornerRadius != 5 {
+					t.Errorf("ops[%d] = kind %v radius %v, want the layer of the rounded clip", i, ops[i].Kind, ops[i].CornerRadius)
 				}
 				i++
 			}

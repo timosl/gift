@@ -48,6 +48,8 @@ func kindName(k render.OpKind) string {
 		return "text"
 	case render.OpImage:
 		return "image"
+	case render.OpLayer:
+		return "layer"
 	default:
 		return "none"
 	}
@@ -81,6 +83,9 @@ func TestGlassDrawOrderInEveryCombination(t *testing.T) {
 						}
 						if clip {
 							v = v.Clip(true)
+						}
+						if radius && clip {
+							want = append(want, "layer") // see gift.Element.ClipRadius
 						}
 						want = append(want, "fill") // the content
 						if border {

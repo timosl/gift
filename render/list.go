@@ -112,6 +112,18 @@ func (l *List) BeginLayer(key ImageID, bounds geom.Rect, parent uint32, scale fl
 	return l.PushXform(LayerXform(bounds, scale))
 }
 
+// RoundLayer rounds the corners of the innermost open layer: the backend
+// composites its picture through a rounded rectangle of radius r, in the
+// units of the layer's bounds, which makes the layer a clip of that shape. A
+// layer that [List.BeginLayer] did not open is left alone.
+func (l *List) RoundLayer(r float32) {
+	if n := len(l.layerStack); n > 0 {
+		if i := l.layerStack[n-1]; i >= 0 {
+			l.ops[i].CornerRadius = r
+		}
+	}
+}
+
 // EndLayer closes the innermost layer opened by [List.BeginLayer].
 func (l *List) EndLayer() {
 	l.ensure()

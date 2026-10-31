@@ -212,11 +212,11 @@ func (p *PaintContext) PaintChild(i int) {
 // allocation, so the frame path contract of the project plan, section 11, is
 // unaffected.
 func (p *PaintContext) paintKids(kids []scene.Handle) {
-	prev, clipped := p.app.beginSubtree(p.cur)
+	prev, clip := p.app.beginSubtree(p.cur)
 	for _, c := range kids {
 		p.app.paintNode(c)
 	}
-	p.app.endSubtree(prev, clipped)
+	p.app.endSubtree(prev, clip)
 }
 
 // beginSubtree applies everything a node imposes on the way into its subtree:
@@ -243,23 +243,46 @@ func (p *PaintContext) paintKids(kids []scene.Handle) {
 // half in [App.hitNode] already composed the transform, so the two halves
 // would have disagreed, which is exactly the failure the project plan,
 // section 7, forbids.
-func (a *App) beginSubtree(h scene.Handle) (prev uint32, clipped bool) {
+// subtreeClip is what [App.beginSubtree] opened around a subtree.
+type subtreeClip uint8
+
+const (
+	clipNone subtreeClip = iota
+	// clipRect is the clip rectangle of [Element.Clip].
+	clipRect
+	// clipRound is that rectangle and inside it a layer composited with the
+	// corners of [Element.ClipRadius].
+	clipRound
+)
+
+func (a *App) beginSubtree(h scene.Handle) (prev uint32, clip subtreeClip) {
 	n := a.store.Get(h)
 	nd := &n.Payload
 	prev = a.pctx.xform
 	if nd.clip {
 		a.list.PushClip(a.list.Xform(prev).TransformRect(n.Bounds))
-		clipped = true
+		clip = clipRect
+		if nd.clipRadius > 0 {
+			// The rectangle stays pushed: it is the clip of the composite,
+			// and the whole clip where the list does not open the layer
+			// because it would be too large.
+			a.pctx.xform = a.list.BeginLayer(clipLayerKey(h), n.Bounds, prev, 0)
+			a.list.RoundLayer(nd.clipRadius)
+			clip = clipRound
+		}
 	}
 	if s := nd.scroll; s != nil {
-		a.pctx.xform = a.list.PushXform(s.xform().Mul(a.list.Xform(prev)))
+		a.pctx.xform = a.list.PushXform(s.xform().Mul(a.list.Xform(a.pctx.xform)))
 	}
-	return prev, clipped
+	return prev, clip
 }
 
-func (a *App) endSubtree(prev uint32, clipped bool) {
+func (a *App) endSubtree(prev uint32, clip subtreeClip) {
 	a.pctx.xform = prev
-	if clipped {
+	if clip == clipRound {
+		a.list.EndLayer()
+	}
+	if clip != clipNone {
 		a.list.PopClip()
 	}
 }
@@ -427,11 +450,11 @@ func (a *App) paintNode(h scene.Handle) {
 		// A node with no painter still honours its own [Element.Clip] and its
 		// own scroll offset: both are properties of the node, not of the fact
 		// that somebody installed a painter on it. See [App.beginSubtree].
-		prev, clipped := a.beginSubtree(h)
+		prev, clip := a.beginSubtree(h)
 		for _, c := range nd.children {
 			a.paintNode(c)
 		}
-		a.endSubtree(prev, clipped)
+		a.endSubtree(prev, clip)
 		a.paintDepth--
 		// Deliberately not counted. PaintedNodes means "a painter ran", and
 		// this branch is the one where none did; counting it made the
@@ -465,4 +488,12 @@ func (a *App) paintNode(h scene.Handle) {
 // node lives: its handle, folded into the 32 bits of a render.ImageID.
 func layerKey(h scene.Handle) render.ImageID {
 	return render.ImageID(h.Key())
+}
+
+// clipLayerKey is the key of the layer a node with an [Element.ClipRadius]
+// draws its subtree into, which the layer of [layerKey] may surround: the key
+// with the top bit of the folded slot index flipped, which no tree of fewer
+// than eight million nodes uses.
+func clipLayerKey(h scene.Handle) render.ImageID {
+	return render.ImageID(h.Key() ^ 1<<23)
 }

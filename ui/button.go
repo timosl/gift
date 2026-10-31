@@ -309,6 +309,7 @@ func (b ButtonView) Build(*gift.BuildContext) gift.Element {
 		Focusable:  !b.disabled,
 		Disabled:   b.disabled,
 		Clip:       b.style.clip,
+		ClipRadius: b.style.radius,
 	}
 }
 

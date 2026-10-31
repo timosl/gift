@@ -210,3 +210,41 @@ func TestTextClipsItsOwnGlyphs(t *testing.T) {
 		t.Fatal("no glyph run in the list")
 	}
 }
+
+// TestARoundedClipDrawsTheChildrenIntoARoundedLayer. A container with a
+// corner radius clips its children to the rounded shape, so that a child's
+// square background does not cover the inside of the corners — a tab bar at
+// the bottom of a rounded card did. The children go into a layer composited
+// with the radius; the node's own shadow, background and border stay outside
+// it, as they stay outside the rectangle.
+func TestARoundedClipDrawsTheChildrenIntoARoundedLayer(t *testing.T) {
+	v := ui.VStack(probe(clipChildW, clipChildH)).
+		Frame(clipBoxW, clipBoxH).
+		Background(ui.RGB(200, 200, 200)).
+		Border(ui.Border{Width: 2, Color: ui.RGB(0, 0, 0)}).
+		Shadow(ui.Shadow{Blur: 16, OffsetY: 4, Color: ui.RGBA(0, 0, 0, 70)}).
+		CornerRadius(12).
+		Clip(true)
+
+	ops := run(t, ui.ZStack(v), geom.Sz(800, 600)).Ops()
+	kinds := []render.OpKind{render.OpShadow, render.OpFillRoundRect, render.OpLayer, render.OpFillRect, render.OpStrokeRoundRect}
+	if len(ops) != len(kinds) {
+		t.Fatalf("painted %d ops, want shadow, background, layer, child, border: %v", len(ops), boundsOf(ops))
+	}
+	for i, k := range kinds {
+		if ops[i].Kind != k {
+			t.Errorf("op %d is kind %d, want %d", i, ops[i].Kind, k)
+		}
+	}
+	if l := ops[2]; l.CornerRadius != 12 || l.LayerOps() != 1 || l.Bounds.Width() != clipBoxW {
+		t.Errorf("the layer has radius %g, %d ops and bounds %v; want 12, the child alone and the box",
+			l.CornerRadius, l.LayerOps(), l.Bounds)
+	}
+
+	// Without a radius it stays the rectangle and no layer.
+	for _, op := range run(t, ui.ZStack(ui.VStack(probe(clipChildW, clipChildH)).Frame(clipBoxW, clipBoxH).Clip(true)), geom.Sz(800, 600)).Ops() {
+		if op.Kind == render.OpLayer {
+			t.Fatal("a square clip opened a layer")
+		}
+	}
+}

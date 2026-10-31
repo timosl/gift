@@ -415,7 +415,21 @@ func (r *Renderer) appendLayer(l *render.List, op render.Op, sub []render.Op, of
 	}
 
 	var wrote bool
+	radius := min(op.CornerRadius, op.Bounds.Width()*0.5, op.Bounds.Height()*0.5)
 	switch {
+	case radius > 0:
+		// A rounded clip; see [render.List.RoundLayer]. Through the rounded
+		// picture shader, at the whole pixel origin of the case below where
+		// there is one, so that a rounded layer at rest is as sharp as a
+		// square one.
+		s := op.LayerScale()
+		src := geom.Rc(0, 0, op.Bounds.Width()*s, op.Bounds.Height()*s)
+		xf := c.xf
+		if !c.dev.IsEmpty() {
+			xf = geom.Affine2D{A: s, D: s, TX: c.dev.Min.X - s*op.Bounds.Min.X, TY: c.dev.Min.Y - s*op.Bounds.Min.Y}
+		}
+		r.material(MaterialRoundImage, e.tex)
+		wrote = r.appendRoundImage(op.Bounds, src, c.clip, xf, op.Color, radius)
 	case !c.dev.IsEmpty():
 		r.material(MaterialImage, e.tex)
 		wrote = r.appendDeviceQuad(c.dev, geom.Rc(0, 0, float32(c.w), float32(c.h)), c.clip, op.Color)
