@@ -191,9 +191,11 @@ func (a Arc) Material() Material {
 }
 
 // GradientParams are the numbers of a [MaterialGradient]: the colour at the
-// bottom of the fill's bounds. The colour at the top is the fill's own.
+// bottom of the fill's bounds, or at its right edge when Horizontal is set.
+// The colour at the top, or at the left edge, is the fill's own.
 type GradientParams struct {
-	To Color
+	To         Color
+	Horizontal bool
 }
 
 // Gradient is a vertical linear gradient, a background like a [Color]: From
@@ -206,15 +208,24 @@ type GradientParams struct {
 // bands.
 type Gradient struct {
 	From, To Color
+	// Horizontal runs the gradient from left to right instead of from top
+	// to bottom; see [HorizontalGradient].
+	Horizontal bool
 }
 
 // LinearGradient returns a vertical gradient from from at the top to to at
 // the bottom.
 func LinearGradient(from, to Color) Gradient { return Gradient{From: from, To: to} }
 
+// HorizontalGradient is [LinearGradient] from the left edge to the right one:
+// the track of a colour slider, a band of the hue spectrum.
+func HorizontalGradient(from, to Color) Gradient {
+	return Gradient{From: from, To: to, Horizontal: true}
+}
+
 // Material returns the side table entry a fill carries for g.
 func (g Gradient) Material() Material {
-	return Material{Kind: MaterialGradient, Gradient: GradientParams{To: g.To}}
+	return Material{Kind: MaterialGradient, Gradient: GradientParams{To: g.To, Horizontal: g.Horizontal}}
 }
 
 // IsVisible reports whether the material would draw anything.

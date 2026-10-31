@@ -911,7 +911,11 @@ func (r *Renderer) appendOp(l *render.List, op render.Op) {
 		scaleY:  sy,
 	}
 	if hasGrad {
-		shape.to, shape.gradH = grad.To, b.Height()
+		if grad.Horizontal {
+			shape.to, shape.gradW = grad.To, b.Width()
+		} else {
+			shape.to, shape.gradH = grad.To, b.Height()
+		}
 	}
 	if op.Kind == render.OpShadow {
 		// The shadow encoding: a negative stroke slot carrying sigma. A zero
@@ -1519,11 +1523,12 @@ func texturedVertex(dx, dy, u, v float32, c render.Color) eb.Vertex {
 // position of every vertex as it is written, so that the distance field the
 // shader evaluates is measured in device pixels throughout.
 type shapeParams struct {
-	color            render.Color
+	color render.Color
 	// to and gradH are a vertical gradient: color at local y = 0, to at
-	// local y = gradH. A zero gradH is a flat fill.
+	// local y = gradH. A zero gradH is a flat fill. gradW is the same from
+	// local x = 0 to x = gradW, for a horizontal one.
 	to               render.Color
-	gradH            float32
+	gradH, gradW     float32
 	halfW, halfH     float32
 	radius, stroke   float32
 	originX, originY float32
@@ -1783,10 +1788,16 @@ func intersectEdge(a, b clipVertex, e edge, v float32) clipVertex {
 // particular none in the frame path. See the project plan, section 8.
 func vertex(dx, dy, lx, ly float32, sh shapeParams) eb.Vertex {
 	c := sh.color
-	if sh.gradH > 0 {
+	if sh.gradH > 0 || sh.gradW > 0 {
 		// The corner's own colour; the GPU interpolates between corners,
-		// which for a quad split at any height is exactly linear in y.
-		t := min(max(ly/sh.gradH, 0), 1)
+		// which for a quad split at any height is exactly linear in y, and
+		// at any width in x.
+		var t float32
+		if sh.gradW > 0 {
+			t = min(max(lx/sh.gradW, 0), 1)
+		} else {
+			t = min(max(ly/sh.gradH, 0), 1)
+		}
 		c = render.Color{
 			R: c.R + (sh.to.R-c.R)*t, G: c.G + (sh.to.G-c.G)*t,
 			B: c.B + (sh.to.B-c.B)*t, A: c.A + (sh.to.A-c.A)*t,
