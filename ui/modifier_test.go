@@ -122,6 +122,26 @@ var views = []struct {
 		why: presenterWhy,
 	},
 	{
+		name: "ui.Stepper", set: setMinimal, v: ui.Stepper(0, nil),
+		why: "a fixed 94 by 32 pair of buttons, as UIStepper; it has no box of its own to size or style",
+	},
+	{
+		name: "ui.SearchField", set: setMinimal, v: ui.SearchField(ui.NewTextEditor("")),
+		why: "the search field of iOS: a TextField in a pill of fixed height and look; a TextField styles freely",
+	},
+	{name: "ui.searchBox", set: setInternal, why: "the field, the glass and the clear button of a ui.SearchField"},
+	{name: "ui.searchClear", set: setInternal, why: "the clear button of a ui.SearchField"},
+	{
+		name: "ui.PageControl", set: setMinimal, v: ui.PageControl(3, 0, nil),
+		why: "a row of dots as wide as the pages need, as UIPageControl; Capsule is its one background",
+	},
+	{
+		name: "ui.Toast", set: setMinimal, v: ui.Toast(ui.Box(), "x"),
+		why: presenterWhy,
+	},
+	{name: "ui.toastLayer", set: setInternal, why: "the window-sized, input-transparent layer a ui.Toast hangs in"},
+	{name: "ui.toastCard", set: setInternal, why: "the capsule of a ui.Toast; its settings are ToastView's"},
+	{
 		name: "ui.WheelPicker", set: setMinimal, v: ui.WheelPicker(),
 		why: "a wheel has the height of its rows and draws its own band and fading; its size is VisibleRows, RowHeight and Width",
 	},
