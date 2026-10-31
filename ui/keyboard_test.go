@@ -2,10 +2,12 @@ package ui_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/geom"
 	"github.com/worldiety/gift/gifttest"
+	"github.com/worldiety/gift/render"
 	"github.com/worldiety/gift/ui"
 )
 
@@ -777,5 +779,60 @@ func BenchmarkOnScreenKeyboardFrame(b *testing.B) {
 				f.h.Frame()
 			}
 		})
+	}
+}
+
+// TestTheKeyboardSlidesInAndOut: the form makes room for the keyboard, and
+// takes it back, at once, and the keyboard slides in from below the window
+// and back out over the form, as on iOS.
+func TestTheKeyboardSlidesInAndOut(t *testing.T) {
+	f := newKeyboard(t, true)
+	f.field().Focus()
+	if !f.keyboardIsShowing() {
+		t.Fatal("the form did not make room for the keyboard at once")
+	}
+	r, ok := ui.KeyRectForTest("q")
+	if !ok {
+		t.Fatal("no q key")
+	}
+	place := r.Translate(f.kb().LayoutBounds().Min)
+	// drawnY is where the face of the q key is drawn, or false.
+	drawnY := func() (float32, bool) {
+		l := f.h.List()
+		for i, op := range f.h.Ops() {
+			if op.Kind == render.OpFillRoundRect && op.Bounds == place {
+				return l.DeviceXform(i).TransformRect(op.Bounds).Min.Y, true
+			}
+		}
+		return 0, false
+	}
+
+	start, ok := drawnY()
+	if !ok || start < kbWindowH {
+		t.Fatalf("the first frame draws the q key at %v (drawn %v), want it below the window, about to slide in", start, ok)
+	}
+	f.h.Advance(100 * time.Millisecond)
+	if y, _ := drawnY(); !(y < start && y > place.Min.Y) {
+		t.Errorf("100 ms in the q key is at %v, want it on its way from %v to %v", y, start, place.Min.Y)
+	}
+	f.h.Advance(time.Second)
+	if y, _ := drawnY(); y != place.Min.Y {
+		t.Errorf("a second in the q key is at %v, want it in place at %v", y, place.Min.Y)
+	}
+
+	f.h.Find(gifttest.ByKey("done")).Focus()
+	if f.keyboardIsShowing() {
+		t.Fatal("the form did not get its room back at once")
+	}
+	f.h.Advance(100 * time.Millisecond)
+	if y, ok := drawnY(); !ok || !(y > place.Min.Y && y < kbWindowH) {
+		t.Errorf("100 ms after the blur the q key is at %v (drawn %v), want it on its way out", y, ok)
+	}
+	f.h.Advance(time.Second)
+	if _, ok := drawnY(); ok {
+		t.Error("a second after the blur the keyboard is still drawn")
+	}
+	if f.h.App().Diagnostics().Animating {
+		t.Error("the keyboard keeps animating after it went")
 	}
 }

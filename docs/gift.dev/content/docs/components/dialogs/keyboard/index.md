@@ -6,9 +6,9 @@ title: Keyboard
 German layout with umlauts and ß, a digit row, a symbol page, shift, space, backspace, enter and a key that puts
 it away. Its keys deliver the same input as a physical keyboard, so a text field cannot tell them apart.
 
-You place the keyboard once, in the window, and turn it on for the whole process. From then on it comes up when
-a text field takes the focus and goes away when the field loses it. While it shows, the rest of the window is
-laid out in the space above it.
+You place the keyboard once, in the window, and turn it on for the whole process. From then on it slides in when
+a text field takes the focus and slides out when the field loses it. While it shows, the rest of the window is
+laid out in the space above it; the window makes the room at once, and the keyboard moves over it.
 
 {{< gallery-shot >}}
 

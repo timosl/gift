@@ -2,11 +2,13 @@ package ui
 
 import (
 	"sync/atomic"
+	"time"
 
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/geom"
 	"github.com/worldiety/gift/internal/text"
 	"github.com/worldiety/gift/render"
+	"github.com/worldiety/gift/ui/motion"
 )
 
 var keyboardType = gift.RegisterType("ui.OnScreenKeyboard")
@@ -316,6 +318,63 @@ func (s *keyboardState) reset() {
 
 func init() { kbState.reset() }
 
+// kbSlideSpring moves the keyboard in and out: critically damped, so that it
+// arrives without bouncing, in about the quarter second of iOS.
+var kbSlideSpring = motion.Spring{Response: 280 * time.Millisecond, Damping: 1}
+
+// keyboardSlide is where the keyboard is on its way in or out. It is process
+// wide for the reason [kbState] is, and it belongs to the application whose
+// build context owner is, so that a test that ends with the keyboard up does
+// not leave one sliding away in the next.
+//
+// The slide is drawn and not laid out: the content makes room for the
+// keyboard, and takes it back, at once, and the keyboard moves over it. A size
+// that changed with the clock would lay the whole window out on every frame of
+// the slide, and a layout must not depend on the clock; see
+// [gift.LayoutContext.Now].
+type keyboardSlide struct {
+	owner *gift.BuildContext
+	// shown is true from the build that shows the keyboard to the end of the
+	// slide that takes it away, and leaving says that slide is under way.
+	shown, leaving bool
+	// from is the fraction the slide set off from and at the clock value it
+	// did, which the first paint of the slide stamps; frac is the fraction of
+	// the last paint. 0 is in place, 1 out of sight below it.
+	from, frac float64
+	at         time.Duration
+	stamped    bool
+}
+
+var kbSlide = keyboardSlide{frac: 1}
+
+// toward sets the slide off towards out of sight or towards its place, from
+// wherever the last frame showed it.
+func (s *keyboardSlide) toward(leaving bool) {
+	s.leaving, s.from, s.stamped = leaving, s.frac, false
+}
+
+// step returns the fraction of the slide at now and whether it is still under
+// way, and ends a slide out.
+func (s *keyboardSlide) step(now time.Duration) (frac float64, moving bool) {
+	if !s.stamped {
+		s.at, s.stamped = now, true
+	}
+	to := 0.0
+	if s.leaving {
+		to = 1
+	}
+	t := now - s.at
+	if kbSlideSpring.Settled(t, s.from, to, 0, 0.002) {
+		s.frac = to
+		if s.leaving {
+			s.shown, s.leaving = false, false
+		}
+		return to, false
+	}
+	s.frac, _ = kbSlideSpring.At(t, s.from, to, 0)
+	return s.frac, true
+}
+
 // KeyboardView is gift's own on-screen keyboard. It is created by
 // [OnScreenKeyboard]; the zero value is not useful.
 //
@@ -429,10 +488,26 @@ func (v KeyboardView) ViewType() gift.TypeID { return keyboardType }
 // is one atomic load and is false in every application that is not a kiosk, so
 // an application that never turns it on never reaches the second question.
 func (v KeyboardView) Build(bc *gift.BuildContext) gift.Element {
+	if kbSlide.owner != bc {
+		kbSlide = keyboardSlide{owner: bc, frac: 1}
+	}
+	leaving := false
 	if !onScreenKeyboard.Load() || !bc.SoftKeyboardRequested() {
-		kbState.reset()
-		kbLive = nil
-		return gift.Element{Key: v.key, Flex: v.flex, Layouter: kbHidden{}}
+		if !kbSlide.shown {
+			kbState.reset()
+			kbLive = nil
+			return gift.Element{Key: v.key, Flex: v.flex, Layouter: kbHidden{}}
+		}
+		// Up until now: it slides away, over the content that has its room
+		// back already, and takes no more keys.
+		if !kbSlide.leaving {
+			kbSlide.toward(true)
+			kbState.reset()
+		}
+		leaving = true
+	} else if !kbSlide.shown || kbSlide.leaving {
+		kbSlide.shown = true
+		kbSlide.toward(false)
 	}
 
 	size := v.size
@@ -476,6 +551,10 @@ func (v KeyboardView) Build(bc *gift.BuildContext) gift.Element {
 	n.onAccent = ResolveColor(ColorOnAccent)
 	n.keyBorder = resolveBorder(Border{Width: 1, Color: ColorSeparator})
 
+	if leaving {
+		n.leaving = true
+		return gift.Element{Key: v.key, Flex: v.flex, Layouter: n, Painter: n}
+	}
 	return gift.Element{
 		Key:      v.key,
 		Flex:     v.flex,
@@ -571,6 +650,12 @@ type keyboardNode struct {
 	// construction — see the note on row shapes above [kbLower] — so the
 	// layout writes into the node and allocates nothing.
 	rects [kbKeyCount]geom.Rect
+
+	// h is the height of the keyboard, and leaving says that it is sliding
+	// away: it then lays out at no height and draws itself above its bounds;
+	// see [keyboardSlide].
+	h       float32
+	leaving bool
 }
 
 // kbLive is the keyboard node of the most recent layout pass, or nil.
@@ -603,8 +688,13 @@ func (n *keyboardNode) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.
 	}
 	h := n.pad.Vertical() + kbRows*kbKeyHeight + (kbRows-1)*kbGap
 	size := cc.Constrain(geom.Sz(w, h))
+	n.h = size.H
 
 	kbLive = n
+	if n.leaving {
+		// Its keys are not on the screen any more as far as anybody asks.
+		kbLive = nil
+	}
 	inner := geom.Rc(n.pad.Left, n.pad.Top, size.W-n.pad.Right, size.H-n.pad.Bottom)
 	y := inner.Min.Y
 	i := 0
@@ -628,14 +718,33 @@ func (n *keyboardNode) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.
 	// A keyboard has no children and asks for nothing it was not offered, so
 	// it cannot overflow in the sense of section 7.
 	ctx.ReportOverflow(geom.Size{})
+	if n.leaving {
+		return geom.Sz(size.W, 0)
+	}
 	return size
 }
 
 // --- paint -------------------------------------------------------------------
 
-// Paint draws the panel and then the keys, in the order of section 8.
+// Paint draws the panel and then the keys, in the order of section 8, moved
+// down by the part of the slide in or out still to go.
 func (n *keyboardNode) Paint(ctx *gift.PaintContext) {
+	frac, moving := kbSlide.step(ctx.Now())
+	if moving {
+		ctx.Animate(100 * time.Millisecond)
+	} else if n.leaving {
+		return
+	}
 	b := ctx.Bounds()
+	if n.leaving {
+		// Laid out at no height on the bottom edge: its place is above.
+		b.Min.Y -= n.h
+	}
+	b.Max.Y = b.Min.Y + n.h
+	if dy := float32(frac) * n.h; dy != 0 {
+		ctx.PushTransform(geom.Translate(geom.Pt(0, dy)))
+		defer ctx.PopTransform()
+	}
 	paintBackground(ctx, n.st, b)
 	n.paintKeys(ctx, b)
 	paintBorder(ctx, n.st, b)
