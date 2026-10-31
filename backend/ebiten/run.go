@@ -147,6 +147,20 @@ type Config struct {
 	// The old path is taken for a frame whose offscreen and framebuffer
 	// differ in size (a letterboxed window), and for a frame the automation
 	// interface captures, because the framebuffer cannot be read back.
+	//
+	// # Only under OpenGL
+	//
+	// Drawing into the framebuffer in several passes needs a framebuffer
+	// that keeps what the passes before drew. OpenGL keeps it; Ebitengine's
+	// Metal driver begins every render pass on the screen with a clear, and
+	// a frame has more than one whenever anything else is written in the
+	// middle of it: a picture uploaded, a new glyph put into the atlas. The
+	// screen then showed the text of the frame on black, in every frame that
+	// loaded something, which on a Mac was a map flickering black while it
+	// was panned. So under any other graphics library than OpenGL the field
+	// is ignored and every frame takes the offscreen, which there costs a
+	// copy a Mac's GPU does not notice. The Raspberry Pi it exists for runs
+	// OpenGL ES.
 	DirectToScreen bool
 
 	// NominalFrameInterval is the interval the display is expected to hold,
@@ -504,6 +518,11 @@ type game struct {
 	viaOffscreen bool
 	drawn        uint64
 	skipped      uint64
+
+	// screenKept is whether the graphics library keeps the framebuffer
+	// between the render passes of a frame: zero until the first frame has
+	// asked, then one or two; see [game.keepsScreen].
+	screenKept uint8
 
 	// shot is the read-back buffer of [game.capture]. It stays nil, and the
 	// field itself is unreachable, without the giftauto build tag.
@@ -875,8 +894,9 @@ func (g *game) drawDirect(offscreen *eb.Image, size geom.Size) {
 	g.drawnSize = size
 
 	// A frame the framebuffer cannot hold as is, or one that has to be read
-	// back, takes the offscreen path.
-	if capture || g.finalSize != size {
+	// back, takes the offscreen path, and so does every frame under a
+	// graphics library that clears the screen between two passes.
+	if capture || g.finalSize != size || !g.keepsScreen() {
 		g.renderOffscreen(offscreen, size, g.list)
 		g.viaOffscreen = true
 		if capture {
@@ -890,6 +910,22 @@ func (g *game) drawDirect(offscreen *eb.Image, size geom.Size) {
 	// only when the offscreen was modified. One pixel says so.
 	offscreen.Set(0, 0, color.Transparent)
 	g.viaOffscreen = false
+}
+
+// keepsScreen reports whether the graphics library keeps the framebuffer
+// between the render passes of a frame, which drawing straight into it
+// needs; see [Config.DirectToScreen]. Only OpenGL does. It is asked once, in
+// the first frame drawn: the library is chosen when the loop starts.
+func (g *game) keepsScreen() bool {
+	if g.screenKept == 0 {
+		var di eb.DebugInfo
+		eb.ReadDebugInfo(&di)
+		g.screenKept = 2
+		if di.GraphicsLibrary == eb.GraphicsLibraryOpenGL {
+			g.screenKept = 1
+		}
+	}
+	return g.screenKept == 1
 }
 
 // renderOffscreen draws list into the offscreen, the path of a frame without

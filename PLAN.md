@@ -3371,6 +3371,16 @@ Gebaut wie geplant, mit diesen Abweichungen und Ergaenzungen:
     Viertel ihrer Groesse, und die Raender laufen weich aus.
   Auf dem Pi unveraendert innerhalb der Streuung (Vektorkarte p95 17,4 ms
   wie vorher).
+- **Schwarze Frames auf dem Mac**, das Flackern des ganzen Bildschirms, das
+  danach blieb: Das `capture` zeichnet ueber den Offscreen und konnte es nie
+  zeigen; eine Bildschirmaufnahme mit 60 Bildern je Sekunde zeigte Frames, in
+  denen nur die Beschriftungen auf Schwarz standen. Ebitengines Metal-Treiber
+  beginnt jeden Render-Pass auf den Bildschirm mit einem Loeschen, und ein
+  Frame hat mehrere, sobald mitten darin etwas anderes geschrieben wird: eine
+  Kachel hochgeladen, eine Glyphe in den Atlas gelegt. `DirectToScreen`
+  zeichnet deshalb nur noch unter OpenGL direkt, sonst ueber den Offscreen.
+  Danach in 540 aufgenommenen Frames keiner mehr dunkel; auf dem Pi (OpenGL
+  ES, weiter direkt) unter 80 Bildschirmfotos waehrend acht Wuerfen keiner.
 
 Raspberry Pi 5, Vollbild 1920 x 1080, Gestenfolge ueber die
 Automatisierung (vier Wuerfe, sechs Raststufen des Mausrads), Kiosk-
@@ -3392,6 +3402,10 @@ Inhalt: der Compositor setzt das Fenster zusammen.
 
 ### Offen
 
+- Ruckeln: Ein Wurf von 2,2 s bekam auf dem Mac 136 Updates, aber nur 121
+  gezeichnete Frames; jeder neunte Bildwechsel zeigt das Bild davor noch
+  einmal. Vermutlich laufen in einem Bildwechsel keine und im naechsten zwei
+  Updates; zu pruefen ist ein an die Bildwechsel gebundener Takt.
 - Das Wetter unter geschlossener Bewoelkung haelt die 17,5 ms nicht; ohne
   neues Vorrechnen erreicht es beim Festhalten 58 Bilder je Sekunde, und
   woher die Spitzen der Messfolge kommen, ist nicht geklaert.

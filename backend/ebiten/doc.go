@@ -17,7 +17,9 @@
 // planned. The project plan, section 6, explains why. What a drawn frame is
 // can be narrowed: [Config.DrawOnDemand] skips the refreshes in which nothing
 // changed and leaves the previous frame standing, and [Config.DirectToScreen]
-// draws into the final screen instead of Ebitengine's offscreen.
+// draws into the final screen instead of Ebitengine's offscreen, under
+// OpenGL, the only graphics library that keeps the screen between the render
+// passes of a frame.
 //
 // # Drawing
 //
