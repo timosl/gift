@@ -109,6 +109,24 @@ var views = []struct {
 		why: navigationWhy,
 	},
 	{
+		name: "ui.Popover", set: setMinimal, v: ui.Popover(ui.Box(), nil),
+		why: presenterWhy,
+	},
+	{
+		name: "ui.Menu", set: setMinimal, v: ui.Menu(ui.Box()),
+		why: presenterWhy,
+	},
+	{
+		name: "ui.ContextMenu", set: setMinimal, v: ui.ContextMenu(ui.Box()),
+		why: presenterWhy,
+	},
+	{name: "ui.panel", set: setInternal, why: "the card of a popover and of a menu in the top layer; its settings are PopoverView's"},
+	{name: "ui.menuButton", set: setInternal, why: "the control of ui.Menu, which carries its settings"},
+	{name: "ui.menuList", set: setInternal, why: "the rows of an open menu"},
+	{name: "ui.menuRow", set: setInternal, why: "one item of an open menu; its settings are MenuItemView's"},
+	{name: "ui.menuRule", set: setInternal, why: "the hairline or the band between items of an open menu"},
+	{name: "ui.contextHost", set: setInternal, why: "the content of ui.ContextMenu with its input"},
+	{
 		name: "ui.sheetPanel", set: setInternal,
 		why: "the node a presented sheet hangs under: it sizes the panel from the window " +
 			"and is the thing that moves. Its settings are SheetView.Height and " +
@@ -211,6 +229,11 @@ var views = []struct {
 // the bottom of the screen — which is not a layout an application wants and is
 // two lines of VStack away for one that does. A Modal is transparent: it has
 // no bounds of its own beyond the ones its content takes.
+// presenterWhy is why the views that present a popover or a menu carry the
+// minimal set only.
+const presenterWhy = "it takes the size of the view it wraps, which carries its own modifiers, " +
+	"and what it presents is drawn in the top layer, styled by its own settings"
+
 const navigationWhy = "a navigation container fills what it is given and draws its own chrome; " +
 	"see ui.TabBarView on why its metrics are constants rather than modifiers"
 
