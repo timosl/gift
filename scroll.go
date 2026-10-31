@@ -212,6 +212,16 @@ type ScrollSpec struct {
 	// property ui.ScrollView documents and gifttest asserts. A container that
 	// does not read [LayoutContext.ScrollOffset] has nothing to gain from it.
 	Virtual bool
+
+	// LeadingHold makes the content rest pulled past its leading end by this
+	// many offset units instead of springing back to it, for as long as it is
+	// set: the room a pull-to-refresh spinner stays in while the refresh
+	// runs, as UIKit's refresh control keeps it with a content inset. The
+	// content moves there from wherever it is with the spring of the rubber
+	// band, and back when the hold goes to zero. A finger takes hold of it
+	// where it shows. It needs the rubber band and does nothing with
+	// [ScrollConfig.HardStop].
+	LeadingHold float32
 }
 
 // velSamples is the size of the velocity ring. Eight samples at sixty hertz
@@ -296,6 +306,9 @@ type scrollState struct {
 	bouncing          bool
 	overFrom, overVel float32
 	overStart         time.Duration
+	// hold is [ScrollSpec.LeadingHold] and overTo the displacement the
+	// running bounce springs to; see [scrollState.rest].
+	hold, overTo float32
 
 	// lastActive is the clock value at which this container last moved or was
 	// last touched by a gesture. [ScrollInfo.IdleFor] is derived from it.
@@ -744,7 +757,7 @@ func (a *App) startFling(h scene.Handle, s *scrollState, v float32) {
 
 func (a *App) stopFling(s *scrollState) {
 	s.flinging, s.vel = false, 0
-	s.bouncing, s.pull, s.over = false, 0, 0
+	s.bouncing, s.pull, s.over = false, 0, s.rest()
 }
 
 // tickScrolls advances every running fling to now. It is called once per input
@@ -865,6 +878,11 @@ type ScrollInfo struct {
 	Dragging bool
 	// Virtual mirrors [ScrollSpec.Virtual].
 	Virtual bool
+	// Overscroll is how far the content is displaced past an end by the
+	// rubber band, a hold or a bounce, in offset units: negative past the
+	// leading end, where a pull-to-refresh spinner shows, positive past the
+	// trailing one.
+	Overscroll float32
 
 	// IdleFor is how long ago this container last moved, measured on the
 	// clock passed to [App.BeginInput].
@@ -894,6 +912,7 @@ func (s *scrollState) info(now time.Duration) ScrollInfo {
 		Flinging:       s.flinging,
 		Dragging:       s.dragging,
 		Virtual:        s.virtual,
+		Overscroll:     s.over,
 		IdleFor:        now - s.lastActive,
 	}
 }
@@ -1361,7 +1380,7 @@ func ScrollInteractor() Interactor { return scrollHandler{} }
 // grab. It is replaced only when the axis changes, because an offset measured
 // along y means nothing along x — and a grab taken along y means nothing
 // along x either.
-func (a *App) applyScroll(nd *nodeData, spec *ScrollSpec) {
+func (a *App) applyScroll(h scene.Handle, nd *nodeData, spec *ScrollSpec) {
 	if spec == nil {
 		nd.scroll = nil
 		return
@@ -1377,6 +1396,18 @@ func (a *App) applyScroll(nd *nodeData, spec *ScrollSpec) {
 	s.axis = spec.Axis
 	s.cfg = spec.Config.withDefaults()
 	s.virtual = spec.Virtual
+	hold := spec.LeadingHold
+	if !usableScrollValue(hold) || s.cfg.HardStop {
+		hold = 0
+	}
+	if hold != s.hold {
+		// The rest moved: spring to the new one from where the content
+		// shows, unless a finger holds it, which springs it on release.
+		s.hold = hold
+		if !s.dragging && s.over != s.rest() {
+			a.startBounce(h, s, s.over, 0)
+		}
+	}
 	if nd.interactor == nil {
 		// A scroll container has to be a hit target, or the wheel would never
 		// reach it and a drag on its background would go nowhere. gift

@@ -210,7 +210,7 @@ func (a *App) applyElement(h scene.Handle, nd *nodeData, desc childDesc, owner *
 		a.setObstruction(scene.Handle{})
 	}
 	nd.xform = desc.elem.Transform
-	a.applyScroll(nd, desc.elem.Scroll)
+	a.applyScroll(h, nd, desc.elem.Scroll)
 	nd.ia.Disabled = desc.elem.Disabled
 	if nd.disabled || nd.interactor == nil {
 		nd.ia.Hover, nd.ia.Pressed = false, false

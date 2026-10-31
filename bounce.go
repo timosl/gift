@@ -42,10 +42,40 @@ func rubber(p, dim float32) float32 {
 	return r
 }
 
+// rubberInverse is the pull that shows the displacement r: the inverse of
+// rubber, for a finger that takes hold of content which is already
+// displaced, by a hold or by a bounce under way.
+func rubberInverse(r, dim float32) float32 {
+	if !(dim > 0) || r == 0 {
+		return 0
+	}
+	a := min(absf(r), dim*0.999)
+	p := (1/(1-a/dim) - 1) * dim / 0.55
+	if r < 0 {
+		return -p
+	}
+	return p
+}
+
+// rest is the displacement the content comes to rest at: past the leading end
+// by the hold of [ScrollSpec.LeadingHold] while it is at that end, and none
+// otherwise.
+func (s *scrollState) rest() float32 {
+	if s.hold > 0 && s.off <= 0 {
+		return -s.hold
+	}
+	return 0
+}
+
 // dragBounce moves a bouncing container by d offset units under a finger.
 // Within the bounds it scrolls; past them the rest becomes pull.
 func (a *App) dragBounce(h scene.Handle, s *scrollState, d float64) {
 	s.bouncing = false
+	if s.pull == 0 && s.over != 0 {
+		// Taken hold of while displaced: carry on from where it shows
+		// rather than jumping back to the end.
+		s.pull = rubberInverse(s.over, s.viewport)
+	}
 	if s.pull != 0 {
 		p := s.pull + float32(d)
 		if (p > 0) == (s.pull > 0) && p != 0 {
@@ -77,10 +107,11 @@ func (a *App) releaseBounce(h scene.Handle, s *scrollState) {
 }
 
 // startBounce starts the spring from displacement x0 with velocity v0, both
-// in offset units, and enrols the container in the scroll tick.
+// in offset units, towards the rest of [scrollState.rest], and enrols the
+// container in the scroll tick.
 func (a *App) startBounce(h scene.Handle, s *scrollState, x0, v0 float32) {
 	s.bouncing = true
-	s.overFrom, s.overVel, s.overStart = x0, v0, a.in.now
+	s.overFrom, s.overVel, s.overStart, s.overTo = x0, v0, a.in.now, s.rest()
 	s.over = x0
 	for _, existing := range a.in.flings {
 		if existing == h {
@@ -93,20 +124,21 @@ func (a *App) startBounce(h scene.Handle, s *scrollState, x0, v0 float32) {
 }
 
 // stepBounce advances the spring: critically damped, so it returns without
-// swinging through the end, x(t) = (x0 + (v0 + ω·x0)·t)·e^(−ω·t). It reports
-// whether the container is still moving.
+// swinging through its rest, x(t) = r + (d0 + (v0 + ω·d0)·t)·e^(−ω·t) with
+// d0 = x0 − r. It reports whether the container is still moving.
 func (a *App) stepBounce(h scene.Handle, s *scrollState, now time.Duration) bool {
 	t := (now - s.overStart).Seconds()
 	const w = bounceStiffness
-	x0, v0 := float64(s.overFrom), float64(s.overVel)
+	r := float64(s.overTo)
+	d0, v0 := float64(s.overFrom)-r, float64(s.overVel)
 	e := math.Exp(-w * t)
-	x := (x0 + (v0+w*x0)*t) * e
-	v := (v0 - w*(v0+w*x0)*t) * e
+	d := (d0 + (v0+w*d0)*t) * e
+	v := (v0 - w*(v0+w*d0)*t) * e
 	a.markNeedsPaint(h)
-	if math.Abs(x) < 0.25 && math.Abs(v) < 20 {
-		s.over, s.bouncing = 0, false
+	if math.Abs(d) < 0.25 && math.Abs(v) < 20 {
+		s.over, s.bouncing = s.overTo, false
 		return false
 	}
-	s.over = float32(x)
+	s.over = float32(r + d)
 	return true
 }
