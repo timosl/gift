@@ -2739,6 +2739,579 @@ eine strukturierte ersetzt, die jede Komponente zeigt.
   (`-dir`), `-sample` fuer den eingebetteten Clip; `videoplayer.OnClose` setzt
   einen Schliessen-Knopf oben links, der zur Auswahl zurueckfuehrt.
 
+## 37. Karten: eine Kartenansicht nach dem Vorbild von MapKit
+
+Status: Plan zum Review, 31.10.2026. Nichts davon ist gebaut.
+
+Angefordert: eine eigene Kartendarstellung wie MapKit. Einsatz sind
+klassische POI-Marker, vor allem aber Fotos mit Geokoordinaten wie in der
+Karte der iOS-Fotos-App: beim Pinch-Zoom verschmelzen Fotocluster oder brechen
+auseinander, was die Zahl der gezeichneten Dinge begrenzt und die Karte
+lesbar haelt. Was ausserhalb des Sichtbaren liegt, wird nie gezeichnet. Als
+zweites Szenario das Wetter als quasi dreidimensionale, parallaxe Ebenen
+ueber der Karte: Wolken, Niederschlag, Wind.
+
+### Datenquelle: OpenStreetMap ja, die Kachelserver der OSMF nur zum Entwickeln
+
+OSM ist die richtige Datenbasis: weltweit, aktuell, frei unter ODbL. Pflicht
+ist die sichtbare Namensnennung "© OpenStreetMap-Mitwirkende" auf der Karte,
+ueblich unten rechts, nicht hinter einem Schalter und nicht unter
+Bedienelementen.
+
+Die Kachelserver der OSM Foundation (`tile.openstreetmap.org`) sind dagegen
+keine Produktquelle. Ihre Richtlinie, gelesen am 31.10.2026, verlangt einen
+eindeutigen, stabilen User-Agent (generische wie `Go-http-client/1.1` werden
+blockiert), Caching nach den HTTP-Headern oder mindestens sieben Tage, und sie
+verbietet Bulk-Download, Prefetch-Funktionen und Kachelarchive zur Weitergabe.
+Es gibt kein SLA, der Zugang kann ohne Ankuendigung entzogen werden, und fuer
+Offline-Karten verweist sie ausdruecklich auf Selbsthosten oder Anbieter, die
+das erlauben. Fuer Entwicklung und Handtests passt das, fuer einen Kiosk auf
+dem Pi, der auch ohne Netz laufen soll, nicht.
+
+**Entschieden am 31.10.2026:** die Kartenquelle ist hinter einer Naht
+abstrahiert, damit der Anbieter bei Bedarf wechseln kann (siehe "Die
+Kartennaht"). Begonnen wird mit selbst gehosteten **Vektorkacheln aus OSM im
+PMTiles-Format** (Protomaps), zuerst einem Ausschnitt von Oldenburg. Ein
+PMTiles-Archiv ist eine einzige Datei, gelesen von der SD-Karte oder per
+HTTP-Range-Request von einem beliebigen statischen Webserver, ohne
+Kachelserver. Kommerzielle Anbieter (MapTiler, Stadia, Thunderforest) und die
+OSMF-Server zum Entwickeln haengen an derselben Naht.
+
+### Datenzugang, geprueft am 31.10.2026
+
+| Quelle                                             | Befund                                                                                       |
+|----------------------------------------------------|----------------------------------------------------------------------------------------------|
+| OSM-Rasterkacheln `tile.openstreetmap.org`         | erreichbar; PNG 256², `ETag`, `max-age` etwa ein Tag, `stale-while-revalidate` sieben Tage   |
+| Protomaps `build.protomaps.com/JJJJMMTT.pmtiles`   | erreichbar; taeglich, 139 GB, `Accept-Ranges: bytes`, Kopf `PMTiles` per Range gelesen      |
+| Geofabrik-Extrakte                                 | erreichbar; Rohdaten je Region, nur noetig, falls eigene Kacheln gebaut werden               |
+| DWD ICON-D2 (`clcl`, `clcm`, `clch`, `u_10m`, …)   | erreichbar; GRIB2, bz2, auch als regulaeres Lat/Lon-Gitter, nicht nur ikosaedrisch           |
+| DWD Radar-Komposit `composite/rv`                  | erreichbar; alle fuenf Minuten ein tar-Archiv                                                |
+| Open-Meteo                                         | erreichbar; JSON, global, kommerziell nur mit Abo                                            |
+| RainViewer                                         | erreichbar; globale Radarkacheln, Bedingungen des freien Zugangs vor Nutzung pruefen         |
+
+Tests laufen nie gegen das Netz, so wie die Galerie-Goldens ihre Bilder
+erzeugen, statt sie einzuchecken: eine synthetische Kachelquelle, die z/x/y
+und ein Gitter in jede Kachel zeichnet, ein Katalog von 100 000 Fotos mit
+festem Seed in Haeufungen um Staedte, im Test erzeugte Vektorkacheln und
+Wetterfelder.
+
+**Der Oldenburg-Ausschnitt** fuer Handtests und Pi-Messungen liegt seit dem
+31.10.2026 vor. Er ist nicht eingecheckt, weil ein Auszug der Datenbank unter
+ODbL steht, sondern wird mit dem offiziellen Werkzeug von Protomaps geschnitten.
+Das Werkzeug ist keine Abhaengigkeit von gift:
+
+```sh
+dir="$HOME/Library/Caches/gift/maps"   # Linux: ${XDG_CACHE_HOME:-$HOME/.cache}/gift/maps
+mkdir -p "$dir"
+go run github.com/protomaps/go-pmtiles@v1.31.2 extract \
+    https://build.protomaps.com/20261031.pmtiles "$dir/oldenburg.pmtiles" \
+    --bbox=8.05,53.05,8.35,53.23
+```
+
+Die taeglichen Builds bleiben nur eine Weile liegen; das aktuelle Datum steht
+unter docs.protomaps.com/basemaps/downloads. Abgelegt ist der Ausschnitt unter
+`os.UserCacheDir()/gift/maps/oldenburg.pmtiles`, auf dem Mac
+`~/Library/Caches/gift/maps`, auf dem Pi `~/.cache/gift/maps`, damit Beispiele
+und optionale Tests ihn auf beiden ohne Flag finden.
+
+| Eigenschaft                 | Wert                                                                     |
+|-----------------------------|--------------------------------------------------------------------------|
+| Groesse                     | 14 MB, 1149 Kacheln, Zoom 0 bis 15, 58 Range-Requests in 5 s            |
+| Inhalt                      | Protomaps Basemap 4.15.2, OSM-Stand 31.10.2026 04:00 UTC, MVT, gzip      |
+| Ebenen                      | earth, water, landuse, landcover (bis z7), roads, buildings (ab z11), boundaries, places, pois |
+| dichteste Kachel (z15, Innenstadt) | 4816 Objekte, davon 2797 Gebaeude und 1730 POIs; rund 50 000 Geometriewerte; 188 KB entpackt |
+
+Die letzte Zeile ist die Grundlage fuer die Rasterzeit im Abschnitt
+Vektorkacheln. Zum Selbsthosten genuegt jeder statische Server mit
+Range-Unterstuetzung (nginx, Caddy, S3-kompatibler Speicher).
+
+**Vorab zu beheben:** `asset.HTTP` setzt keinen User-Agent und sendet damit
+den Go-Standard, den die OSM-Server blockieren. Die Richtlinie verlangt von
+einem SDK einen sinnvollen eigenen Standard, der den SDK-Namen und eine URL
+nennt, und eine einfache Ueberschreibung. Das betrifft jede HTTP-Quelle in
+gift, nicht nur Karten.
+
+### Die Kartennaht: Anbieter austauschbar
+
+Ein Anbieter ist mehr als eine URL: Kachelart, Schema, Zoomgrenzen,
+Abdeckung, Namensnennung und ob er Vorausladen erlaubt. All das steht in der
+Naht, damit sich die Karte nach dem Anbieter richtet und nicht nach Annahmen:
+
+```go
+// Provider liefert die Kacheln einer Karte.
+type Provider interface {
+    Info() ProviderInfo
+    // Tile liefert eine Kachel oder ErrNoTile, wenn es sie nicht gibt
+    // (ausserhalb der Abdeckung, leeres Meer); andere Fehler gelten als
+    // voruebergehend und werden wiederholt.
+    Tile(ctx context.Context, t TileID) (Tile, error)
+}
+
+type ProviderInfo struct {
+    Kind        TileKind // Raster oder Vector
+    Schema      string   // bei Vektor: "protomaps-v4", "openmaptiles", ...
+    MinZoom     int
+    MaxZoom     int      // darueber wird die letzte Stufe vergroessert
+    TileSize    int      // 256 oder 512 logische Pixel
+    Bounds      geo.Rect // ausserhalb wird nichts angefragt
+    Attribution string
+    Prefetch    bool     // darf vorausgeladen werden; die OSMF verbietet es
+}
+
+type Tile struct {
+    Data     []byte     // PNG, JPEG, WebP oder MVT, entpackt
+    Format   TileFormat
+    Revision string     // fuer den Cache; leer bei unveraenderlichen Archiven
+}
+```
+
+| Anbieter                                           | Konstruktor              |
+|----------------------------------------------------|--------------------------|
+| PMTiles-Datei, selbst gehostet und offline (zuerst)| `maps.PMTiles(path)`     |
+| PMTiles per HTTP-Range, selbst gehostet            | `maps.PMTilesURL(url)`   |
+| XYZ-Vorlage: OSMF zum Entwickeln, MapTiler, Stadia, Thunderforest | `maps.XYZ(template, info)` |
+| synthetisch, fuer Tests                            | `maps.DebugTiles()`      |
+
+Ein PMTiles-Archiv nennt im Kopf, ob es Vektor- oder Rasterkacheln enthaelt;
+`maps.PMTiles` meldet die Art danach, ein Raster-Archiv funktioniert also
+ebenso.
+
+**Der Stil haengt am Schema, nicht am Anbieter.** Vektoranbieter teilen OSM
+als Quelle, aber nicht das Schema: Protomaps nennt seine Ebenen `roads` und
+`earth`, OpenMapTiles (MapTiler) `transportation` und `landcover`. Ein
+`maps.Style` erklaert, fuer welches Schema er gilt, und die Karte weist einen
+Stil fuer ein anderes Schema bei der Konstruktion zurueck, statt eine leere
+Karte zu zeigen. Zuerst ein Stil fuer Protomaps v4, hell und dunkel nach dem
+Theme von gift. Ein Wechsel zwischen Rasteranbietern kostet also nichts, ein
+Wechsel zu einem Vektoranbieter mit anderem Schema einen zweiten Stil.
+
+**Anschluss an die Pipeline.** Ein Adapter macht aus einer Kachel eine
+`asset.Source` (ID aus Anbieter und z/x/y, Revision aus der Antwort), damit
+Prioritaeten, Budgets und bandweise Uploads ohne Sonderweg gelten.
+Rasterkacheln decodiert die Pipeline wie jedes Bild. Fuer Vektorkacheln
+bekommt sie eine Decode-Stufe, die statt eines Bildformats MVT mit Stil, Zoom
+und Dichte zu Pixeln rastert; Stil und Dichte gehoeren dann in den
+Cache-Schluessel. Ob gerasterte Kacheln auf die Platte gehoeren, entscheidet
+die Messung: Rastern gegen das Lesen von 1 MiB je Kachel von der SD-Karte.
+
+### Koordinaten und Genauigkeit
+
+- Web Mercator (EPSG:3857), Kacheln im XYZ-Schema, Breite begrenzt auf
+  ±85,0511°.
+- Weltkoordinaten als float64 im Einheitsquadrat. Eine Kachel hat 256 logische
+  Pixel bei ganzzahligem Zoom; der Zoom ist stetig, float64, 0 bis etwa 20.
+- float32 reicht nicht: bei Zoom 20 ist die Welt 2^28 Pixel breit, float32 hat
+  24 Bit Mantisse. Gerechnet wird in float64 und erst relativ zur Kameramitte
+  nach float32 gewandelt, dieselbe Regel wie fuer grosse Dokumentpositionen
+  der Galerie (Abschnitt 10).
+- In x wiederholt sich die Welt wie bei MapKit: Kacheln modulo 2^z, Marker in
+  jeder sichtbaren Kopie.
+
+### Kamera und Gesten
+
+`Camera{Center, Zoom, Heading}`. Eine Neigung (Pitch) ist vorgesehen, aber
+nicht Teil dieser Lieferung. Dazu `geo.Region` (Mitte und Spanne) fuer "zeige
+diese Koordinaten mit diesen Raendern" wie `MKCoordinateRegion`.
+
+Gesten aus `ui/gesture`, Physik aus `ui/motion`, beides aus Abschnitt 26:
+
+- Verschieben: Drag folgt dem Schwerpunkt der Finger, der Wurf bremst wie
+  UIScrollView.
+- Pinch: Magnify mit der Ankerformel aus Abschnitt 26, in Weltkoordinaten. Der
+  Weltpunkt unter dem Schwerpunkt bleibt unter dem Schwerpunkt. Ueber die
+  Zoomgrenzen hinaus Rubberband auf log(Zoom) wie im Bildbetrachter; ein Pinch
+  mit Schwung zoomt nach, wie bei MapKit.
+- Drehen: Rotate, bisher erkannt, aber ungenutzt, setzt das Heading. Am
+  Gestenende rastet es unter etwa 7° auf Nord ein. Ein Kompass erscheint,
+  sobald das Heading nicht null ist; ein Tipp darauf dreht nach Norden.
+- Doppeltipp: eine Stufe hinein um den Tipp. Zwei-Finger-Tipp: eine Stufe
+  hinaus.
+- Desktop: das Mausrad zoomt um den Zeiger. Ein Trackpad (`Event.Precise`)
+  verschiebt und zoomt mit Strg oder Befehlstaste, weil GLFW das Trackpad-Pinch
+  auf dem Mac nicht liefert (Abschnitt 26). Pfeiltasten verschieben, Plus und
+  Minus zoomen.
+- Programmatisch `SetCamera(c, animated)`. Grosse Spruenge fliegen nach van
+  Wijk und Nuij (heraus, hinueber, hinein, wie `flyTo` bei Mapbox), kurze
+  federn.
+
+### Kacheln: sichtbare Menge, Ersatz, Budgets
+
+- Die sichtbare Menge ist der Schnitt des Viewports mit dem Kachelgitter, nicht
+  seine Bounding-Box. Bei gedrehter Karte ist der Viewport in Weltkoordinaten
+  ein gedrehtes Rechteck, und die Bounding-Box enthielte bis zu doppelt so
+  viele Kacheln. Gerechnet wird mit einem konvexen Polygon, damit eine spaetere
+  Neigung (dann ein Trapez) denselben Code nutzt.
+- Kachelstufe z = round(Zoom); die Kachel wird um 2^(Zoom−z) skaliert, also
+  zwischen 0,71 und 1,41.
+- Nie leer, nie flackernd: fehlt eine Kachel, zeichnet die Karte den
+  naechsten fertigen Vorfahren als Ausschnitt (Clip und uebergrosse Bounds,
+  wie `OpImage` es vorsieht) oder fertige Kinder. Beim Stufenwechsel bleibt
+  die alte Menge stehen, bis die neue vollstaendig ist.
+- Kacheln sind `asset.Source`s und laufen durch die vorhandene Pipeline:
+  Prioritaet `Visible`, Disk-Cache mit ETag, Decode-Worker, Upload-Budget und
+  bandweise Uploads. Prefetch (ein Ring um den Viewport, die naechste Stufe in
+  Pinch-Richtung) nur fuer Quellen, die es erlauben; fuer die OSMF ist er aus.
+- Texturbudget mit LRU nach letzter Verwendung; eine im laufenden Frame
+  gezeichnete Kachel wird nie verdraengt, dieselbe Regel wie im Glyphenatlas.
+  Eine 256²-Kachel sind 256 KiB, bei Dichte 2 sind es 1 MiB. Full HD bei
+  Dichte 1 zeigt etwa 40 Kacheln; 128 im Budget sind 32 MiB.
+- Fuer Rasterkacheln braucht der Render-Vertrag nichts Neues: `OpImage` mit
+  Transform und Clip genuegt.
+- Risiko Naehte: bei gebrochenem Zoom und Drehung zeigen benachbarte Quads mit
+  linearer Filterung haarfeine Kanten. Gegenmittel, im ersten Schritt per
+  Golden zu entscheiden: die Abtastung auf die eigenen Texel begrenzen und die
+  Ecken einer Stufe gemeinsam rechnen, oder alle Kacheln einer Stufe in eine
+  Ebene zeichnen und diese drehen.
+
+### Vektorkacheln
+
+Aus dem PMTiles-Archiv, ohne neue Abhaengigkeit:
+
+- PMTiles v3 lesen: 127 Byte Kopf, gzip-komprimierte Verzeichnisse, Varints,
+  Kachel-IDs entlang der Hilbert-Kurve. Quelle eine lokale Datei oder
+  HTTP-Range-Requests.
+- MVT ist Protobuf; dafuer ein kleiner eigener Decoder. gift hat vier direkte
+  Abhaengigkeiten, eine Protobuf-Bibliothek fuer drei Nachrichtentypen waere
+  unverhaeltnismaessig.
+- Zeichnen zuerst auf der CPU: jede Kachel wird in einem Worker mit dem
+  Rasterizer der Icons (`x/image/vector`) in Geraeteaufloesung gerastert und
+  laeuft danach als Bild durch dieselbe Pipeline wie eine Rasterkachel, mit
+  Budgets, Cache und bandweisem Upload. Kein neuer Render-Op.
+- Beschriftungen werden nicht in die Kacheln gebacken, sondern live gesetzt:
+  aufrecht bei jeder Drehung, mit Kollisionserkennung nach Prioritaet und
+  Einblenden wie bei MapKit. Zuerst Punktbeschriftungen (Orte, POIs) und gerade
+  Strassennamen, gebogene spaeter.
+- Die Alternative ist ein Render-Op fuer Dreiecke mit einmal je Kachel
+  triangulierten Flaechen (earcut): scharf bei jedem gebrochenen Zoom, aber
+  eine Erweiterung des Vertrags. Entscheidung nach Messung an der dichtesten
+  Oldenburger Kachel (z15, 4816 Objekte): rastert der Pi 5 sie in unter etwa
+  15 ms je Kern, bleibt es beim Rastern.
+
+### Punkte, Cluster und Fotos
+
+Wie bei der Galerie besitzt die Anwendung ein langlebiges Objekt, und die View
+ist nur die Deklaration darauf: `maps.NewPoints(...)` haelt Index und Cluster,
+`maps.View(m).Points(p, ...)` zeigt sie.
+
+**Index und Verfahren.** Hierarchisches Greedy-Clustering nach Supercluster
+(Mapbox): von der hoechsten Stufe abwaerts fasst jede ganzzahlige Zoomstufe
+die Eintraege der Stufe darueber innerhalb eines Radius in Bildschirmpunkten
+zusammen. Die Position eines Clusters ist der gewichtete Schwerpunkt, und
+jeder Eintrag merkt sich seinen Elternteil eine Stufe tiefer. Je Stufe ein
+statischer k-d-Baum in flachen Arrays wie KDBush. Die Vorberechnung kostet
+O(n log n) je Stufe, laeuft in einer Goroutine und wird versioniert
+uebernommen wie das Galerie-Layout. Die Bereichsabfrage je Frame allokiert
+nicht und haengt an ein Slice des Aufrufers an, der Vertrag aus Abschnitt 10.
+
+**Begrenzte Zahl.** Bei einem Radius von 60 pt zeigt Full HD in der
+Groessenordnung von 570 Clustern (Flaeche durch Radius zum Quadrat; das
+Greedy-Verfahren garantiert den Abstand nicht exakt), meist weit weniger,
+gleich ob der Katalog tausend oder eine Million Fotos hat. Gezeichnete Marker, Thumbnail-Anfragen und Texturen sind
+damit von N unabhaengig; das ist der Performance-Gewinn des Clusterns.
+
+**Stufenwechsel mit Hysterese.** Die Clusterstufe folgt dem Zoom, wechselt
+aber erst 0,1 hinter der Grenze, damit ein Pinch, der auf der Grenze
+verharrt, nicht flackert.
+
+**Verschmelzen und Aufbrechen, animiert.** Weil jeder Eintrag seinen
+Elternteil kennt, ist der Uebergang eindeutig. Beim Hineinzoomen starten die
+Kinder an der Position des Elternteils und federn an ihre eigene; beim
+Herauszoomen fliegen sie in den Elternteil, der am Ende erscheint. Eine
+kritisch gedaempfte Feder von etwa 300 ms, `motion.Spring` wie bei der
+Bildschirmtastatur. Interpoliert wird in Weltkoordinaten, damit der Uebergang
+stimmt, waehrend der Pinch weiterlaeuft.
+
+**Repraesentatives Foto.** Jeder Cluster zeigt ein Foto, berechnet bei der
+Vorberechnung als Aggregat (Supercluster kennt map und reduce): das neueste
+oder das mit der hoechsten Bewertung der Anwendung. Ein verschmolzener Cluster
+zeigt so immer das Foto eines seiner Kinder; dessen Textur liegt beim
+Verschmelzen schon bereit, und der Uebergang kann es morphen statt neu zu
+laden.
+
+**Darstellung wie in Fotos.** Abgerundetes Thumbnail mit weissem Rand und
+Schatten, die Anzahl als Plakette oben rechts, ein einzelnes Foto ohne
+Plakette. Die Thumbnails kommen ueber `ui.Picture` in der Vorschaugroesse der
+Galerie und teilen sich deren Cache.
+
+**Marker sind Views, gepoolt.** Die Anwendung baut den Inhalt eines Markers
+(`func(maps.Point) gift.View`) wie eine `MKAnnotationView`. Die Karte bindet
+Slots eines Pools um, statt zu mounten, und setzt die Positionen in ihrem
+Layout, genau wie die Galerie ihre Kacheln (Abschnitt 10).
+
+**Tippen.** Ein einzelnes Foto meldet `OnSelect(id)`. Ein Cluster zoomt
+animiert auf die Stufe, auf der er zerfaellt (`getClusterExpansionZoom` bei
+Supercluster), oder meldet `OnCluster(c)`, damit die Anwendung wie Fotos ein
+Raster der enthaltenen Bilder zeigt; dafuer passt die Galerie ueber einer
+Teilkollektion.
+
+**POIs.** Derselbe Index; Marker als Nadel mit Symbol und Titel wie
+`MKMarkerAnnotationView`. Titel ueberdecken sich nicht, der mit niedrigerer
+Prioritaet weicht.
+
+**GPS aus EXIF.** `asset` liest aus EXIF heute nur die Orientierung, im IFD0.
+Neu: dem Zeiger auf das GPS-IFD (Tag 0x8825) folgen und Breite, Laenge und
+Aufnahmezeit lesen, im selben Probe ohne zusaetzliche Ein- und Ausgabe;
+`asset.Metadata` bekommt einen Ort. Koordinaten, die erst nach dem Probing
+bekannt werden, kommen gebuendelt wie die Korrekturen der Galerie, und der
+Punktindex wird dann versioniert neu aufgebaut. HEIC spaeter, siehe
+Abschnitt 22.
+
+### Nichts ausserhalb des Sichtbaren
+
+Die Regel: kein Op, kein Request und kein Upload fuer etwas, dessen
+Bildschirmgrenzen den Viewport nicht schneiden.
+
+- Kacheln: exakter Schnitt mit dem Viewport-Polygon. Vorfahren als Ersatz
+  werden auf ihren sichtbaren Teil geclippt.
+- Marker und Beschriftungen: Indexabfrage, erweitert um die groesste
+  Ausdehnung eines Markers, dann ein genauer Test mit den sichtbaren Grenzen
+  des Markers einschliesslich Schatten und Plakette. Ein Marker, dessen
+  Ankerpunkt draussen liegt, dessen Bild aber hineinragt, wird gezeichnet;
+  einer knapp daneben nicht.
+- Wetter: die Shader decken nur den Viewport ab. Partikel leben in einem
+  Bereich relativ zum Viewport und werden neu gesetzt, wenn sie ihn verlassen.
+- Pruefbar: ein `gifttest`-Helfer, der fuer jeden Op der Anzeigeliste prueft,
+  dass seine transformierten Grenzen den Viewport schneiden, und Zaehler
+  (`Map.Stats`: gezeichnete Kacheln, Marker, Abfragen) fuer Tests und
+  `giftmetrics`.
+
+### Wetter als parallaxe Ebenen
+
+**Entschieden am 31.10.2026:** das Wettermodell ist wie die Karte hinter einer
+Naht abstrahiert. DWD und GFS sollen beide moeglich sein; begonnen wird mit
+dem genaueren DWD.
+
+**Die Wetternaht.** Die Darstellung kennt keinen Anbieter, sondern normierte
+Groessen auf einem regulaeren Lat/Lon-Gitter:
+
+```go
+package weather
+
+// Provider liefert die Felder eines Wettermodells.
+type Provider interface {
+    Info() ProviderInfo
+    // Fetch liefert die Felder des juengsten Laufs fuer Region, Zeitfenster
+    // und Groessen.
+    Fetch(ctx context.Context, q Query) (*Run, error)
+}
+
+type ProviderInfo struct {
+    Name        string
+    Coverage    geo.Rect      // ICON-D2: Deutschland und Nachbarn; GFS: die Welt
+    Resolution  float64       // nominell, km
+    Step        time.Duration // zeitlicher Abstand der Felder
+    Horizon     time.Duration // Laenge der Vorhersage
+    Cycle       time.Duration // Abstand der Modelllaeufe
+    Variables   []Variable    // was der Anbieter liefert
+    Attribution string
+}
+
+// Variable ist eine normierte Groesse: Bedeckung als Anteil von 0 bis 1,
+// Niederschlag in mm/h, Wind in m/s, Temperatur in K.
+type Variable uint8
+
+const (
+    CloudLow Variable = iota
+    CloudMid
+    CloudHigh
+    PrecipRate
+    PrecipKind // Regen, Schnee, Graupel
+    Wind10m    // Vektor
+    WindAloft  // Vektor in etwa 500 hPa; treibt die Wolken
+    Temp2m
+)
+```
+
+Jeder Anbieter schneidet sein Gitter auf die angefragte Region zu, rechnet es
+bei Bedarf auf ein regulaeres Lat/Lon-Gitter um, normiert die Einheiten und
+leitet selbst ab, was er nicht direkt liefert, etwa die Niederschlagsrate aus
+aufsummiertem Niederschlag. Fehlt einem Anbieter eine Groesse, laesst die
+Darstellung die Ebene weg, statt zu raten. Radar ist eine eigene, kleinere
+Naht, `weather.Nowcast`: Niederschlag in Minutenschritten fuer die naechsten
+ein bis zwei Stunden, wo es ihn gibt; danach uebernimmt das Modell.
+
+|                         | DWD (zuerst)                              | GFS (danach)                                   |
+|-------------------------|-------------------------------------------|------------------------------------------------|
+| Modell                  | ICON-D2                                   | GFS                                            |
+| Abdeckung, Aufloesung   | Deutschland und Nachbarn, 2,2 km          | weltweit, 0,25° (etwa 28 km)                   |
+| Laeufe, Horizont        | alle 3 h, bis 48 h                        | alle 6 h, stuendlich bis 120 h                 |
+| Wolken in drei Hoehen   | `clcl`, `clcm`, `clch`                    | `LCDC`, `MCDC`, `HCDC`                         |
+| Niederschlag            | `tot_prec` (aufsummiert), `ww`            | `PRATE`, `CRAIN`, `CSNOW`                      |
+| Wind                    | `u_10m`, `v_10m`; u, v in Druckflaechen   | `UGRD`, `VGRD` in 10 m und 500 mb              |
+| Nowcast                 | Radar-Komposit RV, 5 min, 1 km            | keiner                                         |
+| Bezug                   | opendata.dwd.de, GRIB2, bz2               | NOMADS-Filter nach Region und Groesse, GRIB2   |
+| Nutzung                 | frei, auch kommerziell, mit Quellenangabe | gemeinfrei                                     |
+
+Beide liefern GRIB2, also ein gemeinsamer Decoder in `weather`: regulaeres
+Lat/Lon-Gitter (Vorlage 3.0), einfache Packung (5.0) und die komplexe Packung
+mit raeumlicher Differenz, die GFS verwendet (5.3). Ob der DWD CCSDS packt
+(5.42), was einen eigenen AEC-Decoder braeuchte, und welches Format das
+tar-Archiv des Radars enthaelt, ist im ersten Wetterschritt zu pruefen.
+Open-Meteo waere bequemer als beide, ist kommerziell aber nur mit Abo nutzbar,
+und haengt bei Bedarf an derselben Naht.
+
+**Felder.** `weather.Field` ist ein regulaeres Gitter mit Gueltigkeitszeit,
+skalar (Bedeckung, Niederschlag) oder als Vektorfeld (Wind). Zwischen
+Zeitschritten wird interpoliert, damit Vorhersage und Nowcast als Animation
+abspielbar sind. Dekodiert wird ausserhalb der Frameschleife. Laeufe sind
+unveraenderlich und werden auf der Platte gecacht; `weather.Sky` fragt nach
+dem `Cycle` des Anbieters nach einem neuen. Auf die GPU kommen kleine
+Datentexturen, etwa 512² RGBA8 mit tief, mittel, hoch und Niederschlag, eine
+zweite fuer den Wind.
+
+**Wolken.** Je Ebene ein Shader: die Bedeckung, bilinear aus dem Gitter des
+Anbieters, moduliert ein fBm-Rauschen, das mit dem Hoehenwind treibt. Eine
+weiche Schwelle macht daraus Dichte, die Lichtrichtung eine einfache
+Schattierung. Gerechnet in halber oder viertel Aufloesung und weich
+hochskaliert: Wolken sind weich, und die Fuellrate des V3D bei Full HD ist
+knapp. Das Rauschen nutzt den Hash ohne Sinus aus 9a59e4f, damit Goldens auf
+jeder GPU stimmen.
+
+**Parallaxe.** Ueber der Karte steht eine gedachte Kamera in der Hoehe H. Eine
+Ebene in der Hoehe h wird um H/(H−h) um die Viewportmitte skaliert und bleibt
+an Weltkoordinaten verankert. Beim Verschieben laufen hohe Wolken schneller
+als der Boden, beim Pinch wachsen sie staerker. Dazu Wolkenschatten: die
+Dichte, versetzt um die Sonnenrichtung aus Zeit und Ort, dunkelt die Karte ab.
+Der Versatz waechst mit der Hoehe der Ebene und ist der staerkste
+Tiefenhinweis.
+
+**Niederschlag.** Zwei Darstellungen, waehlbar. Die klassische Radarfarbskala
+auf Bodenhoehe, informativ. Und eine atmosphaerische als prozeduraler Shader
+ohne Zustand: Regenstriche oder Flocken, in Zellen gehasht, in einigen
+Tiefen; Dichte nach Intensitaet, Neigung nach Wind, Schnee oder Regen nach
+Niederschlagsart. Ohne Partikelzustand kostet das keine CPU.
+
+**Wind.** Stroemungslinien wie bei earth.nullschool oder Windy: einige
+tausend Partikel, auf der CPU durch das Vektorfeld bewegt (RK2, unter
+0,1 ms), als verblassende Spuren gezeichnet. Dafuer fehlen dem Render-Vertrag
+zwei Dinge: ein Op fuer Dreiecke oder Liniensegmente und ein ueber Frames
+bestehendes Offscreen-Ziel fuer die Spuren; der Layer-Cache ist ein Cache und
+kein Zustand. Der Dreiecks-Op ist dieselbe Erweiterung, die die Alternative
+fuer Vektorkacheln braucht und spaeter Routen und Flaechen als Overlays. Er
+lohnt sich einmal fuer alle.
+
+**Qualitaetsstufen** wie bei Glass (Abschnitt 8): Aus; Reduziert mit
+statischen Wolken ohne Rauschanimation in viertel Aufloesung, Radarfarben und
+ohne Partikel; Voll; Adaptiv nach Messung. Animiertes Wetter haelt die
+Frameschleife am Laufen. Ruht die Karte, laeuft das Wetter mit 30 statt
+60 fps, ueber `Animate` mit Intervall wie die Bildschirmtastatur.
+
+### API-Skizze
+
+```go
+tiles, err := maps.PMTiles(filepath.Join(cache, "gift/maps/oldenburg.pmtiles"))
+if err != nil { ... }
+m := maps.New(maps.Config{
+    Tiles: tiles,               // oder maps.PMTilesURL, maps.XYZ, ...
+    Style: maps.ProtomapsStyle, // passend zum Schema der Kacheln
+})
+m.SetCamera(maps.Camera{Center: geo.LatLon(53.14, 8.21), Zoom: 12}, false)
+
+photos := maps.NewPoints(maps.Photos(collection), maps.Clustering{Radius: 60})
+sky := weather.NewSky(dwd.ICOND2(), dwd.Radar()) // spaeter auch gfs.Global()
+
+return maps.View(m).
+    Points(photos, maps.PhotoMarker).
+    OnSelect(func(id maps.ID) { /* Foto oeffnen */ }).
+    OnCluster(func(c maps.Cluster) { /* Raster zeigen oder hineinzoomen */ }).
+    Weather(sky). // *weather.Sky
+    Key("map")
+```
+
+| MapKit                                        | gift                                        |
+|-----------------------------------------------|---------------------------------------------|
+| `MKMapView`                                   | `maps.View` ueber `*maps.Map`               |
+| `MKMapCamera`                                 | `maps.Camera`                               |
+| `MKCoordinateRegion`                          | `geo.Region`                                |
+| `MKAnnotation`                                | `maps.Point`                                |
+| `MKAnnotationView`, `MKMarkerAnnotationView`  | Marker-Funktion, `maps.Marker`, `maps.PhotoMarker` |
+| `MKClusterAnnotation`                         | `maps.Cluster`                              |
+| `MKTileOverlay`                               | `maps.Provider`                             |
+| `mapView(_:regionDidChangeAnimated:)`         | `OnCameraChange`, am Ende einer Geste       |
+
+Pakete: `geo` (Koordinaten, Projektion, Region; ohne UI, wie `geom`),
+`ui/maps` (Karte, Kartennaht, Kacheln, Stil, Punkte, Marker), `weather`
+(Wetternaht, Felder, GRIB2, Darstellung) mit je einem Unterpaket pro Anbieter,
+`weather/dwd` und spaeter `weather/gfs`, damit die Anbieter austauschbar
+bleiben und eine Anwendung nur importiert, was sie nutzt. Dazu in `asset` der
+Ort in `Metadata` und der Standard-User-Agent, im Render-Vertrag spaeter der
+Dreiecks-Op und das bestehende Offscreen-Ziel.
+
+### Schritte
+
+| Schritt | Inhalt                                                                                         | Abnahme |
+|---------|------------------------------------------------------------------------------------------------|---------|
+| M1      | `geo`, Kamera, Gesten, sichtbare Menge, Ersatzkacheln, Budgets; die Kartennaht `maps.Provider` mit `maps.DebugTiles` | Anker bleibt unter dem Pinch; nichts ausserhalb (Helfer); Golden gedreht bei Zoom 3,4 ohne Naht; Pi 5, Full HD: Verschieben, Pinch, Drehen mit p95 ≤ 17,5 ms |
+| M2      | Selbst gehostete Vektorkarte: `maps.PMTiles`, `maps.PMTilesURL`, MVT, Raster-Decode-Stufe, Protomaps-Stil hell und dunkel, Live-Beschriftungen, Namensnennung; Standard-User-Agent in `asset.HTTP` | Oldenburg offline auf dem Pi und per Range von einem lokalen Server; Rasterzeit der dichtesten Kachel gemessen und Entscheidung Rastern oder Dreiecke; Verschieben und Pinch mit p95 ≤ 17,5 ms |
+| M3      | Punktindex, Clustering, gepoolte Marker, Uebergaenge, Fotomarker, GPS aus EXIF, Tippen          | 100 000 Fotos: Vorberechnung auf dem Pi im Hintergrund unter 0,5 s, Abfrage unter 50 µs ohne Allokation; Pinch ueber alle Stufen mit Thumbnails, p95 ≤ 17,5 ms |
+| M4      | Zweiter Kartenanbieter als Beweis der Naht: `maps.XYZ` fuer Raster, Pruefung des Stils gegen das Schema, kein Prefetch fuer die OSMF | Wechsel zwischen PMTiles und XYZ allein ueber die Konfiguration; Handtest gegen OSM; ein zweiter Besuch laedt nichts neu |
+| M5      | Wetter mit dem DWD: Wetternaht, GRIB2, ICON-D2, Radar RV, Wolken mit Schatten, Niederschlag, Wind mit Dreiecks-Op, Parallaxe, Stufen | Pi 5, Full HD, Stufe Reduziert mit p95 ≤ 17,5 ms; Stufe Voll gemessen |
+| M6      | GFS als zweiter Wetteranbieter; ausserhalb der Abdeckung des DWD uebernimmt GFS (`weather.Combine`) | dieselbe Szene mit beiden Anbietern; kein Sprung am Rand der Abdeckung |
+| M7      | Kitchen-Sink-Demo, Doku-Seiten                                                                 | — |
+
+Die selbst gehostete Vektorkarte (M2) kommt direkt nach dem Fundament, weil
+sie die entschiedene Quelle ist; danach die Fotos (M3) als Haupteinsatz. Der
+zweite Kartenanbieter (M4) beweist die Naht, bevor sich zu viel auf PMTiles
+eingeschliffen hat. Das Wetter zuletzt, weil es den Dreiecks-Op braucht, und
+dort derselbe Beweis mit GFS als zweitem Anbieter (M6).
+
+### Entscheidungen
+
+Am 31.10.2026 entschieden:
+
+1. Die Kartenquelle ist abstrahiert (die Kartennaht), der Anbieter wechselbar.
+   Begonnen wird mit einem selbst gehosteten PMTiles-Ausschnitt von Oldenburg.
+2. Das Wettermodell ist abstrahiert (die Wetternaht), DWD und GFS sind beide
+   vorgesehen. Begonnen wird mit dem genaueren DWD.
+
+Damit erledigt:
+
+3. Drehen: Vektorkacheln mit Live-Beschriftung kommen in M2, vor jeder
+   Rasterquelle; die Schrift bleibt bei jeder Drehung aufrecht. Ein
+   Rasteranbieter (M4) dreht seine eingebackene Schrift mit; fuer ihn kann die
+   Karte das Drehen abschalten, weil `ProviderInfo` die Kachelart nennt.
+
+Weiter gilt:
+
+4. Neigung, also echtes 3D, bleibt draussen; die sichtbare Menge ist dafuer
+   vorbereitet.
+
+Offen, aber erst fuer den Einsatz zu klaeren: ob der Ausschnitt im Produkt
+auf dem Geraet liegt (Datei) oder auf einem eigenen Server (Range). Die Naht
+kann beides.
+
+### Risiken
+
+- Das Rastern dichter Vektorkacheln ist auf dem Pi zu langsam; dann der
+  Dreiecks-Op, der fuer den Wind ohnehin kommt.
+- Die Fuellrate der Wolken auf dem V3D; dann Aufloesung und Stufen.
+- GPU-Speicher: Kacheln, Thumbnails und Wetter teilen ihn und brauchen ein
+  gemeinsames Budget.
+- GRIB2: einfache (5.0) und komplexe Packung (5.3) sind sicher noetig, ob der
+  DWD CCSDS (5.42) verwendet, ist ungeprueft, ebenso das Radarformat.
+- Vektorschemata: ein Wechsel zu einem Anbieter mit anderem Schema braucht
+  einen eigenen Stil. Das ist gewollt und in der Naht sichtbar, kostet aber
+  Arbeit je Anbieter.
+- Die taeglichen Protomaps-Builds verschwinden nach einiger Zeit. Ein
+  geschnittener Ausschnitt gehoert auf eigenen Speicher, nie als Verweis auf
+  `build.protomaps.com` in eine Konfiguration.
+- Lizenzpflichten: ODbL-Namensnennung, Quellenangabe des DWD, Lizenz des
+  Protomaps-Stils pruefen.
+
+### Quellen
+
+- OSMF Tile Usage Policy: https://operations.osmfoundation.org/policies/tiles/
+- OSM-Namensnennung: https://osmfoundation.org/wiki/Licence/Attribution_Guidelines
+- PMTiles v3: https://github.com/protomaps/PMTiles/blob/main/spec/v3/spec.md
+- Protomaps-Builds: https://docs.protomaps.com/basemaps/downloads
+- PMTiles-Werkzeug: https://github.com/protomaps/go-pmtiles
+- Mapbox Vector Tile: https://github.com/mapbox/vector-tile-spec
+- Supercluster: https://github.com/mapbox/supercluster, KDBush: https://github.com/mourner/kdbush
+- J. J. van Wijk, W. A. A. Nuij: Smooth and efficient zooming and panning, InfoVis 2003
+- DWD Open Data: https://opendata.dwd.de/, Nutzungsbedingungen: https://www.dwd.de/copyright
+- GFS ueber NOMADS: https://nomads.ncep.noaa.gov/
+- Hash ohne Sinus: https://www.shadertoy.com/view/4djSRW
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb
