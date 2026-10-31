@@ -29,7 +29,7 @@ enableGitInfo = false
     target = "i18n"
   # the component demos which draw the screenshots, see the gallery-code shortcode
   [[module.mounts]]
-    source = "../gallery"
+    source = "../../internal/showcase"
     target = "assets/gallery"
     files = ["**/*.go"]
   # the example programs, shown as they are in the repository, see the example-code shortcode

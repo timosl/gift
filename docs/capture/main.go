@@ -9,7 +9,7 @@
 //	go run ./docs/capture -examples=false # only the component demos
 //
 // Run it from the repository root on a machine with a display. For each demo
-// of docs/gallery it starts the gallery with -demo, takes one screenshot in the
+// of internal/showcase it starts docs/gallery with -demo, takes one screenshot in the
 // light and one in the dark theme, crops them to what the demo drew and writes
 // them as screenshot-light.png and screenshot-dark.png into the page bundle of
 // the component below docs/gift.dev/content/docs/components.

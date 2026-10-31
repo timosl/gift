@@ -9,7 +9,7 @@ import (
 
 // testClip is three seconds of Big Buck Bunny at 640x360 and 25 fps, with an
 // English stereo and a German 5.1 track; see testdata/README.md.
-const testClip = "testdata/bbb.mp4"
+const testClip = "../internal/sampleclip/bbb.mp4"
 
 func openTestClip(t *testing.T) *Player {
 	t.Helper()

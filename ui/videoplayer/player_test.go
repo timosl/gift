@@ -21,7 +21,7 @@ func openClip(t *testing.T) *video.Player {
 	if !ffmpeg.Available() {
 		t.Skip("FFmpeg is not installed")
 	}
-	p, err := video.Open("../../video/testdata/bbb.mp4", video.Options{})
+	p, err := video.Open("../../internal/sampleclip/bbb.mp4", video.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

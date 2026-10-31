@@ -13,7 +13,8 @@ cannot drift from the code: the snippet next to each screenshot and the API tabl
 | `docs/gift.dev/`             | Hugo site with the Hextra theme                                           |
 | `docs/gift.dev/content/docs` | the documentation, see the sections below                                 |
 | `docs/gift.dev/data/api.json`| constructors and methods of every exported type, written by `docs/apigen` |
-| `docs/gallery/`              | one demo per component, only used for the screenshots and snippets        |
+| `internal/showcase/`         | one demo per component: the screenshots, the snippets and the kitchen sink |
+| `docs/gallery/`              | runs one demo in a window, for the screenshots                            |
 | `docs/capture/`              | renders all screenshots through `giftauto`                                |
 | `docs/apigen/`               | writes `api.json` from the godoc of the source                            |
 | `docs/screenshots/`          | the screenshots of the README, not part of the site                       |
@@ -64,11 +65,13 @@ has density 2: the `gallery-shot` shortcode shows them at half their pixel size.
 
 ### Component demos
 
-Each file in `docs/gallery` registers one demo in its `init` function:
+Each file in `internal/showcase` registers one demo in its `init` function. The kitchen sink example shows
+all of them, so a new component appears there as soon as it has a demo:
 
 ```go
 func init() {
-	register(Demo{Name: "button", Group: "basic", Width: 560, Height: 200}, buttonDemo)
+	register(Demo{Name: "button", Group: "basic", Title: "Button",
+		Summary: "Runs a closure when the user taps, clicks or presses it.", Width: 560, Height: 200}, buttonDemo)
 }
 
 func buttonDemo(ctx *gift.Context) gift.View {
@@ -79,7 +82,8 @@ func buttonDemo(ctx *gift.Context) gift.View {
 ```
 
 `Name` equals the page bundle and the file name, except that the file name writes dashes as underscores
-(`progress-bar` lives in `progress_bar.go`); `Group` is the section below `components/`. The lines between the
+(`progress-bar` lives in `progress_bar.go`); `Group` is the section below `components/`. `Title` is the title of
+the page and `Summary` its line in the section index; the kitchen sink lists them. The lines between the
 markers are what `{{< gallery-code >}}` shows on the page, so keep them self-contained and readable. A demo shows
 the settled state of its component: present a sheet or an alert from the first frame instead of scripting a tap.
 `Input` takes the body of a `POST /input` for the rare demo that needs one; `FullWindow` keeps the whole window
@@ -101,7 +105,7 @@ names="SetTheme,CurrentTheme" >}}` lists package level functions. A shortcode th
 - Every statement must be true for the current source code. Verify names, signatures and behaviour in the code
   before writing them down. The godoc of gift is long and explains the reasons behind a design; summarise what a
   reader needs and link to pkg.go.dev for the rest.
-- Code snippets must compile against the current API. Prefer a demo in `docs/gallery` or an example in `cmd`
+- Code snippets must compile against the current API. Prefer a demo in `internal/showcase` or an example in `cmd`
   over a hand-written snippet; a hand-written one is checked by compiling it once.
 - Use Hextra shortcodes (`callout`, `cards`, `tabs`, `steps`) where they help. Theme CSS classes use the
   Tailwind v4 prefix `hx:`.
