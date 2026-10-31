@@ -331,6 +331,18 @@ func HTTP(rawURL string) *HTTPSource {
 // net/http one is.
 func (s *HTTPSource) WithClient(c *http.Client) *HTTPSource { s.client = c; return s }
 
+// DefaultUserAgent is the User-Agent of every request of an [HTTPSource]
+// that does not set its own with [HTTPSource.WithHeader].
+//
+// Go's own, "Go-http-client/1.1", says nothing about who is asking, and
+// servers that publish a usage policy block it: the tile servers of the
+// OpenStreetMap Foundation do, and their policy asks an SDK for exactly
+// this, a default that names the SDK and where to read about it, with a
+// simple way to override it. An application overrides it per source with
+// WithHeader("User-Agent", "MyApp/1.4 (+https://example.org)"), or for all of
+// them by assigning this variable before the first request.
+var DefaultUserAgent = "gift/1 (+https://github.com/worldiety/gift)"
+
 // WithHeader adds a request header.
 //
 // A header whose name is a well known credential carrier — Authorization,
@@ -457,6 +469,9 @@ func (s *HTTPSource) Fetch(ctx context.Context, ifRevision string) (FetchResult,
 		for _, v := range vs {
 			req.Header.Add(k, v)
 		}
+	}
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", DefaultUserAgent)
 	}
 	if tag, date, ok := splitRevision(ifRevision); ok {
 		if tag != "" {

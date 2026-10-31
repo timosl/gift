@@ -321,6 +321,11 @@
             "synopsis": "Lookup answers \"do I already have this, right now\" without scheduling anything."
           },
           {
+            "name": "Post",
+            "signature": "Post(fn func())",
+            "synopsis": "Post runs fn on the executor the pipeline delivers its results on, the UI goroutine for an application that set Config.Deliver to its App.Post."
+          },
+          {
             "name": "Request",
             "signature": "Request(req Request) Ticket",
             "synopsis": "Request schedules work and returns a ticket that can cancel it."
@@ -7910,6 +7915,12 @@
           }
         ]
       },
+      "TextStyle": {
+        "synopsis": "TextStyle is how DrawText draws a line of text.",
+        "decl": "type TextStyle struct {\n\tFont  Font\n\tSize  float32\n\tColor Color\n\tHalo  Color\n}",
+        "constructors": [],
+        "methods": []
+      },
       "TextView": {
         "synopsis": "TextView is a run of text.",
         "decl": "type TextView struct {\n\t// Has unexported fields.\n}",
@@ -8707,6 +8718,11 @@
     },
     "funcs": [
       {
+        "name": "DrawText",
+        "signature": "DrawText(ctx *gift.PaintContext, s string, at geom.Point, st TextStyle)",
+        "synopsis": "DrawText draws s in one line with the top left corner of its line box at at, in the local space of the node being painted."
+      },
+      {
         "name": "ForgetImage",
         "signature": "ForgetImage(id asset.ID)",
         "synopsis": "ForgetImage drops everything the user interface remembers about one picture: the settled request state of Image and the resident textures of every revision of it."
@@ -8735,6 +8751,11 @@
         "name": "KeyRectForTest",
         "signature": "KeyRectForTest(label string) (geom.Rect, bool)",
         "synopsis": "KeyRectForTest returns the rectangle of the key labelled label on the page that is showing, in the local space of the keyboard node, and whether there is such a key."
+      },
+      {
+        "name": "MeasureText",
+        "signature": "MeasureText(s string, st TextStyle) geom.Size",
+        "synopsis": "MeasureText returns the size of s set in one line in st: its advance width and the height of its line box."
       },
       {
         "name": "OnScreenKeyboardEnabled",

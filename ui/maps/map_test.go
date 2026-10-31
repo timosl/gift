@@ -3,6 +3,8 @@ package maps_test
 import (
 	"context"
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -304,4 +306,54 @@ func (fakeVector) Info() maps.ProviderInfo {
 
 func (fakeVector) Tile(context.Context, maps.TileID) (maps.Tile, error) {
 	return maps.Tile{}, maps.ErrNoTile
+}
+
+// extract opens the Oldenburg extract of the project plan, section 37, or
+// skips.
+func extract(t *testing.T) maps.Provider {
+	t.Helper()
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		t.Skip(err)
+	}
+	p, err := maps.PMTiles(filepath.Join(dir, "gift", "maps", "oldenburg.pmtiles"))
+	if err != nil {
+		t.Skipf("no Oldenburg extract: %v", err)
+	}
+	return p
+}
+
+// TestOldenburgIsDrawnWithItsLabels: the vector map of the extract, at a
+// street level zoom and turned, has its tiles and its labels, and draws
+// nothing outside itself.
+func TestOldenburgIsDrawnWithItsLabels(t *testing.T) {
+	s := newScene(t, maps.Config{
+		Tiles: extract(t), Style: maps.ProtomapsLight(),
+		Camera:   maps.Camera{Center: geo.LatLon(53.1405, 8.2135), Zoom: 15.3, Heading: 20},
+		Rotation: maps.RotationOn,
+	}, geom.Sz(800, 600), nil)
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		s.load(t)
+		if s.m.Stats().Labels >= 10 {
+			break
+		}
+		s.Advance(gifttest.FrameInterval)
+	}
+	st := s.m.Stats()
+	if st.Labels < 10 {
+		t.Fatalf("only %d labels in the centre of Oldenburg: %+v", st.Labels, st)
+	}
+	// Faded in.
+	s.AdvanceTicks(20, gifttest.FrameInterval)
+	glyphs := 0
+	for _, op := range s.Ops() {
+		if op.Kind == render.OpGlyphs && op.Color.A > 0.9 {
+			glyphs++
+		}
+	}
+	if glyphs < st.Labels {
+		t.Errorf("%d opaque glyph runs for %d labels", glyphs, st.Labels)
+	}
+	s.assertNothingOffscreen(t)
 }

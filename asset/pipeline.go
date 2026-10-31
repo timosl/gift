@@ -686,6 +686,22 @@ func (p *Pipeline) cancel(j *job, wid uint64) {
 	}
 }
 
+// Post runs fn on the executor the pipeline delivers its results on, the UI
+// goroutine for an application that set [Config.Deliver] to its App.Post.
+//
+// It is for work that belongs with the pictures but is not a picture: a map
+// reads the labels of a tile on a goroutine of its own beside the tile's
+// raster, and hands them to the user interface by the same route the raster
+// takes. Without a Deliver function fn runs at once, on the caller's
+// goroutine, as results do.
+func (p *Pipeline) Post(fn func()) {
+	if p.cfg.Deliver != nil {
+		p.cfg.Deliver(fn)
+		return
+	}
+	fn()
+}
+
 // rungFor maps a requested size to a ladder rung, with hysteresis against what
 // is already in the CPU cache.
 //

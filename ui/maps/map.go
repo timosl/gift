@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/worldiety/gift/geo"
+	"github.com/worldiety/gift/geom"
 	"github.com/worldiety/gift/ui"
 )
 
@@ -17,6 +18,9 @@ type Config struct {
 	// Style draws vector tiles. It is required for a vector provider and must
 	// be written for its schema; a raster provider ignores it.
 	Style *Style
+	// DarkStyle, when set, draws the vector tiles while the theme is dark;
+	// see [ProtomapsDark]. It must be written for the same schema.
+	DarkStyle *Style
 	// Camera is where the map starts. The zero value shows the world.
 	Camera Camera
 	// MinZoom and MaxZoom limit the zoom. Zero selects the provider's
@@ -48,10 +52,10 @@ const (
 // A Map belongs to the UI goroutine. Its methods are called from builds and
 // event handlers, never from other goroutines.
 type Map struct {
-	cfg   Config
-	info  ProviderInfo
-	style *Style
-	mv    mover
+	cfg    Config
+	info   ProviderInfo
+	styles [2]*Style // light and dark
+	mv     mover
 
 	minZ, maxZ float64
 	rotation   bool
@@ -62,9 +66,16 @@ type Map struct {
 	invalidate func()
 	pending    *pendingCamera
 
-	tiles tileCache
-	frame frame
-	stats Stats
+	tiles  tileCache
+	frame  frame
+	stats  Stats
+	labels labelStore
+	// fade is when each label on the map was first placed, for its fade in;
+	// frameNo is the layout pass of the last frame.
+	fade    map[string]time.Duration
+	frameNo uint64
+	// sizes are the measured labels.
+	sizes map[sizeKey]geom.Size
 
 	onCamera func(Camera)
 }
@@ -91,12 +102,18 @@ func New(cfg Config) (*Map, error) {
 		if cfg.Style == nil {
 			return nil, fmt.Errorf("maps: the vector provider %q needs a Style", info.Name)
 		}
-		if cfg.Style.Schema != info.Schema {
-			return nil, fmt.Errorf("maps: the style is for the schema %q and the provider %q has %q",
-				cfg.Style.Schema, info.Name, info.Schema)
+		for _, s := range []*Style{cfg.Style, cfg.DarkStyle} {
+			if s != nil && s.Schema != info.Schema {
+				return nil, fmt.Errorf("maps: the style is for the schema %q and the provider %q has %q",
+					s.Schema, info.Name, info.Schema)
+			}
+		}
+		cfg.Style.register()
+		if cfg.DarkStyle != nil {
+			cfg.DarkStyle.register()
 		}
 	}
-	m := &Map{cfg: cfg, info: info, style: cfg.Style, mv: newMover()}
+	m := &Map{cfg: cfg, info: info, styles: [2]*Style{cfg.Style, cfg.DarkStyle}, mv: newMover()}
 	m.minZ = math.Max(cfg.MinZoom, float64(info.MinZoom))
 	m.maxZ = cfg.MaxZoom
 	if m.maxZ <= 0 {
@@ -201,8 +218,8 @@ func (m *Map) request() {
 
 // background is the colour behind the tiles, where none has arrived yet.
 func (m *Map) background() ui.Color {
-	if m.style != nil {
-		return m.style.background()
+	if s := m.styles[m.styleIndex()]; s != nil && m.info.Kind == Vector {
+		return s.background()
 	}
 	return ui.RGB(232, 234, 237)
 }

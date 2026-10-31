@@ -16,8 +16,9 @@ import (
 // srcKey names a tile at a pixel size: one source and one entry of the image
 // pipeline.
 type srcKey struct {
-	t  TileID
-	px int
+	t     TileID
+	px    int
+	style uint8 // the light or the dark style of a vector map
 }
 
 // tileCache is the map's side of the tiles: one [asset.Source] per tile and
@@ -64,7 +65,7 @@ func (m *Map) source(k srcKey, pass uint64) *tileSource {
 	if s == nil {
 		style := "-"
 		if m.info.Kind == Vector {
-			style = m.style.id()
+			style = m.styles[k.style].id()
 		}
 		id := "maps:" + m.info.Name + "@" + m.info.Revision + "/" + style + "/" +
 			strconv.Itoa(k.px) + "/" + k.t.String()
@@ -148,6 +149,7 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 	cells := math.Exp2(float64(z))
 	ts := v.scale / cells
 	px := int(math.Round(TileSize * float64(ctx.Density())))
+	style := m.styleIndex()
 	poly := v.corners()
 
 	minX, minY, maxX, maxY := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
@@ -182,7 +184,7 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 				continue
 			}
 			s.Tiles++
-			k := srcKey{t: TileID{Z: z, X: wc, Y: r}, px: px}
+			k := srcKey{t: TileID{Z: z, X: wc, Y: r}, px: px, style: style}
 			pic := ui.RequestPicture(ctx, m.source(k, pass), px)
 			rect := geom.Rect{
 				Min: geom.Pt(float32(x0), float32(y0)),
@@ -210,7 +212,7 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 func (n *node) standIn(ctx *gift.LayoutContext, k srcKey, c int, x0, y0, ts float64, pass uint64) int {
 	m := n.m
 	for d := 1; d <= 8 && k.t.Z-d >= m.info.MinZoom; d++ {
-		a := srcKey{t: k.t.Ancestor(k.t.Z - d), px: k.px}
+		a := srcKey{t: k.t.Ancestor(k.t.Z - d), px: k.px, style: k.style}
 		if _, ok := m.tiles.loaded[a]; !ok {
 			continue
 		}
@@ -238,7 +240,7 @@ func (n *node) standIn(ctx *gift.LayoutContext, k srcKey, c int, x0, y0, ts floa
 	}
 	added := 0
 	for i := range 4 {
-		ch := srcKey{t: TileID{Z: k.t.Z + 1, X: 2*k.t.X + i%2, Y: 2*k.t.Y + i/2}, px: k.px}
+		ch := srcKey{t: TileID{Z: k.t.Z + 1, X: 2*k.t.X + i%2, Y: 2*k.t.Y + i/2}, px: k.px, style: k.style}
 		if _, ok := m.tiles.loaded[ch]; !ok {
 			continue
 		}

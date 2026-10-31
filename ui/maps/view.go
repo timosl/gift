@@ -110,6 +110,24 @@ type frame struct {
 	coarse []srcKey
 	moving bool
 	rested bool
+	// labels
+	labels []placed
+	cands  []labelCand
+	ltiles []TileID
+	boxes  []geom.Rect
+	seen   map[string]bool
+	fading bool
+	// more is set when labels were left unmeasured for a later frame.
+	more bool
+	// chrome is what the map draws over its labels.
+	chrome []geom.Rect
+	// grid is the collision grid of the boxes, cols by rows cells.
+	grid       [][]int32
+	cols, rows int
+	// candKey and candTiles are what the sorted candidates were collected
+	// for.
+	candKey   candKey
+	candTiles []TileID
 	// gesture bookkeeping: the totals of the last update of each gesture.
 	mag, rot           float64
 	anchor             geom.Point
@@ -160,12 +178,18 @@ func (n *node) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
 	v := newProjection(cc, z, hd, float64(size.W), float64(size.H))
 	n.f.proj = v
 	n.layoutTiles(ctx, v, ctx.Pass())
-	n.layoutOverlays(ctx, v)
-	n.layoutPoints(ctx, v)
-
 	// The attribution, bottom right.
 	as := ctx.Measure(0, geom.Loose(size))
-	ctx.Place(0, geom.Pt(size.W-as.W-4, size.H-as.H-4))
+	at := geom.Pt(size.W-as.W-4, size.H-as.H-4)
+	ctx.Place(0, at)
+	n.f.chrome = append(n.f.chrome[:0], geom.Rect{Min: at, Max: at.Add(geom.Pt(as.W, as.H))})
+	if hd != 0 {
+		n.f.chrome = append(n.f.chrome, compassRect(geom.Rect{Max: geom.Pt(size.W, size.H)}))
+	}
+
+	n.layoutOverlays(ctx, v)
+	n.layoutLabels(ctx, v, ctx.Pass())
+	n.layoutPoints(ctx, v)
 
 	// A camera in motion is laid out again in the next frame, and the
 	// trigger is a timer rather than a request from here: a timer fires only
@@ -176,11 +200,10 @@ func (n *node) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
 	switch {
 	case moving || m.mv.gesturing:
 		n.f.moving, n.f.rested = true, false
-		if moving {
-			ctx.After(time.Millisecond)
-		}
 	case n.f.moving:
 		n.f.moving, n.f.rested = false, true
+	}
+	if moving || n.f.rested || n.f.fading {
 		ctx.After(time.Millisecond)
 	}
 	ctx.ReportOverflow(geom.Size{})
@@ -203,6 +226,7 @@ func (n *node) Paint(ctx *gift.PaintContext) {
 		ctx.PopTransform()
 	}
 	n.paintOverlays(ctx, b)
+	n.paintLabels(ctx, b.Min)
 	ctx.PaintChildren()
 	if turned {
 		n.paintCompass(ctx, b, v.heading)
@@ -227,17 +251,21 @@ func compassRect(b geom.Rect) geom.Rect {
 // north, grey to the south.
 func (n *node) paintCompass(ctx *gift.PaintContext, b geom.Rect, heading float64) {
 	r := compassRect(b)
+	disc, south := ui.RGBA(255, 255, 255, 235), ui.RGB(150, 155, 165)
+	if n.m.styleIndex() == 1 {
+		disc, south = ui.RGBA(48, 50, 56, 235), ui.RGB(120, 124, 134)
+	}
 	ctx.Add(render.Op{Kind: render.OpShadow, Bounds: r, CornerRadius: compassSize / 2,
 		Color: ui.RGBA(0, 0, 0, 60), Blur: 6})
 	ctx.Add(render.Op{Kind: render.OpFillRoundRect, Bounds: r, CornerRadius: compassSize / 2,
-		Color: ui.RGBA(255, 255, 255, 235)})
+		Color: disc})
 	mid := geom.Pt(r.Min.X+compassSize/2, r.Min.Y+compassSize/2)
 	ctx.PushTransform(geom.Translate(geom.Pt(-mid.X, -mid.Y)).
 		Mul(geom.Rotate(float32(-heading))).Mul(geom.Translate(mid)))
 	const nw, nl = 5, 12
 	ctx.Add(render.Op{Kind: render.OpFillRoundRect, CornerRadius: nw / 2, Color: ui.RGB(230, 60, 50),
 		Bounds: geom.Rect{Min: geom.Pt(mid.X-nw/2, mid.Y-nl), Max: geom.Pt(mid.X+nw/2, mid.Y)}})
-	ctx.Add(render.Op{Kind: render.OpFillRoundRect, CornerRadius: nw / 2, Color: ui.RGB(150, 155, 165),
+	ctx.Add(render.Op{Kind: render.OpFillRoundRect, CornerRadius: nw / 2, Color: south,
 		Bounds: geom.Rect{Min: geom.Pt(mid.X-nw/2, mid.Y), Max: geom.Pt(mid.X+nw/2, mid.Y+nl)}})
 	ctx.PopTransform()
 }
@@ -247,15 +275,19 @@ func (n *node) HandleEvent(ctx *gift.EventContext, e gift.Event) bool {
 	defer func() { n.ctx = nil }()
 	switch e.Kind {
 	case gift.EventTimer:
-		if n.f.moving {
+		used := false
+		if n.f.moving || n.f.fading {
 			ctx.RequestLayout()
-			return true
+			used = true
 		}
-		if n.f.rested {
+		if n.f.rested && !n.f.moving {
 			n.f.rested = false
+			used = true
 			if n.m.onCamera != nil {
 				n.m.onCamera(n.m.Camera())
 			}
+		}
+		if used {
 			return true
 		}
 	case gift.EventPointerDown:
