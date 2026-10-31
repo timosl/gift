@@ -471,6 +471,39 @@ func TestALargePictureIsUploadedInBands(t *testing.T) {
 	}
 }
 
+// TestAPictureWaitingForABandAsksForFrames: the few bands are taken by
+// pictures a pan has moved out of view, which hold them until they are given
+// up; a new picture waits for one, and while it waits every frame asks for
+// the next, or a backend that draws on demand stops before the band is free.
+func TestAPictureWaitingForABandAsksForFrames(t *testing.T) {
+	tc := NewTextureCache(TextureConfig{UploadBytesPerFrame: 10 * 64 * 4, UploadsPerFrame: -1})
+	tc.BeginFrame()
+	for i := range maxPartial {
+		gone := pixels(32)
+		gone.Key = uint64(100 + i)
+		if _, ok := tc.Acquire(gone); ok {
+			t.Fatal("a picture larger than the budget arrived in one frame")
+		}
+	}
+	tc.Tick()
+	next := pixels(32)
+	next.Key = 200
+	for frame := 1; ; frame++ {
+		if frame > partialMaxAge+20 {
+			t.Fatal("the waiting picture never arrived")
+		}
+		tc.BeginFrame()
+		_, ok := tc.Acquire(next)
+		if ok {
+			break
+		}
+		if tc.Deferred() == 0 {
+			t.Fatalf("frame %d: the picture waits for a band and no further frame is asked for", frame)
+		}
+		tc.Tick()
+	}
+}
+
 func TestAnAbandonedPartialUploadGivesItsBytesBack(t *testing.T) {
 	released := 0
 	tc := NewTextureCache(TextureConfig{UploadBytesPerFrame: 10 * 64 * 4, UploadsPerFrame: -1})
@@ -487,5 +520,30 @@ func TestAnAbandonedPartialUploadGivesItsBytesBack(t *testing.T) {
 	}
 	if len(tc.partial) != 0 || tc.bytes != 0 || released != 1 {
 		t.Errorf("after the user went away: %d partial, %d bytes, %d released", len(tc.partial), tc.bytes, released)
+	}
+}
+
+// TestUploadsDeferredWhileThePaintRunsAskForAnotherFrame: a backend that
+// paints before it begins the frame, as DirectToScreen does, still learns
+// that the paint left pictures waiting.
+func TestUploadsDeferredWhileThePaintRunsAskForAnotherFrame(t *testing.T) {
+	r, err := NewRenderer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.SetTextures(NewTextureCache(TextureConfig{UploadBytesPerFrame: 64 * 64 * 4, UploadsPerFrame: -1}))
+	r.BeginPaint()
+	a, b := pixels(64), pixels(64)
+	a.Key, b.Key = 1, 2
+	if _, ok := r.Images().Acquire(a); !ok {
+		t.Fatal("the first picture did not fit the budget")
+	}
+	if _, ok := r.Images().Acquire(b); ok {
+		t.Fatal("the second picture fit a budget of one")
+	}
+	r.BeginFrame(geom.Sz(64, 64))
+	r.EndFrame()
+	if !r.NeedsFrame() {
+		t.Fatal("a picture the paint deferred did not ask for another frame")
 	}
 }

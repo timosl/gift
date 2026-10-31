@@ -472,7 +472,19 @@ func (t *TextureCache) acquirePartial(px render.Pixels, need int64) (render.Imag
 		}
 	}
 	if p == nil {
-		if len(t.partial) >= maxPartial || !t.makeRoom(need) {
+		if len(t.partial) >= maxPartial {
+			// Not a refusal but a wait: a band of the pictures already on
+			// their way is uploaded each frame, and this one starts when
+			// one of them is done. It counts as deferred, so that a backend
+			// that draws only on demand draws the frames in which that
+			// happens. Counted as rejected it asked for none, and a map
+			// whose screen held more than maxPartial tiles larger than the
+			// budget stopped with the rest of them missing.
+			t.stats.Deferred++
+			t.frameDeferred++
+			return render.ImageHandle{}, false
+		}
+		if !t.makeRoom(need) {
 			t.stats.Rejected++
 			return render.ImageHandle{}, false
 		}

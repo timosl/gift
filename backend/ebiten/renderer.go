@@ -288,6 +288,9 @@ type Renderer struct {
 	// progress. It is how [Renderer.Submit] knows whether it is still early
 	// enough to redirect the frame into the scene target.
 	frameBatches uint64
+	// painted is set by BeginPaint and cleared by the BeginFrame that
+	// follows it.
+	painted bool
 }
 
 // Material is what a batch is drawn with. A batch ends where the material
@@ -585,9 +588,33 @@ func (r *Renderer) BeginFrame(size geom.Size) {
 	// would hand the same budget out several times for one frame, because
 	// Ebitengine may update more often than it draws; see the project plan,
 	// sections 6 and 11.
+	//
+	// Unless [Renderer.BeginPaint] has reset it for this frame already:
+	// then the uploads of the paint are counted in it, and resetting it
+	// here would forget the deferred ones — see BeginPaint.
+	if r.painted {
+		r.painted = false
+	} else if r.textures != nil {
+		r.textures.BeginFrame()
+	}
+}
+
+// BeginPaint resets the per drawn frame upload budget before the application
+// paints, for a backend that paints before it begins the frame.
+//
+// The uploads happen while the application paints: a painter that draws a
+// picture asks for its texture then. Under [Config.DirectToScreen] the list
+// is painted in Draw and submitted later, in DrawFinalScreen, whose
+// BeginFrame used to reset the budget after the paint had counted its
+// deferred uploads in it. [Renderer.NeedsFrame] then saw none, a backend
+// that draws on demand drew no further frame, and the pictures the budget
+// had turned away stayed placeholders: a map of 1 MiB tiles under a budget
+// of 512 KiB showed fourteen of its forty tiles until it was touched.
+func (r *Renderer) BeginPaint() {
 	if r.textures != nil {
 		r.textures.BeginFrame()
 	}
+	r.painted = true
 }
 
 // Images returns the image resource service of this renderer.

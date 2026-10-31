@@ -869,6 +869,7 @@ func (g *game) drawDirect(offscreen *eb.Image, size geom.Size) {
 		return
 	}
 
+	g.r.BeginPaint()
 	g.list = g.app.Paint()
 	g.drawn++
 	g.drawnSize = size
