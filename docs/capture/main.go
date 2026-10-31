@@ -70,7 +70,9 @@ var exampleShots = []exampleShot{
 	// Three taps on "+", so the shot shows a count, both enabled buttons and
 	// the marker moved down the list; then the pointer leaves the buttons.
 	{Name: "example-counter", Input: `{"steps":[{"op":"waitFrames","frames":2},{"op":"tap","x":231,"y":201},{"op":"waitFrames","frames":2},{"op":"tap","x":231,"y":201},{"op":"waitFrames","frames":2},{"op":"tap","x":231,"y":201},{"op":"waitFrames","frames":2},{"op":"pointerMove","x":5,"y":5},{"op":"waitFrames","frames":4}]}`},
-	{Name: "example-kitchensink", Settle: 30},
+	// The colour picker near the top of the list, so the shot shows the list,
+	// the selection and a component with some colour in it.
+	{Name: "example-kitchensink", Args: []string{"-show", "color-picker"}, Settle: 30},
 	// The click selects a tile after the pictures have arrived, so both shots show the selection and a toolbar
 	// whose counters have caught up with the decoded thumbnails.
 	{Name: "example-gallery", Settle: 30, Input: `{"steps":[
