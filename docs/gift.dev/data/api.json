@@ -113,6 +113,18 @@
         "constructors": [],
         "methods": []
       },
+      "Exif": {
+        "synopsis": "Exif is what gift reads from the EXIF of a photograph besides its orientation: where and when it was taken.",
+        "decl": "type Exif struct {\n\tLocation    geo.Coordinate\n\tHasLocation bool\n\tTaken       time.Time\n}",
+        "constructors": [
+          {
+            "name": "ReadExif",
+            "signature": "ReadExif(ctx context.Context, src Source) (Exif, error)",
+            "synopsis": "ReadExif reads the location and time of a photograph from the head of src, without decoding it."
+          }
+        ],
+        "methods": []
+      },
       "FetchResult": {
         "synopsis": "FetchResult is the answer to a conditional fetch.",
         "decl": "type FetchResult struct {\n\tNotModified bool\n\tRevision    string\n\tSize        int64\n\tMIMEType    string\n\tFresh       time.Duration\n\tBody        io.ReadCloser\n}",
@@ -785,6 +797,11 @@
             "name": "BeginFrame",
             "signature": "BeginFrame(size geom.Size)",
             "synopsis": "BeginFrame implements render.Backend."
+          },
+          {
+            "name": "BeginPaint",
+            "signature": "BeginPaint()",
+            "synopsis": "BeginPaint resets the per drawn frame upload budget before the application paints, for a backend that paints before it begins the frame."
           },
           {
             "name": "EndFrame",
@@ -6472,6 +6489,11 @@
             "name": "DrawCover",
             "signature": "DrawCover(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius float32) bool",
             "synopsis": "DrawCover draws the picture into dst like FitCover: the centred part of it with the aspect ratio of dst."
+          },
+          {
+            "name": "DrawFit",
+            "signature": "DrawFit(ctx *gift.PaintContext, dst geom.Rect, fit ImageFit, tint Color, radius float32) bool",
+            "synopsis": "DrawFit draws the picture into dst as fit says, with tint and with its corners rounded by radius: FitCover fills dst and crops the overhang, as the thumbnails of a gallery or the markers of a map do."
           },
           {
             "name": "DrawTile",

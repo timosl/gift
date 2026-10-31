@@ -123,6 +123,22 @@ func (p Picture) Draw(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius 
 	return true
 }
 
+// DrawFit draws the picture into dst as fit says, with tint and with its
+// corners rounded by radius: [FitCover] fills dst and crops the overhang, as
+// the thumbnails of a gallery or the markers of a map do. It reports whether
+// it drew, as [Picture.Draw].
+func (p Picture) DrawFit(ctx *gift.PaintContext, dst geom.Rect, fit ImageFit, tint Color, radius float32) bool {
+	if p.r == nil || !p.r.ok {
+		return false
+	}
+	id, iw, ih, ok := images.resolve(ctx, p.r.key)
+	if !ok {
+		return false
+	}
+	paintImage(ctx, dst, id, iw, ih, fit, tint, radius)
+	return true
+}
+
 // DrawTile draws the whole picture stretched into dst like [Picture.Draw],
 // sampling only between the centres of its edge texels, so that pictures
 // drawn edge to edge show no seam between them under linear filtering; see

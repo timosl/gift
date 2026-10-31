@@ -21,6 +21,8 @@ type MapView struct {
 	flex       float32
 	w, h       float32
 	onTap      func(geo.Coordinate)
+	onSelect   func(Point)
+	onCluster  func(Cluster)
 	points     []pointLayer
 	overlays   []Overlay
 }
@@ -78,21 +80,41 @@ func (v MapView) Build(bc *gift.BuildContext) gift.Element {
 	if label == "" {
 		label = "Map"
 	}
-	kids := []gift.View{attribution(m.info.Attribution)}
-	kids = n.pointViews(kids)
+	// The gestures and the keys are handled by a child that covers the map,
+	// and the map keeps its own node to itself: a node has one timer, and
+	// the map's — the next frame of a motion, the retry of a tile — would
+	// replace the one a tap waits on to rule out a double tap.
+	kids := []gift.View{surface{n: n, label: label}, attribution(m.info.Attribution)}
 	return gift.Element{
 		Key:        v.key,
 		Label:      label,
 		Layouter:   n,
 		Painter:    n,
 		Interactor: n,
-		Focusable:  true,
-		MultiTouch: true,
 		Clip:       true,
 		Flex:       v.flex,
 		Children:   kids,
 	}
 }
+
+var surfaceType = gift.RegisterType("maps.surface")
+
+// surface is the input of a map: a child as large as the map that takes
+// its gestures and its keys, with "input" for its key.
+type surface struct {
+	n     *node
+	label string
+}
+
+func (surface) ViewType() gift.TypeID { return surfaceType }
+
+func (s surface) Build(*gift.BuildContext) gift.Element {
+	return gift.Element{Key: "input", Label: s.label, Layouter: s, Interactor: s, Focusable: true, MultiTouch: true}
+}
+
+func (s surface) Layout(_ *gift.LayoutContext, c geom.Constraints) geom.Size { return c.Max }
+
+func (s surface) HandleEvent(ctx *gift.EventContext, e gift.Event) bool { return s.n.input(ctx, e) }
 
 // attribution is the notice of the provider, small, in the bottom right
 // corner, on a translucent plate so it stays legible over any tile.
@@ -119,6 +141,16 @@ type frame struct {
 	fading bool
 	// more is set when labels were left unmeasured for a later frame.
 	more bool
+	// markers are the markers of the frame, hits the scratch of their
+	// queries, and pointsBusy is set while an index is being built or a
+	// level change is animated.
+	markers    []marker
+	hits       []int32
+	pointsBusy bool
+	// loading is set while a visible tile or picture has not arrived.
+	loading bool
+	// markerLayers is how many drawing layers the markers need.
+	markerLayers int32
 	// chrome is what the map draws over its labels.
 	chrome []geom.Rect
 	// grid is the collision grid of the boxes, cols by rows cells.
@@ -178,18 +210,20 @@ func (n *node) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
 	v := newProjection(cc, z, hd, float64(size.W), float64(size.H))
 	n.f.proj = v
 	n.layoutTiles(ctx, v, ctx.Pass())
-	// The attribution, bottom right.
-	as := ctx.Measure(0, geom.Loose(size))
+	// The surface over all of it, the attribution bottom right.
+	ctx.Measure(0, geom.Tight(size))
+	ctx.Place(0, geom.Point{})
+	as := ctx.Measure(1, geom.Loose(size))
 	at := geom.Pt(size.W-as.W-4, size.H-as.H-4)
-	ctx.Place(0, at)
+	ctx.Place(1, at)
 	n.f.chrome = append(n.f.chrome[:0], geom.Rect{Min: at, Max: at.Add(geom.Pt(as.W, as.H))})
 	if hd != 0 {
 		n.f.chrome = append(n.f.chrome, compassRect(geom.Rect{Max: geom.Pt(size.W, size.H)}))
 	}
 
 	n.layoutOverlays(ctx, v)
-	n.layoutLabels(ctx, v, ctx.Pass())
 	n.layoutPoints(ctx, v)
+	n.layoutLabels(ctx, v, ctx.Pass())
 
 	// A camera in motion is laid out again in the next frame, and the
 	// trigger is a timer rather than a request from here: a timer fires only
@@ -203,8 +237,14 @@ func (n *node) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
 	case n.f.moving:
 		n.f.moving, n.f.rested = false, true
 	}
-	if moving || n.f.rested || n.f.fading {
+	switch {
+	case moving || n.f.rested || n.f.fading || n.f.pointsBusy:
 		ctx.After(time.Millisecond)
+	case n.f.loading:
+		// A picture the pipeline turned away is asked for again only by
+		// a layout; while anything visible is missing, there is one ten
+		// times a second.
+		ctx.After(100 * time.Millisecond)
 	}
 	ctx.ReportOverflow(geom.Size{})
 	return size
@@ -227,6 +267,7 @@ func (n *node) Paint(ctx *gift.PaintContext) {
 	}
 	n.paintOverlays(ctx, b)
 	n.paintLabels(ctx, b.Min)
+	n.paintMarkers(ctx, b.Min)
 	ctx.PaintChildren()
 	if turned {
 		n.paintCompass(ctx, b, v.heading)
@@ -270,26 +311,34 @@ func (n *node) paintCompass(ctx *gift.PaintContext, b geom.Rect, heading float64
 	ctx.PopTransform()
 }
 
+// HandleEvent takes the map's own timer: the next frame of a motion, of a
+// transition or of a fade, the retry of what has not arrived, and the camera
+// that came to rest.
 func (n *node) HandleEvent(ctx *gift.EventContext, e gift.Event) bool {
+	if e.Kind != gift.EventTimer {
+		return false
+	}
+	n.now = ctx.Now()
+	used := false
+	if n.f.moving || n.f.fading || n.f.pointsBusy || n.f.loading {
+		ctx.RequestLayout()
+		used = true
+	}
+	if n.f.rested && !n.f.moving {
+		n.f.rested = false
+		used = true
+		if n.m.onCamera != nil {
+			n.m.onCamera(n.m.Camera())
+		}
+	}
+	return used
+}
+
+// input handles the events of the surface: the keys and the gestures.
+func (n *node) input(ctx *gift.EventContext, e gift.Event) bool {
 	n.now, n.ctx = ctx.Now(), ctx
 	defer func() { n.ctx = nil }()
 	switch e.Kind {
-	case gift.EventTimer:
-		used := false
-		if n.f.moving || n.f.fading {
-			ctx.RequestLayout()
-			used = true
-		}
-		if n.f.rested && !n.f.moving {
-			n.f.rested = false
-			used = true
-			if n.m.onCamera != nil {
-				n.m.onCamera(n.m.Camera())
-			}
-		}
-		if used {
-			return true
-		}
 	case gift.EventPointerDown:
 		ctx.RequestFocus()
 	case gift.EventKeyDown:
@@ -304,11 +353,9 @@ func (n *node) HandleEvent(ctx *gift.EventContext, e gift.Event) bool {
 	return gesture.Handle(ctx, e, n.gs)
 }
 
-// moved asks for the frames a camera change needs.
-func (n *node) moved() {
-	n.ctx.RequestLayout()
-	n.ctx.Repaint()
-}
+// moved asks for the frames a camera change needs: a layout of the map,
+// not of the surface the event arrived at.
+func (n *node) moved() { n.m.request() }
 
 func (n *node) begin() {
 	if !n.m.mv.gesturing {
@@ -411,6 +458,10 @@ func (n *node) onDoubleTap(v gesture.TapValue) {
 
 func (n *node) onTap(v gesture.TapValue) {
 	at := v.Common.Local(v.Location)
+	if k, ok := n.hitMarker(at); ok {
+		n.tapMarker(k)
+		return
+	}
 	b := geom.Rect{Max: geom.Pt(float32(n.m.mv.w), float32(n.m.mv.h))}
 	if n.f.proj.heading != 0 && compassRect(b).Contains(at) {
 		mv := &n.m.mv

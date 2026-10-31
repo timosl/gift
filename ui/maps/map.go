@@ -76,6 +76,8 @@ type Map struct {
 	frameNo uint64
 	// sizes are the measured labels.
 	sizes map[sizeKey]geom.Size
+	// layers is the state of each set of points across frames.
+	layers map[*Points]*layerState
 
 	onCamera func(Camera)
 }

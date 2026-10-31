@@ -169,6 +169,7 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 
 	s := Stats{Level: z}
 	n.f.coarse = n.f.coarse[:0]
+	n.f.loading = false
 	for r := r0; r <= r1; r++ {
 		if r < br0 || r > br1 {
 			continue
@@ -195,6 +196,11 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 				n.f.refs = append(n.f.refs, tileRef{k: k, r: rect, pic: pic, kind: refExact})
 				s.Drawn++
 				continue
+			}
+			if pic.Err() == nil {
+				// A request in flight, or one the pipeline turned away
+				// for now, which is asked again only by a later layout.
+				n.f.loading = true
 			}
 			// Still coming, or not there at all: whatever covers the place
 			// stands in.

@@ -6,6 +6,7 @@
 //	go run ./cmd/example-maps -url https://example.org/city.pmtiles
 //	go run ./cmd/example-maps -debug -heading 30
 //	go run ./cmd/example-maps -fullscreen            # a kiosk
+//	go run ./cmd/example-maps -photos 2000           # a camera roll on the map
 //
 // Pan with a finger or the mouse, zoom with two fingers, the wheel or plus
 // and minus, turn with two fingers; a double tap zooms in. -dark draws the
@@ -13,6 +14,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -25,6 +27,7 @@ import (
 	backend "github.com/worldiety/gift/backend/ebiten"
 	"github.com/worldiety/gift/geo"
 	"github.com/worldiety/gift/internal/example"
+	"github.com/worldiety/gift/internal/showcase"
 	"github.com/worldiety/gift/ui"
 	"github.com/worldiety/gift/ui/maps"
 )
@@ -46,19 +49,21 @@ func main() {
 	heading := flag.Float64("heading", 0, "heading in degrees, clockwise from north")
 	noLabels := flag.Bool("nolabels", false, "draw the map without its labels, for measuring")
 	fullscreen := flag.Bool("fullscreen", false, "start full screen, as a kiosk does")
+	photos := flag.Int("photos", 0, "show this many sample photographs around Oldenburg, clustered")
+	workers := flag.Int("workers", 2, "decode and rasterising goroutines: two leave the frame loop a core of its own on a Raspberry Pi 5")
 	upload := flag.Int("upload", 512, "texture upload budget per frame in KiB: on a Raspberry Pi 5 two tiles per frame keep a pan at 60 Hz")
 	flag.Parse()
 	if *fullscreen {
 		eb.SetFullscreen(true)
 	}
 	cam := maps.Camera{Center: geo.LatLon(*lat, *lon), Zoom: *zoom, Heading: *heading}
-	if err := run(*path, *url, *debug, *dark, *noLabels, *width, *height, *upload, cam); err != nil {
+	if err := run(*path, *url, *debug, *dark, *noLabels, *width, *height, *upload, *photos, *workers, cam); err != nil {
 		fmt.Fprintln(os.Stderr, "example-maps:", err)
 		os.Exit(1)
 	}
 }
 
-func run(path, url string, debug, dark, noLabels bool, width, height, upload int, cam maps.Camera) error {
+func run(path, url string, debug, dark, noLabels bool, width, height, upload, photos, workers int, cam maps.Camera) error {
 	if err := example.LoadFont(); err != nil {
 		return err
 	}
@@ -86,13 +91,33 @@ func run(path, url string, debug, dark, noLabels bool, width, height, upload int
 	if err != nil {
 		return err
 	}
+	var points *maps.Points
+	if photos > 0 {
+		dir, err := os.UserCacheDir()
+		if err != nil {
+			dir = os.TempDir()
+		}
+		srcs, err := showcase.MapPhotos(filepath.Join(dir, "gift", "map-photos"), photos)
+		if err != nil {
+			return err
+		}
+		pts, err := maps.LocatePhotos(context.Background(), srcs)
+		if err != nil {
+			return err
+		}
+		points = maps.NewPoints(pts, maps.Clustering{})
+	}
 	app := gift.New(gift.Options{Root: func(*gift.Context) gift.View {
-		return ui.Window(maps.View(m).Flex(1).Key("map"))
+		v := maps.View(m).Flex(1).Key("map")
+		if points != nil {
+			v = v.Points(points, maps.PhotoMarkers())
+		}
+		return ui.Window(v)
 	}})
 	if dark {
 		ui.SetTheme(app, ui.DarkTheme())
 	}
-	pipe := asset.NewPipeline(asset.Config{Deliver: app.Post})
+	pipe := asset.NewPipeline(asset.Config{Deliver: app.Post, Workers: workers})
 	defer func() {
 		pipe.Close()
 		app.DrainPosts()

@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -95,12 +96,12 @@ func (s *scene) assertNothingOffscreen(t *testing.T) {
 	view := geom.Rect{Max: geom.Pt(s.Size().W, s.Size().H)}
 	l := s.List()
 	for i, op := range s.Ops() {
-		if op.Kind != render.OpImage {
+		if op.Bounds.IsEmpty() {
 			continue
 		}
 		r := l.Xform(op.Xform).TransformRect(op.Bounds)
 		if r.Max.X <= view.Min.X || r.Min.X >= view.Max.X || r.Max.Y <= view.Min.Y || r.Min.Y >= view.Max.Y {
-			t.Errorf("op %d draws a tile at %v, outside the map %v", i, r, view)
+			t.Errorf("op %d (kind %d) draws at %v, outside the map %v", i, op.Kind, r, view)
 		}
 	}
 }
@@ -272,7 +273,7 @@ func TestTheCameraChangeIsReportedWhenItComesToRest(t *testing.T) {
 func TestTheKeysPanAndZoom(t *testing.T) {
 	s := newScene(t, maps.Config{Camera: maps.Camera{Center: geo.LatLon(0, 0), Zoom: 5}},
 		geom.Sz(512, 384), nil)
-	s.Find(gifttest.ByKey("map")).Focus()
+	s.Find(gifttest.ByKey("input")).Focus()
 	s.TypeRune('+')
 	s.AdvanceTicks(60, gifttest.FrameInterval)
 	if z := s.m.Camera().Zoom; z != 6 {
@@ -356,4 +357,103 @@ func TestOldenburgIsDrawnWithItsLabels(t *testing.T) {
 		t.Errorf("%d opaque glyph runs for %d labels", glyphs, st.Labels)
 	}
 	s.assertNothingOffscreen(t)
+}
+
+// photos is a camera roll around Oldenburg: a few hundred photographs in
+// clumps, with no pictures, whose markers draw their placeholders.
+func photos(n int) []maps.Point {
+	pts := make([]maps.Point, n)
+	for i := range pts {
+		a := float64(i) * 2.399963 // the golden angle, an even spiral
+		r := 0.002 * math.Sqrt(float64(i))
+		pts[i] = maps.Point{ID: strconv.Itoa(i), At: geo.LatLon(53.1435+r*math.Sin(a), 8.2146+1.6*r*math.Cos(a))}
+	}
+	return pts
+}
+
+func TestPhotographsClusterAndComeApartWhenZoomedIn(t *testing.T) {
+	pts := maps.NewPoints(photos(400), maps.Clustering{})
+	pts.Wait()
+	var picked []maps.Cluster
+	s := newScene(t, maps.Config{Camera: maps.Camera{Center: geo.LatLon(53.1435, 8.2146), Zoom: 11.5}},
+		geom.Sz(800, 600), func(v maps.MapView) maps.MapView {
+			return v.Points(pts, maps.PhotoMarkers()).OnCluster(func(c maps.Cluster) { picked = append(picked, c) })
+		})
+	s.AdvanceTicks(2, gifttest.FrameInterval)
+	few := s.m.Stats().Points
+	if few == 0 || few > 12 {
+		t.Fatalf("%d markers for 400 photographs at zoom 11.5, want a few clusters", few)
+	}
+	s.assertNothingOffscreen(t)
+
+	// In by two levels: the clusters come apart over the transition.
+	s.m.SetCamera(maps.Camera{Center: geo.LatLon(53.1435, 8.2146), Zoom: 13.5}, false)
+	s.AdvanceTicks(4, gifttest.FrameInterval)
+	fading := 0
+	for _, op := range s.Ops() {
+		if op.Kind == render.OpFillRoundRect && op.Color.A > 0.05 && op.Color.A < 0.95 && op.Bounds.Width() > 30 {
+			fading++
+		}
+	}
+	if fading == 0 {
+		t.Error("no marker is on its way out of its cluster a few frames into the transition")
+	}
+	s.AdvanceTicks(30, gifttest.FrameInterval)
+	many := s.m.Stats().Points
+	if many <= few {
+		t.Fatalf("%d markers after zooming in, %d before: nothing came apart", many, few)
+	}
+
+	// A tap on a cluster hands it to the application.
+	var at geom.Point
+	found := false
+	ops := s.Ops()
+	for _, op := range ops {
+		// A marker's white frame, whole on the map, with a badge at its top
+		// right.
+		if op.Kind != render.OpFillRoundRect || op.Bounds.Width() < 50 || op.Bounds.Width() > 60 ||
+			op.Bounds.Min.X < 0 || op.Bounds.Min.Y < 0 || op.Bounds.Max.X > 800 || op.Bounds.Max.Y > 600 {
+			continue
+		}
+		for _, b := range ops {
+			if b.Kind == render.OpFillRoundRect && b.Bounds.Width() >= 20 && b.Bounds.Width() < 40 &&
+				b.Bounds.Contains(geom.Pt(op.Bounds.Max.X-4, op.Bounds.Min.Y+4)) {
+				at = geom.Pt((op.Bounds.Min.X+op.Bounds.Max.X)/2, (op.Bounds.Min.Y+op.Bounds.Max.Y)/2)
+				found = true
+			}
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		t.Fatal("no badge of a cluster drawn")
+	}
+	s.TapAt(at)
+	s.AdvanceTicks(30, gifttest.FrameInterval)
+	if len(picked) != 1 || picked[0].Count < 2 || len(picked[0].Points()) != picked[0].Count {
+		t.Fatalf("picked %v", picked)
+	}
+}
+
+func TestATapOnAPlaceSelectsIt(t *testing.T) {
+	pts := maps.NewPoints([]maps.Point{
+		{ID: "theatre", Title: "Staatstheater", At: geo.LatLon(53.1405, 8.2135)},
+		{ID: "castle", Title: "Schloss", At: geo.LatLon(53.1388, 8.2135)},
+	}, maps.Clustering{})
+	pts.Wait()
+	var got []string
+	s := newScene(t, maps.Config{Camera: maps.Camera{Center: geo.LatLon(53.1405, 8.2135), Zoom: 16}},
+		geom.Sz(800, 600), func(v maps.MapView) maps.MapView {
+			return v.Points(pts, maps.PinMarkers(ui.RGB(255, 59, 48))).OnSelect(func(p maps.Point) { got = append(got, p.ID) })
+		})
+	s.AdvanceTicks(2, gifttest.FrameInterval)
+	if n := s.m.Stats().Points; n != 2 {
+		t.Fatalf("%d markers, want both places apart at zoom 16", n)
+	}
+	s.TapAt(geom.Pt(400, 300))
+	s.AdvanceTicks(30, gifttest.FrameInterval)
+	if len(got) != 1 || got[0] != "theatre" {
+		t.Fatalf("selected %v, want the theatre in the middle", got)
+	}
 }
