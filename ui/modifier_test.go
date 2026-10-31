@@ -132,6 +132,13 @@ var views = []struct {
 		name: "ui.TimeWheel", set: setMinimal, v: ui.TimeWheel(),
 		why: "two wheels of fixed widths, styled like a ui.WheelPicker",
 	},
+	{
+		name: "ui.Calendar", set: setMinimal, v: ui.Calendar(),
+		why: "a month grid of fixed rows, styled like the inline date picker of iOS; its size is Width",
+	},
+	{name: "ui.calendarCore", set: setInternal, why: "the header, weekday row and pager of a ui.Calendar, which carries its settings"},
+	{name: "ui.calendarMonth", set: setInternal, why: "the days of one month of a ui.Calendar"},
+	{name: "ui.calendarArrow", set: setInternal, why: "the previous and next month buttons of a ui.Calendar"},
 	{name: "ui.wheelColumn", set: setInternal, why: "one wheel of a ui.WheelPicker; its settings are WheelColumn's"},
 	{name: "ui.panel", set: setInternal, why: "the card of a popover and of a menu in the top layer; its settings are PopoverView's"},
 	{name: "ui.menuButton", set: setInternal, why: "the control of ui.Menu, which carries its settings"},
