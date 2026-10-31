@@ -4,6 +4,7 @@ import (
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/asset"
 	"github.com/worldiety/gift/geom"
+	"github.com/worldiety/gift/render"
 )
 
 // Picture is a handle on one picture at one size in the shared image service
@@ -119,6 +120,22 @@ func (p Picture) Draw(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius 
 		return false
 	}
 	paintImage(ctx, dst, id, iw, ih, FitStretch, tint, radius)
+	return true
+}
+
+// DrawTile draws the whole picture stretched into dst like [Picture.Draw],
+// sampling only between the centres of its edge texels, so that pictures
+// drawn edge to edge show no seam between them under linear filtering; see
+// [render.ImageTile]. It is how the tiles of a map are drawn.
+func (p Picture) DrawTile(ctx *gift.PaintContext, dst geom.Rect, tint Color) bool {
+	if p.r == nil || !p.r.ok {
+		return false
+	}
+	id, _, _, ok := images.resolve(ctx, p.r.key)
+	if !ok {
+		return false
+	}
+	ctx.Add(render.Op{Kind: render.OpImage, Bounds: dst, Color: tint, Image: id, Fit: render.ImageTile})
 	return true
 }
 

@@ -174,6 +174,14 @@ const (
 	// the picture is the centre of Bounds. Bounds is then the rectangle the
 	// picture is *seen* in, which is what a rounded corner is measured on.
 	ImageCover
+	// ImageTile maps the texture onto Bounds like [ImageStretch] but samples
+	// only between the centres of its edge texels. A picture drawn edge to
+	// edge with others — the tiles of a map — then shows no seam: under
+	// linear filtering a fragment on the very edge of a stretched texture
+	// blends the edge texel with the transparent texels outside it, and two
+	// neighbours that each do that let the background through between them.
+	// The price is a stretch by one texel in w, which no one sees.
+	ImageTile
 )
 
 // Source returns the rectangle of a w by h texture, in texels, that f maps
@@ -190,6 +198,9 @@ const (
 // of arithmetic; see [Shadow.Extent] for the same rule applied to shadows.
 func (f ImageFit) Source(dst geom.Rect, w, h int) geom.Rect {
 	full := geom.Rc(0, 0, float32(w), float32(h))
+	if f == ImageTile && w > 1 && h > 1 {
+		return geom.Rc(0.5, 0.5, float32(w)-0.5, float32(h)-0.5)
+	}
 	if f != ImageCover || w <= 0 || h <= 0 {
 		return full
 	}

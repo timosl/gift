@@ -2038,7 +2038,7 @@
       },
       "WheelValue": {
         "synopsis": "WheelValue is one scroll of a wheel or of two fingers on a trackpad.",
-        "decl": "type WheelValue struct {\n\tCommon\n\tLocation geom.Point\n\tDelta    geom.Point\n}",
+        "decl": "type WheelValue struct {\n\tCommon\n\tLocation geom.Point\n\tDelta    geom.Point\n\tPrecise  bool\n}",
         "constructors": [],
         "methods": []
       }
@@ -6467,6 +6467,11 @@
             "name": "DrawCover",
             "signature": "DrawCover(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius float32) bool",
             "synopsis": "DrawCover draws the picture into dst like FitCover: the centred part of it with the aspect ratio of dst."
+          },
+          {
+            "name": "DrawTile",
+            "signature": "DrawTile(ctx *gift.PaintContext, dst geom.Rect, tint Color) bool",
+            "synopsis": "DrawTile draws the whole picture stretched into dst like Picture.Draw, sampling only between the centres of its edge texels, so that pictures drawn edge to edge show no seam between them under linear filtering; see render.ImageTile."
           },
           {
             "name": "Err",

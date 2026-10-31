@@ -341,6 +341,9 @@ type WheelValue struct {
 	// Delta is the scroll amount as [gift.Event.Delta] defines it: positive
 	// Y is the wheel pushed away from the user.
 	Delta geom.Point
+	// Precise reports a trackpad rather than a notched wheel; see
+	// [gift.Event.Precise]. A map pans under it and zooms under a notch.
+	Precise bool
 }
 
 // WheelGesture receives the wheel.
@@ -477,7 +480,7 @@ func Handle(ctx *gift.EventContext, e gift.Event, gs []Gesture) bool {
 	case gift.EventWheel:
 		for _, g := range gs {
 			if w, ok := g.(WheelGesture); ok && w.fn != nil {
-				if w.fn(WheelValue{Common: c, Location: e.Pos, Delta: e.Delta}) {
+				if w.fn(WheelValue{Common: c, Location: e.Pos, Delta: e.Delta, Precise: e.Precise}) {
 					return true
 				}
 			}
