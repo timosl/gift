@@ -40,7 +40,8 @@ store — and open its URL with `maps.PMTilesURL`.
 
 An extract holds at every level the whole tiles that touch its region, so a coarse level shows further beyond
 the region than a fine one. The map keeps showing it when zoomed in: a tile outside the region is drawn from the
-geometry of its nearest coarser tile inside, up to four levels up, and only beyond that does the map end.
+geometry of its nearest coarser tile inside, up to the tile of level 0, which shows the whole earth. Only at level
+15 and beyond, far from the region, does the map end, where that tile would give one colour.
 
 Its tiles are vector tiles of the Protomaps basemap, schema `protomaps-v4`, which `maps.ProtomapsLight` and
 `maps.ProtomapsDark` draw. They are drawn on the processor, on the image pipeline's goroutines: the densest tile of

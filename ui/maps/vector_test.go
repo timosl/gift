@@ -240,13 +240,21 @@ func TestATileOutsideTheBoundsIsDrawnFromAnAncestorInside(t *testing.T) {
 	if !ok {
 		t.Fatal("the lake has no tile to be drawn from")
 	}
-	if got.Z >= lake.Z || got.Z < lake.Z-boundsReach || lake.Ancestor(got.Z) != got || !m.inBounds(got) {
-		t.Errorf("the lake at %v is drawn from %v, want an ancestor inside the bounds within %d levels",
-			lake, got, boundsReach)
+	if got.Z >= lake.Z || got.Z < 12 || lake.Ancestor(got.Z) != got || !m.inBounds(got) {
+		t.Errorf("the lake at %v is drawn from %v, want an ancestor inside the bounds one level up", lake, got)
 	}
 
-	// Hamburg is far beyond reach.
-	if got, ok := m.dataTile(at(53.55, 10.0, 13)); ok {
-		t.Errorf("Hamburg is drawn from %v; it is further than %d levels from the region", got, boundsReach)
+	// Madrid shares no tile with Oldenburg but the one of level 0. It is
+	// drawn from there at every level up to maxOverzoom, not only at the
+	// coarse ones: it used to be there at level 4 and missing at 5.
+	for z := 1; z <= maxOverzoom; z++ {
+		madrid := at(40.42, -3.70, z)
+		if got, ok := m.dataTile(madrid); !ok || got != (TileID{}) {
+			t.Errorf("Madrid at level %d is drawn from %v, %v; want the tile of level 0", z, got, ok)
+		}
+	}
+	// Further in, level 0 would give one colour, and nothing is drawn.
+	if got, ok := m.dataTile(at(40.42, -3.70, maxOverzoom+1)); ok {
+		t.Errorf("Madrid at level %d is drawn from %v, beyond what is drawn precisely", maxOverzoom+1, got)
 	}
 }

@@ -305,17 +305,25 @@ func (m *Map) tilesUnder(v projection, z int, poly [4][2]float64, out []TileID) 
 	return out
 }
 
-// boundsReach is how many levels above a tile outside the provider's bounds
+// maxOverzoom is how many levels above a tile outside the provider's bounds
 // its data may come from: the nearest ancestor inside them.
 //
 // A regional archive holds at every level the whole tiles that touch its
 // region, so a coarse level shows further beyond the region's edge than a
-// fine one. Without this the map dropped what the coarser level had just
-// shown, a lake a few kilometres outside, at the zoom that crossed into the
-// next level, as if it had left the window. Four levels is a tile enlarged
-// sixteen times, drawn again from its ancestor's geometry for a vector map;
-// beyond that the map ends.
-const boundsReach = 4
+// fine one, and its level 0 shows the whole earth. Without drawing from
+// there the map dropped what the coarser level had just shown, a lake a few
+// kilometres outside, at the zoom that crossed into the next level, as if it
+// had left the window. A reach of a few levels only moved that further out:
+// Spain, which shares no tile with Oldenburg but the one of level 0, was
+// drawn at level 4 and missing at level 5.
+//
+// So the reach is the whole way up, up to what the rasterizer draws
+// precisely: it computes in float64 and keeps float32, and a vertex of an
+// ancestor's geometry lands at up to 512 pixels times 2 to the levels
+// between, which at fourteen levels is still within half a pixel. Up to
+// level 14 the whole earth is drawn, and only further in, far from the
+// region, where level 0 would give one colour, does the map end.
+const maxOverzoom = 14
 
 // inBounds reports whether the tile t touches the provider's bounds.
 func (m *Map) inBounds(t TileID) bool {
@@ -328,17 +336,17 @@ func (m *Map) inBounds(t TileID) bool {
 // dataTile returns the tile of the provider whose data draws the tile t: t
 // itself, its ancestor at the provider's last level when t is above it, and
 // for a t outside the provider's bounds its nearest ancestor inside them,
-// at most boundsReach levels up. It reports false where there is none.
+// at most maxOverzoom levels above t. It reports false where there is none.
 func (m *Map) dataTile(t TileID) (TileID, bool) {
 	src := t
 	if src.Z > m.info.MaxZoom {
 		src = src.Ancestor(m.info.MaxZoom)
 	}
-	for d := 0; ; d++ {
+	for {
 		if m.inBounds(src) {
 			return src, true
 		}
-		if d >= boundsReach || src.Z <= m.info.MinZoom {
+		if t.Z-src.Z >= maxOverzoom || src.Z <= m.info.MinZoom {
 			return TileID{}, false
 		}
 		src = src.Ancestor(src.Z - 1)

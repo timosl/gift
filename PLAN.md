@@ -3413,7 +3413,12 @@ Gebaut wie geplant, mit diesen Abweichungen und Ergaenzungen:
   groebere Stufe gezeigt hatte, etwa das Zwischenahner Meer westlich von
   Oldenburg. Jetzt wird eine Kachel ausserhalb aus der Geometrie ihres
   naechsten Vorfahren innerhalb gezeichnet, wie oberhalb der letzten Stufe,
-  bis vier Stufen hinauf; eine Rasterkachel steht dort vergroessert ein.
+  bis zur Kachel der Stufe 0, die die ganze Erde zeigt; eine Rasterkachel
+  steht dort vergroessert ein. Eine Reichweite von vier Stufen verschob die
+  Grenze nur: Spanien teilt mit Oldenburg nur die Kachel der Stufe 0 und war
+  auf Stufe 4 da, auf 5 nicht. Begrenzt ist der Ueberzoom auf vierzehn
+  Stufen, bis wohin der Rasterer mit float32 auf einen halben Pixel genau
+  zeichnet.
 
 Raspberry Pi 5, Vollbild 1920 x 1080, Gestenfolge ueber die
 Automatisierung (vier Wuerfe, sechs Raststufen des Mausrads), Kiosk-
