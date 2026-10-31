@@ -98,6 +98,15 @@ type nodeData struct {
 	// payload field that outlives a build; see [nodeData.release].
 	control ControlState
 
+	// retained is the open ended sibling of control: the values of any type
+	// a node keeps across builds, one per type, created on first use; see
+	// [EventContext.Retained]. Like control it is not refreshed from the
+	// element and is dropped on unmount.
+	retained []any
+
+	// multiTouch mirrors [Element.MultiTouch].
+	multiTouch bool
+
 	// ia is the interaction state gift owns for this node. It lives here and
 	// not in the view because that is what makes hover and press survive a
 	// rebuild and, more importantly, what makes them not cause one; see
@@ -203,6 +212,11 @@ func (nd *nodeData) release() {
 	// grab offset of the drag the node before it never finished, and would
 	// then move on the next bare pointer move without a press.
 	nd.control = ControlState{}
+	// The same argument as for control, with a recogniser in place of a
+	// slider: a fresh node must not inherit the fingers its predecessor was
+	// tracking.
+	nd.retained = nil
+	nd.multiTouch = false
 	nd.ia = Interaction{}
 	nd.flex = 0
 	nd.childViews = nil

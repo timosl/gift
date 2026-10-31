@@ -69,9 +69,10 @@ type Diagnostics struct {
 	// claim of the scroll fast path stated as two numbers.
 	Scrolls uint64
 	// DiscardedTouches counts the additional fingers that were recognised
-	// and dropped. The project plan, section 7, limits multitouch to exactly
-	// that, and a counter is how "it was dropped on purpose" is told apart
-	// from "it was never seen".
+	// and dropped: every finger that came down while another was down and
+	// did not land in a node that declared [Element.MultiTouch], and every
+	// finger beyond [MaxTouches]. A counter is how "it was dropped on
+	// purpose" is told apart from "it was never seen".
 	DiscardedTouches uint64
 
 	// RunesTyped counts the characters that entered through [App.TypeRune],

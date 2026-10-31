@@ -127,6 +127,11 @@ const (
 	EventFocusGained
 	// EventFocusLost is the counterpart of EventFocusGained.
 	EventFocusLost
+
+	// EventTimer is the wake up a node asked for with [EventContext.After].
+	// It is delivered to that node only and does not bubble. It carries no
+	// position; [Event.Time] is the tick it fired in.
+	EventTimer
 )
 
 // Key is a physical key, in the small set gift's own navigation, activation
@@ -389,6 +394,10 @@ type Event struct {
 	// Time is the timestamp the backend supplied in [App.BeginInput], as a
 	// duration since an arbitrary but fixed origin. Differences are
 	// meaningful, the absolute value is not.
+	//
+	// For a move, a press and a release it is the time the pointer was
+	// sampled, when the backend knows it — see [App.PointerMoveAt] — and is
+	// then a little earlier than the tick. A velocity is computed from it.
 	Time time.Duration
 }
 
@@ -512,6 +521,10 @@ const (
 	// DragSlop is how far a pointer may travel from the press position and
 	// still count as a tap rather than a drag, in logical pixels.
 	DragSlop float32 = 8
+	// MaxTouches is the number of fingers gift tracks at once. Ten is what
+	// two hands have and what every multitouch panel reports at most; a
+	// finger beyond it is counted in [Diagnostics.DiscardedTouches].
+	MaxTouches = 10
 )
 
 // EventContext is the interface of an [Interactor] to the runtime.
@@ -648,10 +661,12 @@ func (c *EventContext) RequestLayout() { c.app.markNeedsLayout(c.cur) }
 // pointer is one tracked pointer.
 //
 // The mouse lives in slot zero of [inputState.pointers] for its whole life.
-// A touch claims the one remaining slot when it goes down and gives it back
-// when it goes up: the project plan, section 7, limits multitouch to
-// "Erkennung und Verwerfung zusaetzlicher Finger", so a second finger is
-// counted in [Diagnostics.DiscardedTouches] and dropped.
+// A touch claims a free slot when it goes down and gives it back when it goes
+// up. The first finger always gets one. A further finger gets one only when it
+// lands in a node that declared [Element.MultiTouch]; otherwise it is counted
+// in [Diagnostics.DiscardedTouches] and dropped, which is what the project
+// plan, section 7, originally limited multitouch to and what every view that
+// did not ask for more still gets.
 type pointer struct {
 	id     PointerID
 	kind   PointerKind
@@ -680,6 +695,11 @@ type pointer struct {
 	// button-less hover move carried Dragged and a scroll container read it
 	// as the continuation of a drag. See [pointer.endGesture].
 	dragged bool
+	// at is the time of the pointer's latest sample, on the clock of
+	// [App.BeginInput]: the tick time, or the time a backend measured with
+	// [App.PointerMoveAt] and its siblings. [Event.Time] carries it.
+	at time.Duration
+
 	// longFired says [EventLongPress] has already been delivered for the
 	// current press. It is deliberately *not* cleared by
 	// [pointer.endGesture]: every reader of it in [App.BeginInput] is behind
@@ -698,6 +718,16 @@ type pointer struct {
 // gesture that is ending: a button declines a release whose [Event.Dragged] is
 // set, and clearing the flag first would turn a drag that ended over a button
 // into a click on it.
+// stamp records the time of a sample: t, but never in the future and never
+// before the previous sample of the same pointer.
+func (p *pointer) stamp(t, now time.Duration) {
+	t = min(t, now)
+	if t < p.at {
+		t = p.at
+	}
+	p.at = t
+}
+
 func (p *pointer) endGesture() {
 	p.down = false
 	p.dragged = false
@@ -706,8 +736,8 @@ func (p *pointer) endGesture() {
 // inputState is everything the dispatcher remembers between events. It is a
 // plain struct inside the App, so nothing here allocates after warmup.
 type inputState struct {
-	// pointers[0] is the mouse, pointers[1] the one accepted touch.
-	pointers [2]pointer
+	// pointers[0] is the mouse, the rest are the accepted touches.
+	pointers [1 + MaxTouches]pointer
 	now      time.Duration
 	mods     Mods
 
@@ -747,6 +777,10 @@ type inputState struct {
 	// anims is the set of nodes inside their [EventContext.Animate] window.
 	// Same shape and same reason as indicators; see [App.tickAnimations].
 	anims []animation
+
+	// timers are the wake ups nodes asked for with [EventContext.After].
+	// Same shape and same reason again; see [App.tickTimers].
+	timers []animation
 
 	// focusScan is the reusable stack of the focus traversal; see
 	// [App.focusNeighbour].
@@ -886,6 +920,7 @@ func (a *App) BeginInput(now time.Duration) {
 	a.tickScrolls(now)
 	a.tickIndicators(now)
 	a.tickAnimations(now)
+	a.tickTimers(now)
 	a.tickKeyRepeat(now)
 	a.tickReveal()
 	for i := range a.in.pointers {
@@ -920,11 +955,31 @@ func (a *App) SetModifiers(m Mods) {
 // started on empty space, and a drag whose captured node was unmounted
 // underneath it, both leave the hover alone until the release.
 func (a *App) PointerMove(id PointerID, kind PointerKind, pos geom.Point) {
+	a.PointerMoveAt(id, kind, pos, a.in.now)
+}
+
+// PointerMoveAt is [App.PointerMove] for a sample the backend measured at t,
+// on the clock of [App.BeginInput], and [Event.Time] is then t rather than the
+// tick time.
+//
+// # Why the time of a sample matters
+//
+// A velocity is a distance over a time, and the time that matters is when the
+// panel measured the finger, not when the tick that delivered it ran. A tick
+// that delivers samples of a 100 Hz digitiser at 60 Hz sees one sample in some
+// ticks and two in others; stamped with the tick time, the same steady finger
+// is measured as moving at alternately half and twice its speed, and a fling
+// starts at whichever the last tick happened to show. Android and iOS hand
+// every sample to the application with the time the hardware reported, and a
+// backend that knows that time passes it here. A t in the future is read as
+// now, and one before the pointer's previous sample as that sample's time.
+func (a *App) PointerMoveAt(id PointerID, kind PointerKind, pos geom.Point, t time.Duration) {
 	a.assertInputPhase("PointerMove")
 	p := a.pointerFor(id, kind, false)
 	if p == nil {
 		return
 	}
+	p.stamp(t, a.in.now)
 	a.in.cur = p
 	defer func() { a.in.cur = nil }()
 	delta := geom.Pt(pos.X-p.pos.X, pos.Y-p.pos.Y)
@@ -971,11 +1026,30 @@ func (a *App) PointerMove(id PointerID, kind PointerKind, pos geom.Point) {
 // makes "press on the button, release next to it" not an activation while
 // still telling the button that the press ended.
 //
-// A touch that arrives while another touch is already down is counted in
-// [Diagnostics.DiscardedTouches] and ignored. The project plan, section 7,
-// limits multitouch to recognising and discarding additional fingers.
+// A touch that arrives while another touch is already down is accepted only
+// when the node it hits, or an ancestor of that node, declared
+// [Element.MultiTouch]. Otherwise it is counted in
+// [Diagnostics.DiscardedTouches] and ignored, which is all the project plan,
+// section 7, originally allowed and what a view that never asked for more
+// still gets.
 func (a *App) PointerDown(id PointerID, kind PointerKind, pos geom.Point) {
+	a.PointerDownAt(id, kind, pos, a.in.now)
+}
+
+// PointerDownAt is [App.PointerDown] for a press the backend measured at t;
+// see [App.PointerMoveAt].
+func (a *App) PointerDownAt(id PointerID, kind PointerKind, pos geom.Point, t time.Duration) {
 	a.assertInputPhase("PointerDown")
+	// The hit test of a further finger is done before it gets a slot,
+	// because the slot is what it is refused; it is reused below.
+	h, tested := scene.Handle{}, false
+	if kind == PointerTouch && a.findPointer(id) == nil && a.touchesDown() > 0 {
+		h, tested = a.hitTest(pos), true
+		if !a.multiTouchAt(h) {
+			a.diag.DiscardedTouches++
+			return
+		}
+	}
 	p := a.pointerFor(id, kind, true)
 	if p == nil {
 		a.diag.DiscardedTouches++
@@ -983,17 +1057,21 @@ func (a *App) PointerDown(id PointerID, kind PointerKind, pos geom.Point) {
 	}
 	a.in.cur = p
 	defer func() { a.in.cur = nil }()
+	p.at = 0
+	p.stamp(t, a.in.now)
 	p.pos = pos
 	p.down = true
 	p.downPos = pos
-	p.downAt = a.in.now
+	p.downAt = p.at
 	p.dragged = false
 	p.longFired = false
 
 	if kind == PointerMouse {
 		a.updateHover(p)
 	}
-	h := a.hitTest(pos)
+	if !tested {
+		h = a.hitTest(pos)
+	}
 	p.capture = h
 	p.insideCap = !h.IsZero()
 	if h.IsZero() {
@@ -1060,11 +1138,18 @@ func (a *App) preservesFocusAt(h scene.Handle) bool {
 // ceasing to exist: see [pointer.endGesture] for what that costs when it is
 // forgotten.
 func (a *App) PointerUp(id PointerID, kind PointerKind, pos geom.Point) {
+	a.PointerUpAt(id, kind, pos, a.in.now)
+}
+
+// PointerUpAt is [App.PointerUp] for a release the backend measured at t; see
+// [App.PointerMoveAt].
+func (a *App) PointerUpAt(id PointerID, kind PointerKind, pos geom.Point, t time.Duration) {
 	a.assertInputPhase("PointerUp")
 	p := a.pointerFor(id, kind, false)
 	if p == nil || !p.down {
 		return
 	}
+	p.stamp(t, a.in.now)
 	a.in.cur = p
 	defer func() { a.in.cur = nil }()
 	p.pos = pos
@@ -1337,7 +1422,9 @@ func (a *App) assertInputPhase(what string) {
 }
 
 // pointerFor returns the slot of id, creating it on a press. It returns nil
-// for a touch that arrives while another one is already down.
+// for a touch that has no slot and is not pressing, and for a press when all
+// [MaxTouches] slots are taken. Whether a further finger may have a slot at
+// all is decided by [App.PointerDown] before it gets here.
 func (a *App) pointerFor(id PointerID, kind PointerKind, press bool) *pointer {
 	if kind == PointerMouse {
 		p := &a.in.pointers[0]
@@ -1346,18 +1433,61 @@ func (a *App) pointerFor(id PointerID, kind PointerKind, press bool) *pointer {
 		}
 		return p
 	}
-	p := &a.in.pointers[1]
-	if p.active {
-		if p.id == id {
+	for i := 1; i < len(a.in.pointers); i++ {
+		if p := &a.in.pointers[i]; p.active && p.id == id {
 			return p
 		}
-		return nil
 	}
 	if !press {
 		return nil
 	}
-	*p = pointer{id: id, kind: PointerTouch, active: true}
-	return p
+	for i := 1; i < len(a.in.pointers); i++ {
+		if p := &a.in.pointers[i]; !p.active {
+			*p = pointer{id: id, kind: PointerTouch, active: true}
+			return p
+		}
+	}
+	return nil
+}
+
+// touchesDown is the number of fingers that currently have a slot.
+func (a *App) touchesDown() int {
+	n := 0
+	for i := 1; i < len(a.in.pointers); i++ {
+		if a.in.pointers[i].active {
+			n++
+		}
+	}
+	return n
+}
+
+// multiTouchAt reports whether h, or any of its ancestors, declared
+// [Element.MultiTouch]. A press on empty space is not inside anything that
+// asked for more fingers.
+func (a *App) multiTouchAt(h scene.Handle) bool {
+	for depth := 0; !h.IsZero() && a.store.Valid(h); depth++ {
+		if depth > scene.MaxDepth {
+			return false
+		}
+		n := a.store.Get(h)
+		if n.Payload.multiTouch {
+			return true
+		}
+		h = n.Parent
+	}
+	return false
+}
+
+// PointerIsDown reports whether the pointer id is currently pressed: the mouse
+// with its primary button held, or a finger on the glass.
+//
+// It is what a recogniser that tracks several fingers consults when a new one
+// arrives, to forget the fingers it still remembers but that went away while
+// it could not hear about it — while its node was disabled, say, when gift
+// delivers nothing at all. See [Element.MultiTouch].
+func (c *EventContext) PointerIsDown(id PointerID) bool {
+	p := c.app.findPointer(id)
+	return p != nil && p.down
 }
 
 func (a *App) findPointer(id PointerID) *pointer {
@@ -1372,6 +1502,12 @@ func (a *App) findPointer(id PointerID) *pointer {
 func (a *App) releasePointer(p *pointer) { *p = pointer{} }
 
 func (a *App) pointerEvent(kind EventKind, p *pointer) Event {
+	t := p.at
+	if kind != EventPointerMove && kind != EventPointerDown && kind != EventPointerUp || t == 0 {
+		// Enter, leave, cancel, wheel and long press are statements of the
+		// tick, not samples of the panel.
+		t = a.in.now
+	}
 	return Event{
 		Kind:    kind,
 		Pointer: p.id,
@@ -1379,7 +1515,7 @@ func (a *App) pointerEvent(kind EventKind, p *pointer) Event {
 		Pos:     p.pos,
 		Dragged: p.dragged,
 		Mods:    a.in.mods,
-		Time:    a.in.now,
+		Time:    t,
 	}
 }
 
@@ -1655,6 +1791,7 @@ func (a *App) forgetNode(h scene.Handle) {
 	// skips invalid handles; this keeps the slice from growing across a long
 	// sequence of mounts and unmounts, exactly like the two above.
 	a.stopAnimating(h)
+	a.stopTimer(h)
 	for i := range a.in.pointers {
 		p := &a.in.pointers[i]
 		if p.over == h {

@@ -67,6 +67,12 @@ type Step struct {
 	Frames int `json:"frames,omitempty"`
 	Ticks  int `json:"ticks,omitempty"`
 
+	// Finger selects one of several touches, for a gesture of more than one
+	// finger: a pinch is two fingers down, moved apart and lifted, step by
+	// step. Zero is the finger every other touch step uses. A further finger
+	// reaches only a view that declared [gift.Element.MultiTouch].
+	Finger int `json:"finger,omitempty"`
+
 	// Mouse makes the pointer a mouse rather than a touch.
 	//
 	// # Why touch is the default, and the trap this avoids
@@ -284,7 +290,7 @@ func (d *driver) runStep(s Step) error {
 	}
 
 	kind := gift.PointerTouch
-	id := pointerID
+	id := pointerID + gift.PointerID(max(0, s.Finger))
 	if s.Mouse {
 		kind, id = gift.PointerMouse, gift.MousePointer
 	}

@@ -1,6 +1,7 @@
 package gift_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -41,6 +42,8 @@ type target struct {
 	disabled          bool
 	notFocusable      bool
 	swallowEverything bool
+	// multiTouch sets [gift.Element.MultiTouch].
+	multiTouch bool
 	// events, when non nil, receives every event the target saw, whole. The
 	// log above keeps only a name, and the wheel tests are about the fields.
 	events *[]gift.Event
@@ -56,6 +59,7 @@ func (t target) Build(*gift.BuildContext) gift.Element {
 		Interactor: n,
 		Focusable:  !t.notFocusable,
 		Disabled:   t.disabled,
+		MultiTouch: t.multiTouch,
 	}
 }
 
@@ -525,6 +529,86 @@ func TestSecondFingerIsDiscarded(t *testing.T) {
 	}
 }
 
+// TestFurtherFingersReachAMultiTouchView pins [gift.Element.MultiTouch]: a
+// second finger is accepted into a view that asked for it, captured there with
+// its own pointer identifier, and still dropped anywhere else.
+func TestFurtherFingersReachAMultiTouchView(t *testing.T) {
+	var events []gift.Event
+	var l log
+	root := func(*gift.Context) gift.View {
+		return frameView{w: 300, h: 300,
+			offsets: []geom.Point{at(0, 0), at(100, 0)},
+			children: []gift.View{
+				target{name: "pinch", w: 80, h: 80, multiTouch: true, events: &events},
+				target{name: "b", w: 50, h: 50, log: &l},
+			}}
+	}
+	a := newInputApp(t, root)
+	before := a.Diagnostics().DiscardedTouches
+
+	a.BeginInput(0)
+	a.PointerDown(1, gift.PointerTouch, at(20, 20))
+	a.PointerDown(2, gift.PointerTouch, at(60, 60))
+	// A third finger next door: the view it lands on did not ask.
+	a.PointerDown(3, gift.PointerTouch, at(125, 25))
+	a.PointerMove(2, gift.PointerTouch, at(70, 70))
+	a.PointerUp(2, gift.PointerTouch, at(70, 70))
+	a.PointerUp(1, gift.PointerTouch, at(20, 20))
+	mustUpdate(t, a)
+
+	var got []string
+	for _, e := range events {
+		if e.IsPointer() {
+			got = append(got, fmt.Sprintf("%s/%d", kindName(e.Kind), e.Pointer))
+		}
+	}
+	want := []string{"down/1", "down/2", "move/2", "up/2", "up/1"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("the multitouch view saw %v, want %v", got, want)
+	}
+	if l.has("b:down") {
+		t.Errorf("a further finger reached a view that did not ask for it: %v", l.seen)
+	}
+	if d := a.Diagnostics().DiscardedTouches - before; d != 1 {
+		t.Errorf("DiscardedTouches moved by %d, want 1", d)
+	}
+	// With every finger up, a first finger is a first finger again and goes
+	// anywhere.
+	a.BeginInput(0)
+	a.PointerDown(4, gift.PointerTouch, at(125, 25))
+	a.PointerUp(4, gift.PointerTouch, at(125, 25))
+	if !l.has("b:down") {
+		t.Errorf("a lone finger after a multitouch gesture was not delivered: %v", l.seen)
+	}
+}
+
+func TestFingersBeyondMaxTouchesAreDiscarded(t *testing.T) {
+	downs := 0
+	var events []gift.Event
+	root := func(*gift.Context) gift.View {
+		return frameView{w: 300, h: 300, offsets: []geom.Point{at(0, 0)},
+			children: []gift.View{target{name: "pinch", w: 300, h: 300, multiTouch: true, events: &events}}}
+	}
+	a := newInputApp(t, root)
+	before := a.Diagnostics().DiscardedTouches
+	a.BeginInput(0)
+	for i := range gift.MaxTouches + 2 {
+		a.PointerDown(gift.PointerID(i), gift.PointerTouch, at(float32(10+i), 10))
+	}
+	mustUpdate(t, a)
+	for _, e := range events {
+		if e.Kind == gift.EventPointerDown {
+			downs++
+		}
+	}
+	if downs != gift.MaxTouches {
+		t.Errorf("%d fingers delivered, want %d", downs, gift.MaxTouches)
+	}
+	if d := a.Diagnostics().DiscardedTouches - before; d != 2 {
+		t.Errorf("DiscardedTouches moved by %d, want 2", d)
+	}
+}
+
 // --- keyboard ---------------------------------------------------------------
 
 func TestTabOrderFollowsTheLogicalTree(t *testing.T) {
@@ -967,5 +1051,32 @@ func TestMoveFocusBeforeTheFirstUpdate(t *testing.T) {
 	mustUpdate(t, a)
 	if !a.MoveFocus(true) {
 		t.Error("MoveFocus found nothing after the tree was built")
+	}
+}
+
+// TestSampleTimesReachTheEvent pins [gift.App.PointerMoveAt]: the time a
+// backend measured is the event's, never in the future and never backwards.
+func TestSampleTimesReachTheEvent(t *testing.T) {
+	var events []gift.Event
+	root := func(*gift.Context) gift.View {
+		return frameView{w: 300, h: 300, offsets: []geom.Point{at(0, 0)},
+			children: []gift.View{target{name: "t", w: 300, h: 300, events: &events}}}
+	}
+	a := newInputApp(t, root)
+	a.BeginInput(100 * time.Millisecond)
+	a.PointerDownAt(1, gift.PointerTouch, at(10, 10), 91*time.Millisecond)
+	a.PointerMoveAt(1, gift.PointerTouch, at(20, 10), 95*time.Millisecond)
+	a.PointerMoveAt(1, gift.PointerTouch, at(30, 10), 93*time.Millisecond)
+	a.PointerMoveAt(1, gift.PointerTouch, at(40, 10), 140*time.Millisecond)
+	a.PointerUpAt(1, gift.PointerTouch, at(40, 10), 99*time.Millisecond)
+	var got []time.Duration
+	for _, e := range events {
+		if e.IsPointer() {
+			got = append(got, e.Time/time.Millisecond)
+		}
+	}
+	want := []time.Duration{91, 95, 95, 100, 100}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("event times %v ms, want %v", got, want)
 	}
 }

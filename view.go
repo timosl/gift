@@ -358,6 +358,25 @@ type Element struct {
 	// the ordinary focused delivery and this flag never comes into play.
 	KeyFallback bool
 
+	// MultiTouch declares that this node, and every node inside it, takes
+	// further fingers while one is already down.
+	//
+	// gift delivers one finger at a time unless asked otherwise: a touch that
+	// arrives while another is down is counted in
+	// [Diagnostics.DiscardedTouches] and dropped. That is the right default
+	// for a kiosk, where a second hand resting on the glass must not press a
+	// second button, and it is the default UIKit has for the same reason —
+	// UIView.isMultipleTouchEnabled is false unless a view sets it. A view
+	// that recognises a pinch sets this flag, and an additional finger whose
+	// hit target is this node or lies inside it is then accepted, captured by
+	// that target like any first finger, and delivered with its own
+	// [Event.Pointer]. Up to [MaxTouches] fingers are tracked at once.
+	//
+	// The flag is consulted when the finger comes down and not afterwards: a
+	// finger that was accepted stays accepted until it lifts, whatever the
+	// next build declares.
+	MultiTouch bool
+
 	// PreservesFocus declares that a press landing on this node, or anywhere
 	// inside its subtree, leaves the keyboard focus where it is.
 	//

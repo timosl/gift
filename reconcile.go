@@ -177,6 +177,7 @@ func (a *App) applyElement(h scene.Handle, nd *nodeData, desc childDesc, owner *
 	a.applyFocusTrap(h, nd, desc.elem.FocusTrap)
 	a.applyKeyFallback(nd, desc.elem.KeyFallback)
 	nd.preservesFocus = desc.elem.PreservesFocus
+	nd.multiTouch = desc.elem.MultiTouch
 	nd.obstructs = desc.elem.Obstructs
 	// "The last one built wins" is what [Element.Obstructs] promises, and the
 	// last one built is not necessarily one anybody can see: a
@@ -424,6 +425,15 @@ func (a *App) stopHiddenWork(h scene.Handle) {
 			}
 		}
 		a.in.indicators = out
+	}
+	if len(a.in.timers) > 0 {
+		out := a.in.timers[:0]
+		for _, tm := range a.in.timers {
+			if !a.isAncestor(h, tm.node) {
+				out = append(out, tm)
+			}
+		}
+		a.in.timers = out
 	}
 }
 
