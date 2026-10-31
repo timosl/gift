@@ -99,6 +99,67 @@ func (a *App) dragBounce(h scene.Handle, s *scrollState, d float64) {
 	}
 }
 
+// wheelRelease is how long a precise wheel has to be quiet before the
+// stretch it made springs back. GLFW reports no phases of a trackpad gesture,
+// so the end of the stroke, and of the momentum macOS adds to it, is the
+// moment the deltas stop; they come with every frame until then.
+const wheelRelease = 120 * time.Millisecond
+
+// wheelBounce scrolls a container by d offset units for a precise wheel, a
+// trackpad, with the rubber band of a finger: past an end the content
+// stretches with growing resistance, and it springs back once the wheel has
+// been quiet for wheelRelease, as on macOS. It reports whether it took the
+// scroll.
+//
+// A stroke that starts at an end, pointing past it, goes on to an enclosing
+// container that can still move that way, as a browser hands a scroll on; only
+// where none can does this one stretch. A stroke this container took stays
+// with it to the end, momentum included, which is what makes a list scrolled
+// into its end bounce rather than drag the page along. Content that fits does
+// not stretch, as macOS leaves it.
+func (a *App) wheelBounce(h scene.Handle, s *scrollState, d float64) bool {
+	if !s.wheeling && s.pull == 0 && !s.canMove(d) {
+		if !(s.maxOffset() > 0) || a.outerCanScroll(h, s.axis, d) {
+			return false
+		}
+	}
+	s.flinging, s.vel = false, 0
+	a.dragBounce(h, s, d)
+	s.wheeling, s.wheelAt = true, a.in.now
+	a.enrolScroll(h)
+	return true
+}
+
+// outerCanScroll reports whether a scroll container around h moves along axis
+// when scrolled by d.
+func (a *App) outerCanScroll(h scene.Handle, axis ScrollAxis, d float64) bool {
+	for p := a.store.Get(h).Parent; !p.IsZero() && a.store.Valid(p); p = a.store.Get(p).Parent {
+		if s := a.data(p).scroll; s != nil && s.axis == axis && s.canMove(d) {
+			return true
+		}
+	}
+	return false
+}
+
+// stepWheel ends the stroke of a precise wheel once it has been quiet for
+// wheelRelease and springs back what it stretched. It reports whether the
+// stroke is still going.
+func (a *App) stepWheel(h scene.Handle, s *scrollState, now time.Duration) bool {
+	if now-s.wheelAt < wheelRelease {
+		// Painted, so that the backend keeps its rate until the release.
+		a.markNeedsPaint(h)
+		return true
+	}
+	s.wheeling = false
+	if s.pull != 0 {
+		a.releaseBounce(h, s)
+		// From the moment the wheel went quiet, which a frame that comes
+		// late is past already.
+		s.overStart = s.wheelAt + wheelRelease
+	}
+	return false
+}
+
 // releaseBounce springs a container that was let go past an end back.
 func (a *App) releaseBounce(h scene.Handle, s *scrollState) {
 	over := s.over
@@ -113,14 +174,18 @@ func (a *App) startBounce(h scene.Handle, s *scrollState, x0, v0 float32) {
 	s.bouncing = true
 	s.overFrom, s.overVel, s.overStart, s.overTo = x0, v0, a.in.now, s.rest()
 	s.over = x0
+	a.enrolScroll(h)
+}
+
+// enrolScroll adds h to the containers the scroll tick advances, once.
+func (a *App) enrolScroll(h scene.Handle) {
+	a.markNeedsPaint(h)
 	for _, existing := range a.in.flings {
 		if existing == h {
-			a.markNeedsPaint(h)
 			return
 		}
 	}
 	a.in.flings = append(a.in.flings, h)
-	a.markNeedsPaint(h)
 }
 
 // stepBounce advances the spring: critically damped, so it returns without

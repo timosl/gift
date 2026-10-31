@@ -94,8 +94,12 @@ var (
 	// the far end of the document.
 	DefaultScrollMaxVelocity float32 = 8000
 	// DefaultScrollWheelStep is how far one unit of [Event.Delta] of an
-	// [EventWheel] scrolls, in logical pixels.
+	// [EventWheel] scrolls, in logical pixels: one notch of a mouse wheel.
 	DefaultScrollWheelStep float32 = 48
+	// DefaultScrollPreciseWheelStep is how far one unit of a precise wheel,
+	// a trackpad, scrolls: the ten points of finger travel GLFW makes one
+	// unit of, so that the content follows the fingers. See [Event.Precise].
+	DefaultScrollPreciseWheelStep float32 = 10
 )
 
 // maxFlingStep bounds the time step of one fling tick.
@@ -120,8 +124,10 @@ type ScrollConfig struct {
 	StopVelocity float32
 	// MaxVelocity caps the fling speed.
 	MaxVelocity float32
-	// WheelStep is the distance one unit of wheel delta scrolls.
-	WheelStep float32
+	// WheelStep is the distance one unit of wheel delta scrolls, and
+	// PreciseWheelStep the distance one unit of a precise wheel scrolls; see
+	// [Event.Precise].
+	WheelStep, PreciseWheelStep float32
 	// HardStop turns off the rubber band. By default the content can be
 	// pulled past either end with growing resistance and springs back when
 	// it is let go, and a fling that reaches an end bounces off it, as on
@@ -142,6 +148,9 @@ func (c ScrollConfig) withDefaults() ScrollConfig {
 	}
 	if !usableScrollValue(c.MaxVelocity) {
 		c.MaxVelocity = DefaultScrollMaxVelocity
+	}
+	if !usableScrollValue(c.PreciseWheelStep) {
+		c.PreciseWheelStep = DefaultScrollPreciseWheelStep
 	}
 	if !usableScrollValue(c.WheelStep) {
 		c.WheelStep = DefaultScrollWheelStep
@@ -309,6 +318,10 @@ type scrollState struct {
 	// hold is [ScrollSpec.LeadingHold] and overTo the displacement the
 	// running bounce springs to; see [scrollState.rest].
 	hold, overTo float32
+	// wheeling says that a precise wheel is scrolling this container, which
+	// it last did at wheelAt; see [App.wheelBounce].
+	wheeling bool
+	wheelAt  time.Duration
 
 	// lastActive is the clock value at which this container last moved or was
 	// last touched by a gesture. [ScrollInfo.IdleFor] is derived from it.
@@ -507,6 +520,12 @@ func (scrollHandler) HandleEvent(ctx *EventContext, e Event) bool {
 		// Positive delta is the wheel pushed away from the user, which moves
 		// towards the beginning of the document; see [Event.Delta].
 		step := -float64(d) * float64(s.cfg.WheelStep)
+		if e.Precise {
+			step = -float64(d) * float64(s.cfg.PreciseWheelStep)
+			if !s.cfg.HardStop {
+				return a.wheelBounce(h, s, step)
+			}
+		}
 		if !s.canMove(step) {
 			return false
 		}
@@ -786,12 +805,16 @@ func (a *App) tickScrolls(now time.Duration) {
 			continue
 		}
 		s := a.data(h).scroll
-		if s == nil || (!s.flinging && !s.bouncing) {
+		if s == nil || (!s.flinging && !s.bouncing && !s.wheeling) {
 			continue
 		}
 		keep := false
 		if s.flinging {
 			keep = a.stepFling(h, s, now)
+		}
+		if s.wheeling {
+			// Before the bounce, which a quiet wheel starts.
+			keep = a.stepWheel(h, s, now) || keep
 		}
 		if s.bouncing {
 			keep = a.stepBounce(h, s, now) || keep

@@ -2460,7 +2460,7 @@
       },
       "Event": {
         "synopsis": "Event is one input event as an Interactor sees it.",
-        "decl": "type Event struct {\n\tKind    EventKind\n\tPointer PointerID\n\tDevice  PointerKind\n\tPos     geom.Point\n\tDelta   geom.Point\n\tInside  bool\n\tDragged bool\n\tKey     Key\n\tMods    Mods\n\tRune    rune\n\tRepeat  bool\n\tTime    time.Duration\n}",
+        "decl": "type Event struct {\n\tKind    EventKind\n\tPointer PointerID\n\tDevice  PointerKind\n\tPos     geom.Point\n\tDelta   geom.Point\n\tPrecise bool\n\tInside  bool\n\tDragged bool\n\tKey     Key\n\tMods    Mods\n\tRune    rune\n\tRepeat  bool\n\tTime    time.Duration\n}",
         "constructors": [],
         "methods": [
           {
@@ -2995,7 +2995,7 @@
       },
       "ScrollConfig": {
         "synopsis": "ScrollConfig tunes the gesture behaviour of one scroll container.",
-        "decl": "type ScrollConfig struct {\n\tFriction      float32\n\tFlingVelocity float32\n\tStopVelocity  float32\n\tMaxVelocity   float32\n\tWheelStep     float32\n\tHardStop      bool\n}",
+        "decl": "type ScrollConfig struct {\n\tFriction                    float32\n\tFlingVelocity               float32\n\tStopVelocity                float32\n\tMaxVelocity                 float32\n\tWheelStep, PreciseWheelStep float32\n\tHardStop                    bool\n}",
         "constructors": [],
         "methods": []
       },

@@ -46,8 +46,11 @@ not warn about this, because a scroll view with three short rows in it looks the
 
 gift handles the gestures for you:
 
-- The wheel scrolls the scroll view under the pointer, also when the pointer is over a child. One unit of wheel
-  delta moves 48 logical pixels by default; `WheelStep` changes it.
+- The wheel scrolls the scroll view under the pointer, also when the pointer is over a child. One notch of a
+  mouse wheel moves 48 logical pixels by default; `WheelStep` changes it.
+- A trackpad scrolls as far as the fingers travel, and past either end the content stretches and springs back
+  when the fingers and the momentum after them stop, as on macOS. gift tells a trackpad from a mouse wheel by its
+  deltas, which come in fractions; see `gift.Event.Precise`.
 - A drag that travels further than `gift.DragSlop` scrolls and takes the press away from a button underneath. A
   shorter press stays a tap on the button.
 - On release, a fast drag turns into a fling that slows down over time. `Friction` sets how fast it slows down,
@@ -63,7 +66,8 @@ The whole scroll view is a hit target, so a click on its empty background does n
 
 A scroll view moves along one axis only. For two dimensions, nest an `HScroll` inside a `VScroll`. A wheel event
 goes to the innermost scroll view that can still move in that direction. Once it reaches its end, the event goes
-to the next scroll view outside. A drag is decided once, at the moment it starts, and then stays with the scroll
+to the next scroll view outside. A trackpad stroke that scrolled the inner view into its end stays with it and
+stretches it; the next stroke goes on to the view outside. A drag is decided once, at the moment it starts, and then stays with the scroll
 view that took it until the release. Because of the rubber band, the inner scroll view takes a drag even at its
 end; with `Bounce(false)` it passes a drag it cannot follow to the scroll view outside.
 

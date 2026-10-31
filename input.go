@@ -1,6 +1,7 @@
 package gift
 
 import (
+	"math"
 	"runtime"
 	"time"
 
@@ -362,6 +363,20 @@ type Event struct {
 	// which. The sign is fixed here because [scrollHandler] is now the first
 	// consumer and something had to be true.
 	Delta geom.Point
+
+	// Precise reports, for [EventWheel], that the wheel measures a distance
+	// instead of counting notches: a trackpad. Its Delta is then a distance
+	// in units of ten points of finger travel, which is what GLFW, and so
+	// Ebitengine, makes of the precise deltas of macOS and of Wayland, and a
+	// scroll container moves [ScrollConfig.PreciseWheelStep] per unit of it
+	// rather than [ScrollConfig.WheelStep].
+	//
+	// GLFW does not say which device scrolled, so gift infers it in
+	// [App.PointerWheel]: a notch is reported as a whole number and a
+	// trackpad mostly in fractions, so a fractional delta is precise, and so
+	// is every delta for a short while after one, which covers the whole
+	// numbers a trackpad reports in passing.
+	Precise bool
 
 	// Inside reports whether Pos lies inside the receiving node, taking the
 	// clips of its ancestors into account.
@@ -778,6 +793,11 @@ type inputState struct {
 	pointers [1 + MaxTouches]pointer
 	now      time.Duration
 	mods     Mods
+
+	// preciseWheel says that a wheel delta was ever fractional, and
+	// preciseWheelAt when the last one was; see [Event.Precise].
+	preciseWheel   bool
+	preciseWheelAt time.Duration
 
 	focus scene.Handle
 	ectx  EventContext
@@ -1281,6 +1301,11 @@ func (a *App) PointerWheel(pos geom.Point, delta geom.Point) {
 	if !a.store.Valid(p.capture) {
 		a.updateHover(p)
 	}
+	// Before the hit test, so that a trackpad over nothing still counts.
+	if fractional(delta.X) || fractional(delta.Y) {
+		a.in.preciseWheel = true
+		a.in.preciseWheelAt = a.in.now
+	}
 	h := a.hitTest(pos)
 	if h.IsZero() {
 		return
@@ -1288,9 +1313,18 @@ func (a *App) PointerWheel(pos geom.Point, delta geom.Point) {
 	e := a.pointerEvent(EventWheel, p)
 	e.Pos = pos
 	e.Delta = delta
+	e.Precise = a.in.preciseWheel && a.in.now-a.in.preciseWheelAt < preciseWheelFor
 	e.Inside = true
 	a.deliver(h, e, false)
 }
+
+// preciseWheelFor is how long after a fractional delta the wheel still counts
+// as precise; see [Event.Precise]. Long enough for a trackpad to report a
+// whole number in the middle of a stroke, short enough that a mouse wheel
+// turned after the trackpad was let go counts notches again.
+const preciseWheelFor = 500 * time.Millisecond
+
+func fractional(v float32) bool { return v != float32(math.Trunc(float64(v))) }
 
 // KeyDown reports a key press.
 //

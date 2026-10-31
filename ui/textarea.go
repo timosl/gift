@@ -562,7 +562,11 @@ func (n *textAreaNode) HandleEvent(ctx *gift.EventContext, e gift.Event) bool {
 		return true
 
 	case gift.EventWheel:
-		return n.scrollBy(ctx, e.Delta.Y*gift.DefaultScrollWheelStep, e.Time)
+		step := gift.DefaultScrollWheelStep
+		if e.Precise {
+			step = gift.DefaultScrollPreciseWheelStep
+		}
+		return n.scrollBy(ctx, e.Delta.Y*step, e.Time)
 
 	case gift.EventKeyDown:
 		return n.key(ctx, e)

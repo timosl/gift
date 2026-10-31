@@ -64,3 +64,110 @@ func TestABouncingListIsPulledPastItsTopAndSpringsBack(t *testing.T) {
 		t.Error("the list keeps animating after it came home")
 	}
 }
+
+// bounceList is the list of TestABouncingListIsPulledPastItsTopAndSpringsBack.
+func bounceList(t *testing.T) *gifttest.Harness {
+	t.Helper()
+	h := gifttest.New(t, gifttest.Options{
+		Theme: ui.LightTheme(), Font: loadTestFont(t), Size: geom.Sz(300, 300),
+		Root: func(*gift.Context) gift.View {
+			rows := []gift.View{ui.Box().Frame(300, 60).Background(bounceMark)}
+			for range 20 {
+				rows = append(rows, ui.Box().Frame(300, 60))
+			}
+			return ui.VScroll(ui.VStack(rows...)).Flex(1)
+		},
+	})
+	h.Settle()
+	return h
+}
+
+// TestATrackpadFollowsTheFingersAndStretchesPastTheTop is the rubber band of
+// macOS: a trackpad scrolls ten points per unit of its delta, the distance its
+// fingers travelled, and past an end the content stretches and springs back
+// once the deltas stop.
+func TestATrackpadFollowsTheFingersAndStretchesPastTheTop(t *testing.T) {
+	h := bounceList(t)
+	rest := firstRowY(h)
+	at := geom.Pt(150, 150)
+
+	h.Wheel(at, geom.Pt(0, -0.5))
+	if y := firstRowY(h); y != rest-5 {
+		t.Fatalf("half a unit of trackpad moved the first row to %v, want %v: ten points per unit", y, rest-5)
+	}
+	h.Wheel(at, geom.Pt(0, 0.5))
+	// A whole number in the middle of a stroke is still the trackpad.
+	h.Wheel(at, geom.Pt(0, 3))
+	stretched := firstRowY(h)
+	if !(stretched > rest+10 && stretched < rest+30) {
+		t.Fatalf("30 points past the top the first row is at %v (rest %v); want it to follow with resistance", stretched, rest)
+	}
+	h.Advance(50 * time.Millisecond)
+	if y := firstRowY(h); y != stretched {
+		t.Errorf("50 ms after the last delta the row moved from %v to %v; the stroke may still be going", stretched, y)
+	}
+	h.Advance(time.Second)
+	if y := firstRowY(h); y != rest {
+		t.Errorf("a second after the stroke the first row is at %v, want it home at %v", y, rest)
+	}
+	if h.App().Diagnostics().Animating {
+		t.Error("the list keeps animating after it came home")
+	}
+}
+
+// TestANotchScrollsAWholeStepAndDoesNotStretch: a mouse wheel counts notches,
+// each a step of DefaultScrollWheelStep, and stops at the ends, as on macOS.
+// After the trackpad, it is a notch again once the trackpad has been quiet.
+func TestANotchScrollsAWholeStepAndDoesNotStretch(t *testing.T) {
+	h := bounceList(t)
+	rest := firstRowY(h)
+	at := geom.Pt(150, 150)
+
+	h.Wheel(at, geom.Pt(0, -1))
+	if y := firstRowY(h); y != rest-gift.DefaultScrollWheelStep {
+		t.Fatalf("one notch moved the first row to %v, want %v", y, rest-gift.DefaultScrollWheelStep)
+	}
+	h.Wheel(at, geom.Pt(0, 3))
+	if y := firstRowY(h); y != rest {
+		t.Fatalf("three notches up from one notch down left the first row at %v, want it at the top %v and no further", y, rest)
+	}
+
+	h.Wheel(at, geom.Pt(0, -0.5))
+	h.Advance(time.Second)
+	h.Wheel(at, geom.Pt(0, -1))
+	if y := firstRowY(h); y != rest-5-gift.DefaultScrollWheelStep {
+		t.Errorf("a notch a second after the trackpad moved the first row to %v, want a whole step to %v", y, rest-5-gift.DefaultScrollWheelStep)
+	}
+}
+
+// TestATrackpadAtTheEndOfAnInnerListScrollsTheOuterOne: a stroke that starts
+// with the inner list at its end goes on to the page around it, as in a
+// browser, instead of stretching the inner list.
+func TestATrackpadAtTheEndOfAnInnerListScrollsTheOuterOne(t *testing.T) {
+	h := gifttest.New(t, gifttest.Options{
+		Theme: ui.LightTheme(), Font: loadTestFont(t), Size: geom.Sz(300, 300),
+		Root: func(*gift.Context) gift.View {
+			var inner []gift.View
+			for range 10 {
+				inner = append(inner, ui.Box().Frame(300, 60))
+			}
+			return ui.VScroll(
+				ui.Box().Frame(300, 200),
+				ui.VScroll(ui.VStack(inner...)).Frame(300, 150).Key("inner"),
+				ui.Box().Frame(300, 400),
+			).Flex(1).Key("outer")
+		},
+	})
+	h.Settle()
+	outer := h.Find(gifttest.ByKey("outer"))
+	inner := h.Find(gifttest.ByKey("inner"))
+	outer.ScrollTo(100)
+
+	h.Wheel(inner.Center(), geom.Pt(0, 0.5))
+	if got := outer.ScrollOffset(); got != 95 {
+		t.Errorf("the page is at %v after half a unit up over the inner list at its top, want 95", got)
+	}
+	if info := inner.ScrollInfo(); info.Offset != 0 || info.Overscroll != 0 {
+		t.Errorf("the inner list moved to %v and stretched by %v; the stroke was the page's", info.Offset, info.Overscroll)
+	}
+}
