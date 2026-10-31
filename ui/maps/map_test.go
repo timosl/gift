@@ -43,8 +43,20 @@ type scene struct {
 
 func newScene(t *testing.T, cfg maps.Config, size geom.Size, view func(maps.MapView) maps.MapView) *scene {
 	t.Helper()
+	return newSceneOf(t, cfg, size, view, "")
+}
+
+// newSceneWithCache is a scene whose pipeline keeps a disk cache in dir.
+func newSceneWithCache(t *testing.T, cfg maps.Config, size geom.Size, dir string) *scene {
+	t.Helper()
+	return newSceneOf(t, cfg, size, nil, dir)
+}
+
+func newSceneOf(t *testing.T, cfg maps.Config, size geom.Size, view func(maps.MapView) maps.MapView, cache string) *scene {
+	t.Helper()
 	ch := make(chan func(), 4096)
-	pipe := asset.NewPipeline(asset.Config{Deliver: func(fn func()) { ch <- fn }, Sizes: []int{256, 512}, Workers: 2})
+	pipe := asset.NewPipeline(asset.Config{Deliver: func(fn func()) { ch <- fn }, Sizes: []int{256, 512}, Workers: 2,
+		Disk: asset.DiskCacheConfig{Dir: cache}})
 	t.Cleanup(func() { pipe.Close() })
 	ui.SetImagePipeline(pipe)
 	t.Cleanup(func() { ui.SetImagePipeline(nil) })

@@ -5,6 +5,7 @@
 //	go run ./cmd/example-maps -pmtiles city.pmtiles
 //	go run ./cmd/example-maps -url https://example.org/city.pmtiles
 //	go run ./cmd/example-maps -debug -heading 30
+//	go run ./cmd/example-maps -xyz 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'  # for trying out
 //	go run ./cmd/example-maps -fullscreen            # a kiosk
 //	go run ./cmd/example-maps -photos 2000           # a camera roll on the map
 //
@@ -17,6 +18,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -39,6 +41,8 @@ func main() {
 	}
 	path := flag.String("pmtiles", def, "a PMTiles archive")
 	url := flag.String("url", "", "a PMTiles archive on an HTTP server, read with range requests")
+	xyz := flag.String("xyz", "", "a raster tile service by its URL template, https://tile.openstreetmap.org/{z}/{x}/{y}.png for trying out")
+	attribution := flag.String("attribution", "© OpenStreetMap", "the attribution of the -xyz service")
 	debug := flag.Bool("debug", false, "draw the debug tiles instead of a map")
 	dark := flag.Bool("dark", false, "the dark style")
 	width := flag.Int("width", 1180, "window width")
@@ -57,13 +61,13 @@ func main() {
 		eb.SetFullscreen(true)
 	}
 	cam := maps.Camera{Center: geo.LatLon(*lat, *lon), Zoom: *zoom, Heading: *heading}
-	if err := run(*path, *url, *debug, *dark, *noLabels, *width, *height, *upload, *photos, *workers, cam); err != nil {
+	if err := run(*path, *url, *xyz, *attribution, *debug, *dark, *noLabels, *width, *height, *upload, *photos, *workers, cam); err != nil {
 		fmt.Fprintln(os.Stderr, "example-maps:", err)
 		os.Exit(1)
 	}
 }
 
-func run(path, url string, debug, dark, noLabels bool, width, height, upload, photos, workers int, cam maps.Camera) error {
+func run(path, url, xyz, attribution string, debug, dark, noLabels bool, width, height, upload, photos, workers int, cam maps.Camera) error {
 	if err := example.LoadFont(); err != nil {
 		return err
 	}
@@ -74,6 +78,13 @@ func run(path, url string, debug, dark, noLabels bool, width, height, upload, ph
 		tiles = maps.DebugTiles()
 	case url != "":
 		tiles, err = maps.PMTilesURL(url)
+	case xyz != "":
+		// The OSMF's servers want an application named in the User-Agent,
+		// and no prefetching.
+		tiles, err = maps.XYZ(xyz, maps.XYZOptions{
+			Attribution: attribution,
+			Header:      http.Header{"User-Agent": {"gift-example-maps/1 (+https://github.com/worldiety/gift)"}},
+		})
 	default:
 		tiles, err = maps.PMTiles(path)
 	}
@@ -86,7 +97,7 @@ func run(path, url string, debug, dark, noLabels bool, width, height, upload, ph
 	}
 	m, err := maps.New(maps.Config{
 		Tiles: tiles, Style: light, DarkStyle: darkStyle,
-		Camera: cam, Rotation: maps.RotationOn,
+		Camera: cam,
 	})
 	if err != nil {
 		return err
@@ -117,7 +128,13 @@ func run(path, url string, debug, dark, noLabels bool, width, height, upload, ph
 	if dark {
 		ui.SetTheme(app, ui.DarkTheme())
 	}
-	pipe := asset.NewPipeline(asset.Config{Deliver: app.Post, Workers: workers})
+	cache := ""
+	if dir, err := os.UserCacheDir(); err == nil {
+		cache = filepath.Join(dir, "gift", "maps-cache")
+	}
+	// The disk cache keeps the tiles of a service by its caching headers,
+	// which its usage policy asks for, and drawn vector tiles between runs.
+	pipe := asset.NewPipeline(asset.Config{Deliver: app.Post, Workers: workers, Disk: asset.DiskCacheConfig{Dir: cache}})
 	defer func() {
 		pipe.Close()
 		app.DrainPosts()

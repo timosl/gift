@@ -25,12 +25,18 @@ type srcKey struct {
 // size, created once and kept, and the passes at which each was last seen
 // ready, which is what the coarser and finer stand-ins are chosen from.
 type tileCache struct {
-	srcs   map[srcKey]*tileSource
+	srcs   map[srcKey]*srcEntry
 	loaded map[srcKey]uint64
 }
 
+// srcEntry is the source of a tile and the pass it was last used in.
+type srcEntry struct {
+	src  asset.Source
+	used uint64
+}
+
 func (c *tileCache) init() {
-	c.srcs = make(map[srcKey]*tileSource)
+	c.srcs = make(map[srcKey]*srcEntry)
 	c.loaded = make(map[srcKey]uint64)
 }
 
@@ -42,8 +48,8 @@ func (c *tileCache) prune(pass uint64) {
 	if len(c.srcs) < keep {
 		return
 	}
-	for k, s := range c.srcs {
-		if pass-s.used > 600 {
+	for k, e := range c.srcs {
+		if pass-e.used > 600 {
 			delete(c.srcs, k)
 			delete(c.loaded, k)
 		}
@@ -54,29 +60,35 @@ func (c *tileCache) prune(pass uint64) {
 // the image pipeline like every picture: its priorities, its budgets, its
 // disk cache and its banded uploads, with no path of their own.
 type tileSource struct {
-	m    *Map
-	k    srcKey
-	md   asset.Metadata
-	used uint64
+	m  *Map
+	k  srcKey
+	md asset.Metadata
 }
 
-func (m *Map) source(k srcKey, pass uint64) *tileSource {
-	s := m.tiles.srcs[k]
-	if s == nil {
-		style := "-"
-		if m.info.Kind == Vector {
-			style = m.styles[k.style].id()
+// source returns the source of a tile: the provider's own for a raster
+// [SourceProvider], else one that asks [Provider.Tile].
+func (m *Map) source(k srcKey, pass uint64) asset.Source {
+	e := m.tiles.srcs[k]
+	if e == nil {
+		e = &srcEntry{}
+		if sp, ok := m.cfg.Tiles.(SourceProvider); ok && m.info.Kind == Raster {
+			e.src = sp.TileSource(k.t)
+		} else {
+			style := "-"
+			if m.info.Kind == Vector {
+				style = m.styles[k.style].id()
+			}
+			id := "maps:" + m.info.Name + "@" + m.info.Revision + "/" + style + "/" +
+				strconv.Itoa(k.px) + "/" + k.t.String()
+			e.src = &tileSource{m: m, k: k, md: asset.Metadata{
+				ID: asset.ID(id), Revision: m.info.Revision,
+				Width: uint32(k.px), Height: uint32(k.px),
+			}}
 		}
-		id := "maps:" + m.info.Name + "@" + m.info.Revision + "/" + style + "/" +
-			strconv.Itoa(k.px) + "/" + k.t.String()
-		s = &tileSource{m: m, k: k, md: asset.Metadata{
-			ID: asset.ID(id), Revision: m.info.Revision,
-			Width: uint32(k.px), Height: uint32(k.px),
-		}}
-		m.tiles.srcs[k] = s
+		m.tiles.srcs[k] = e
 	}
-	s.used = pass
-	return s
+	e.used = pass
+	return e.src
 }
 
 func (s *tileSource) Metadata() asset.Metadata { return s.md }
@@ -208,6 +220,32 @@ func (n *node) layoutTiles(ctx *gift.LayoutContext, v projection, pass uint64) {
 		}
 	}
 	m.stats.Level, m.stats.Tiles, m.stats.Drawn, m.stats.Fallbacks = s.Level, s.Tiles, s.Drawn, s.Fallbacks
+	// The ring of tiles around the view, fetched before it is panned to,
+	// when the provider permits it: at prefetch priority, which never
+	// delays a visible tile, and without a layout when one arrives.
+	if m.info.Prefetch {
+		n.f.prefetched = 0
+		ring := func(c, r int) {
+			if r < max(0, br0) || r > min(int(cells)-1, br1) {
+				return
+			}
+			wc := ((c % int(cells)) + int(cells)) % int(cells)
+			if wc < bc0 || wc > bc1 {
+				return
+			}
+			k := srcKey{t: TileID{Z: z, X: wc, Y: r}, px: px, style: style}
+			ui.PrefetchPicture(ctx, m.source(k, pass), px)
+			n.f.prefetched++
+		}
+		for r := r0 - 1; r <= r1+1; r++ {
+			ring(c0-1, r)
+			ring(c1+1, r)
+		}
+		for c := c0; c <= c1; c++ {
+			ring(c, r0-1)
+			ring(c, r1+1)
+		}
+	}
 	m.tiles.prune(pass)
 }
 

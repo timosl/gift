@@ -151,6 +151,8 @@ type frame struct {
 	loading bool
 	// markerLayers is how many drawing layers the markers need.
 	markerLayers int32
+	// prefetched is how many tiles around the view were asked for.
+	prefetched int
 	// chrome is what the map draws over its labels.
 	chrome []geom.Rect
 	// grid is the collision grid of the boxes, cols by rows cells.
