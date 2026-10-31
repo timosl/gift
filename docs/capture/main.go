@@ -95,7 +95,7 @@ var exampleShots = []exampleShot{
 		{"op":"pointerUp","x":500,"y":340},
 		{"op":"waitFrames","frames":60}
 	]}`},
-	{Name: "example-video", Args: []string{"-width", "800", "-height", "480", "-autohide", "0", "-loop=false"}, Settle: 20, Input: `{"steps":[
+	{Name: "example-video", Args: []string{"-sample", "-width", "800", "-height", "480", "-autohide", "0", "-loop=false"}, Settle: 20, Input: `{"steps":[
 		{"op":"waitFrames","frames":60},
 		{"op":"tap","x":400,"y":240},
 		{"op":"waitFrames","frames":10}

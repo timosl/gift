@@ -119,4 +119,4 @@ package.
 - [Kiosks](../../../concepts/kiosks/): why gift brings its own picker.
 - [Concurrency](../../../concepts/concurrency/): how work off the UI goroutine reaches the screen.
 - [Testing](../../../concepts/testing/): driving a screen with `gifttest`; hand the picker an `fstest.MapFS` there.
-- [Kitchen sink](../../../examples/example-kitchensink/): the picker in a complete application.
+- [Video example](../../../examples/example-video/): the picker that chooses the video to play.
