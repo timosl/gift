@@ -153,6 +153,8 @@ type frame struct {
 	markerLayers int32
 	// prefetched is how many tiles around the view were asked for.
 	prefetched int
+	// overlayAnim is set while an overlay animates.
+	overlayAnim bool
 	// chrome is what the map draws over its labels.
 	chrome []geom.Rect
 	// grid is the collision grid of the boxes, cols by rows cells.
@@ -242,6 +244,10 @@ func (n *node) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
 	switch {
 	case moving || n.f.rested || n.f.fading || n.f.pointsBusy:
 		ctx.After(time.Millisecond)
+	case n.f.overlayAnim:
+		// The weather moves on while the map rests, at half the rate,
+		// which a kiosk's processor notices and nobody's eye does.
+		ctx.After(33 * time.Millisecond)
 	case n.f.loading:
 		// A picture the pipeline turned away is asked for again only by
 		// a layout; while anything visible is missing, there is one ten
@@ -322,7 +328,7 @@ func (n *node) HandleEvent(ctx *gift.EventContext, e gift.Event) bool {
 	}
 	n.now = ctx.Now()
 	used := false
-	if n.f.moving || n.f.fading || n.f.pointsBusy || n.f.loading {
+	if n.f.moving || n.f.fading || n.f.pointsBusy || n.f.loading || n.f.overlayAnim {
 		ctx.RequestLayout()
 		used = true
 	}

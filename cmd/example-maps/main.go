@@ -8,6 +8,7 @@
 //	go run ./cmd/example-maps -xyz 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'  # for trying out
 //	go run ./cmd/example-maps -fullscreen            # a kiosk
 //	go run ./cmd/example-maps -photos 2000           # a camera roll on the map
+//	go run ./cmd/example-maps -weather dwd           # the weather of the Deutscher Wetterdienst
 //
 // Pan with a finger or the mouse, zoom with two fingers, the wheel or plus
 // and minus, turn with two fingers; a double tap zooms in. -dark draws the
@@ -32,6 +33,8 @@ import (
 	"github.com/worldiety/gift/internal/showcase"
 	"github.com/worldiety/gift/ui"
 	"github.com/worldiety/gift/ui/maps"
+	"github.com/worldiety/gift/weather"
+	"github.com/worldiety/gift/weather/dwd"
 )
 
 func main() {
@@ -54,6 +57,8 @@ func main() {
 	noLabels := flag.Bool("nolabels", false, "draw the map without its labels, for measuring")
 	fullscreen := flag.Bool("fullscreen", false, "start full screen, as a kiosk does")
 	photos := flag.Int("photos", 0, "show this many sample photographs around Oldenburg, clustered")
+	weatherFrom := flag.String("weather", "", "dwd draws the weather of the Deutscher Wetterdienst over the map")
+	reduced := flag.Bool("reduced", false, "the reduced quality of the weather, for a Raspberry Pi")
 	workers := flag.Int("workers", 2, "decode and rasterising goroutines: two leave the frame loop a core of its own on a Raspberry Pi 5")
 	upload := flag.Int("upload", 512, "texture upload budget per frame in KiB: on a Raspberry Pi 5 two tiles per frame keep a pan at 60 Hz")
 	flag.Parse()
@@ -61,13 +66,20 @@ func main() {
 		eb.SetFullscreen(true)
 	}
 	cam := maps.Camera{Center: geo.LatLon(*lat, *lon), Zoom: *zoom, Heading: *heading}
-	if err := run(*path, *url, *xyz, *attribution, *debug, *dark, *noLabels, *width, *height, *upload, *photos, *workers, cam); err != nil {
+	wo := weatherOptions{from: *weatherFrom, reduced: *reduced}
+	if err := run(*path, *url, *xyz, *attribution, *debug, *dark, *noLabels, *width, *height, *upload, *photos, *workers, wo, cam); err != nil {
 		fmt.Fprintln(os.Stderr, "example-maps:", err)
 		os.Exit(1)
 	}
 }
 
-func run(path, url, xyz, attribution string, debug, dark, noLabels bool, width, height, upload, photos, workers int, cam maps.Camera) error {
+// weatherOptions is what the flags say about the weather.
+type weatherOptions struct {
+	from    string
+	reduced bool
+}
+
+func run(path, url, xyz, attribution string, debug, dark, noLabels bool, width, height, upload, photos, workers int, wo weatherOptions, cam maps.Camera) error {
 	if err := example.LoadFont(); err != nil {
 		return err
 	}
@@ -118,8 +130,32 @@ func run(path, url, xyz, attribution string, debug, dark, noLabels bool, width, 
 		}
 		points = maps.NewPoints(pts, maps.Clustering{})
 	}
+	var sky maps.Overlay
+	if wo.from != "" {
+		if wo.from != "dwd" {
+			return fmt.Errorf("no weather provider %q, only dwd", wo.from)
+		}
+		dir, err := os.UserCacheDir()
+		if err != nil {
+			dir = os.TempDir()
+		}
+		s := weather.NewSky(dwd.ICOND2(dwd.Options{
+			CacheDir:  filepath.Join(dir, "gift", "weather", "dwd"),
+			UserAgent: "gift-example-maps/1 (+https://github.com/worldiety/gift)",
+		}), weather.SkyConfig{Region: geo.RectOf(geo.LatLon(cam.Center.Lat-0.5, cam.Center.Lon-0.8), geo.LatLon(cam.Center.Lat+0.5, cam.Center.Lon+0.8))})
+		s.Start()
+		defer s.Stop()
+		q := maps.WeatherFull
+		if wo.reduced {
+			q = maps.WeatherReduced
+		}
+		sky = maps.Weather(s, maps.WeatherOptions{Quality: q})
+	}
 	app := gift.New(gift.Options{Root: func(*gift.Context) gift.View {
 		v := maps.View(m).Flex(1).Key("map")
+		if sky != nil {
+			v = v.Overlay(sky)
+		}
 		if points != nil {
 			v = v.Points(points, maps.PhotoMarkers())
 		}

@@ -14,11 +14,13 @@ import (
 // Both methods receive the [Projection] of the frame, the camera the tiles
 // are drawn with, so an overlay stays on the ground while the map moves.
 // LayoutOverlay runs in the map's layout and is where an overlay requests
-// what it needs, as a view requests its pictures; PaintOverlay runs in its
-// paint and must draw nothing outside the map's bounds, the rule of the
-// project plan, section 37.
+// what it needs, as a view requests its pictures; it reports whether it is
+// animating, and the map lays out again thirty times a second while one is,
+// and at the full rate while the map moves. PaintOverlay runs in its paint
+// and must draw nothing outside the map's bounds, the rule of the project
+// plan, section 37.
 type Overlay interface {
-	LayoutOverlay(ctx *gift.LayoutContext, p Projection)
+	LayoutOverlay(ctx *gift.LayoutContext, p Projection) (animating bool)
 	PaintOverlay(ctx *gift.PaintContext, p Projection, bounds geom.Rect)
 }
 
@@ -67,8 +69,11 @@ func (p Projection) Visible() geo.Rect {
 }
 
 func (n *node) layoutOverlays(ctx *gift.LayoutContext, v projection) {
+	n.f.overlayAnim = false
 	for _, o := range n.v.overlays {
-		o.LayoutOverlay(ctx, Projection{v})
+		if o.LayoutOverlay(ctx, Projection{v}) {
+			n.f.overlayAnim = true
+		}
 	}
 }
 

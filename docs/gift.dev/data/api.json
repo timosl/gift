@@ -2868,6 +2868,11 @@
             "synopsis": "AppendGlyph appends one positioned glyph to the display list."
           },
           {
+            "name": "AppendVertex",
+            "signature": "AppendVertex(v render.Vertex)",
+            "synopsis": "AppendVertex appends a vertex to the vertex side table of the display list; see render.OpTriangles."
+          },
+          {
             "name": "Audio",
             "signature": "Audio() render.AudioOutput",
             "synopsis": "Audio returns the backend's sound device, or nil when there is none."
@@ -2971,6 +2976,11 @@
             "name": "TransitionPhase",
             "signature": "TransitionPhase() float32",
             "synopsis": "TransitionPhase returns how far the subtree being painted is through a transition: 0 at rest, 1 fully parked."
+          },
+          {
+            "name": "VerticesLen",
+            "signature": "VerticesLen() uint32",
+            "synopsis": "VerticesLen returns the number of vertices in the vertex side table of the display list: the first index of the next render.OpTriangles."
           },
           {
             "name": "Videos",
