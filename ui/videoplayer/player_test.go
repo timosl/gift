@@ -182,3 +182,15 @@ func TestFitKeepsTheAspectAndCentres(t *testing.T) {
 		t.Errorf("fill 16:9 into 800x480 = %v, want full height, cut at the sides", r)
 	}
 }
+
+func TestTheCloseButtonCallsOnClose(t *testing.T) {
+	p := openClip(t)
+	closed := 0
+	h := mount(t, New(p).AutoHide(0).OnClose(func() { closed++ }))
+	h.Find(gifttest.ByKey("close")).Tap()
+	if closed != 1 {
+		t.Fatalf("the close button called OnClose %d times", closed)
+	}
+	g := mount(t, New(p).AutoHide(0))
+	g.AssertNone(gifttest.ByKey("close"))
+}

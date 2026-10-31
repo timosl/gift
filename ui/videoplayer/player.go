@@ -70,6 +70,7 @@ type PlayerView struct {
 	autoHide time.Duration
 	skip     time.Duration
 	controls bool
+	onClose  func()
 	key      string
 	flex     float32
 }
@@ -81,6 +82,11 @@ func New(p *video.Player) PlayerView {
 	}
 	return PlayerView{p: p, autoHide: 3 * time.Second, skip: 10 * time.Second, controls: true}
 }
+
+// OnClose puts a close button at the leading end of the top bar, as
+// AVPlayerViewController shows one, which calls fn. The player is not closed
+// for it: closing it, and going back, is the application's; see the type.
+func (v PlayerView) OnClose(fn func()) PlayerView { v.onClose = fn; return v }
 
 // Gravity sets how the picture fills the view; see [Gravity].
 func (v PlayerView) Gravity(g Gravity) PlayerView { v.gravity = g; return v }
@@ -284,13 +290,16 @@ func (v PlayerView) topBar(m *model, touch, changed func()) gift.View {
 	).Gap(2).PaddingInsets(geom.Insets{Right: 12}).Background(pill).CornerRadius(barButton / 2).Align(geom.Center)
 
 	row := []gift.View{volume, ui.Spacer()}
+	if v.onClose != nil {
+		row = append([]gift.View{roundButton(outline.Close, barButton, 22, "Close", v.onClose).Key("close")}, row...)
+	}
 	if len(p.AudioTracks()) > 1 {
 		row = append(row, roundButton(solid.Headphones, barButton, 22, "Audio track", func() {
 			m.menu = !m.menu
 			touch()
 		}).Key("tracks"))
 	}
-	return ui.HStack(row...).Align(geom.Center)
+	return ui.HStack(row...).Gap(10).Align(geom.Center)
 }
 
 // bottomBar is the position bar between the elapsed and the remaining time.

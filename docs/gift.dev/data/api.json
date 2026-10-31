@@ -9011,6 +9011,11 @@
             "synopsis": "Key sets the identity among siblings."
           },
           {
+            "name": "OnClose",
+            "signature": "OnClose(fn func()) PlayerView",
+            "synopsis": "OnClose puts a close button at the leading end of the top bar, as AVPlayerViewController shows one, which calls fn."
+          },
+          {
             "name": "ShowsControls",
             "signature": "ShowsControls(b bool) PlayerView",
             "synopsis": "ShowsControls switches the controls off, which leaves a Surface that still stretches like this view."
