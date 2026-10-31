@@ -277,7 +277,7 @@ func TestPollMouseConvertsThePositionAndNotTheWheel(t *testing.T) {
 
 	ka.events = ka.events[:0]
 	ka.app.BeginInput(0)
-	b.pollMouse()
+	b.pollMouse(0)
 
 	var moved, wheeled bool
 	for _, e := range ka.events {

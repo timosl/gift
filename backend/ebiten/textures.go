@@ -195,6 +195,10 @@ type TextureCache struct {
 
 	stats TextureStats
 
+	// partial are the pictures larger than the per frame budget that are
+	// being uploaded a band of rows per frame; see [TextureCache.Acquire].
+	partial []partialUpload
+
 	// epoch makes the generations of this cache disjoint from those of every
 	// other cache in the process; see [textureEpoch]. Every slot this cache
 	// ever hands out starts its generation here.
@@ -292,6 +296,15 @@ func (t *TextureCache) Tick() {
 		}
 	}
 	t.frame++
+	// A partial upload nobody asked for in two seconds of frames is a page
+	// the user went away from; its texture and its bytes go back.
+	for i := 0; i < len(t.partial); {
+		if p := &t.partial[i]; t.frame-p.asked > partialMaxAge {
+			t.dropPartial(p, true)
+			continue
+		}
+		i++
+	}
 	if t.cfg.MaxAge < 0 {
 		return
 	}
@@ -336,7 +349,19 @@ func (t *TextureCache) Acquire(px render.Pixels) (render.ImageHandle, bool) {
 		t.stats.Malformed++
 		return render.ImageHandle{}, false
 	}
+	// Ebitengine panics when an image larger than the device allows is
+	// used, and the answer is zero outside a running game, where nothing is
+	// drawn anyway. A picture that large is a request the caller should not
+	// have made — a viewer caps its detail; see ui/imageviewer.MaxDetail —
+	// and is refused like any other picture that does not fit.
+	if m := eb.MaxImageSize(); m > 0 && (px.W > m || px.H > m) {
+		t.stats.Rejected++
+		return render.ImageHandle{}, false
+	}
 	need := px.Bytes()
+	if px.Key != 0 && t.cfg.UploadBytesPerFrame > 0 && need > t.cfg.UploadBytesPerFrame {
+		return t.acquirePartial(px, need)
+	}
 	if t.cfg.UploadsPerFrame >= 0 && t.frameUploads >= t.cfg.UploadsPerFrame {
 		t.stats.Deferred++
 		t.frameDeferred++
@@ -365,22 +390,30 @@ func (t *TextureCache) Acquire(px render.Pixels) (render.ImageHandle, bool) {
 		return render.ImageHandle{}, false
 	}
 
+	t.bytes += need
+	img := t.newTexture(px.W, px.H)
+	if img != nil {
+		writeRows(img, px, 0, px.H)
+	}
+	t.frameUploads++
+	t.frameBytes += need
+	t.stats.UploadedBytes += uint64(need)
+	return t.install(img, px.W, px.H, need, opaquePixels(px))
+}
+
+// install makes a texture whose pixels are all uploaded and whose bytes are
+// already counted resident, and returns its handle.
+func (t *TextureCache) install(img *eb.Image, w, h int, need int64, opaque bool) (render.ImageHandle, bool) {
 	i := t.alloc()
 	r := &t.recs[i]
-	r.img = t.newTexture(px.W, px.H)
-	r.w, r.h = px.W, px.H
+	r.img = img
+	r.w, r.h = w, h
 	r.bytes = need
 	r.used = t.frame
 	r.live = true
 	r.pendingFree = false
-	t.bytes += need
-	t.writePixels(r, px)
-	r.opaque = opaquePixels(px)
-
-	t.frameUploads++
-	t.frameBytes += need
+	r.opaque = opaque
 	t.stats.Uploads++
-	t.stats.UploadedBytes += uint64(need)
 	if n := len(t.recs) - len(t.free) - 1; n > t.stats.PeakTextures {
 		t.stats.PeakTextures = n
 	}
@@ -388,6 +421,113 @@ func (t *TextureCache) Acquire(px render.Pixels) (render.ImageHandle, bool) {
 		t.stats.PeakBytes = t.bytes
 	}
 	return render.ImageHandle{ID: render.ImageID(i), Gen: r.gen}, true
+}
+
+// partialUpload is a picture larger than the per frame budget on its way to
+// the GPU: the texture, which rows of it are there, and when it was last
+// asked for.
+type partialUpload struct {
+	key    uint64
+	w, h   int
+	img    *eb.Image
+	need   int64
+	row    int
+	opaque bool
+	asked  uint64
+}
+
+// partialMaxAge is how many drawn frames a partial upload waits to be asked
+// for again before it is given up.
+const partialMaxAge = 120
+
+// maxPartial bounds the pictures that are uploaded in bands at once. A viewer
+// prepares the page on either side of the one on screen; a fourth is room.
+const maxPartial = 4
+
+// acquirePartial uploads a picture larger than the per frame byte budget in
+// bands of rows, as much of the budget as the frame has left each time it is
+// asked for, and hands out the texture when the last band is there.
+//
+// # Why
+//
+// The escape hatch below lets such a picture overshoot the budget once, in
+// one frame, which is the right answer for a thumbnail that is a little too
+// large and the wrong one for a picture the size of a screen: measured on a
+// Raspberry Pi 5, a full screen picture of 11 MB took a frame of its own and
+// a zoomed one of 45 MB a draw of 41 ms, a hitch of 90 ms in the middle of a
+// swipe. In bands of the budget the same picture arrives over a few frames
+// in which nothing stalls, and a viewer that prepares the next page while
+// the current one is looked at has it resident before the swipe begins.
+//
+// The picture is recognised from frame to frame by [render.Pixels.Key]. Its
+// bytes count against the residency budget from the first band, and a
+// picture that is not asked for again within [TextureConfig.MaxAge] frames
+// is given up; see [TextureCache.Tick].
+func (t *TextureCache) acquirePartial(px render.Pixels, need int64) (render.ImageHandle, bool) {
+	var p *partialUpload
+	for i := range t.partial {
+		if q := &t.partial[i]; q.key == px.Key && q.w == px.W && q.h == px.H {
+			p = q
+			break
+		}
+	}
+	if p == nil {
+		if len(t.partial) >= maxPartial || !t.makeRoom(need) {
+			t.stats.Rejected++
+			return render.ImageHandle{}, false
+		}
+		t.bytes += need
+		t.partial = append(t.partial, partialUpload{
+			key: px.Key, w: px.W, h: px.H, need: need, opaque: true,
+			img: t.newTexture(px.W, px.H),
+		})
+		p = &t.partial[len(t.partial)-1]
+	}
+	p.asked = t.frame
+	rowBytes := int64(px.W * 4)
+	left := t.cfg.UploadBytesPerFrame - t.frameBytes
+	rows := int(min(left/rowBytes, int64(px.H-p.row)))
+	if rows > 0 {
+		if p.img != nil {
+			writeRows(p.img, px, p.row, p.row+rows)
+		}
+		if p.opaque {
+			p.opaque = opaquePixels(render.Pixels{Pix: px.Pix[p.row*px.Stride:], W: px.W, H: rows, Stride: px.Stride})
+		}
+		p.row += rows
+		t.frameBytes += int64(rows) * rowBytes
+		t.stats.UploadedBytes += uint64(int64(rows) * rowBytes)
+	}
+	if p.row < px.H {
+		t.stats.Deferred++
+		t.frameDeferred++
+		return render.ImageHandle{}, false
+	}
+	t.frameUploads++
+	img, opaque := p.img, p.opaque
+	t.dropPartial(p, false)
+	return t.install(img, px.W, px.H, need, opaque)
+}
+
+// dropPartial removes a partial upload; release gives its texture and its
+// bytes back, which a finished one, now installed, keeps.
+func (t *TextureCache) dropPartial(p *partialUpload, release bool) {
+	for i := range t.partial {
+		if &t.partial[i] != p {
+			continue
+		}
+		if release {
+			if p.img != nil {
+				if t.onDeallocate != nil {
+					t.onDeallocate(p.img)
+				}
+				p.img.Deallocate()
+			}
+			t.bytes -= p.need
+		}
+		t.partial = append(t.partial[:i], t.partial[i+1:]...)
+		return
+	}
 }
 
 // Deallocate implements [render.Images].
@@ -492,23 +632,24 @@ func (t *TextureCache) newTexture(w, h int) *eb.Image {
 	return eb.NewImage(w, h)
 }
 
-// writePixels uploads the pixel data.
+// writeRows uploads the rows y0 to y1 of the pixel data.
 //
 // The rows are written one call at a time only when the stride is padded,
 // which asset.Thumbnail's never is; the common case is a single WritePixels of
 // a contiguous slice and therefore a single glTexSubImage2D.
-func (t *TextureCache) writePixels(r *texRecord, px render.Pixels) {
-	if r.img == nil {
-		return
-	}
+func writeRows(img *eb.Image, px render.Pixels, y0, y1 int) {
 	n := px.W * 4
 	if px.Stride == n {
-		r.img.WritePixels(px.Pix[:px.H*px.Stride])
+		dst := img
+		if y0 != 0 || y1 != px.H {
+			dst = img.SubImage(image.Rect(0, y0, px.W, y1)).(*eb.Image)
+		}
+		dst.WritePixels(px.Pix[y0*px.Stride : y1*px.Stride])
 		return
 	}
-	for y := range px.H {
+	for y := y0; y < y1; y++ {
 		row := px.Pix[y*px.Stride : y*px.Stride+n]
-		sub := r.img.SubImage(image.Rect(0, y, px.W, y+1)).(*eb.Image)
+		sub := img.SubImage(image.Rect(0, y, px.W, y+1)).(*eb.Image)
 		sub.WritePixels(row)
 	}
 }

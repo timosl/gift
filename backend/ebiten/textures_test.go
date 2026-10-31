@@ -430,3 +430,62 @@ func TestAHandleFromOneCacheIsStaleInAnother(t *testing.T) {
 			"Stale went from %d to %d", before, got)
 	}
 }
+
+// TestALargePictureIsUploadedInBands pins the partial upload: a picture
+// larger than the per frame budget arrives over several frames, each within
+// the budget, and is not handed out before the last band is there.
+func TestALargePictureIsUploadedInBands(t *testing.T) {
+	tc := NewTextureCache(TextureConfig{UploadBytesPerFrame: 10 * 64 * 4, UploadsPerFrame: -1})
+	big := pixels(64) // 64 rows of 256 bytes, ten rows per frame
+	big.Key = 42
+	frames := 0
+	var h render.ImageHandle
+	for ok := false; !ok; frames++ {
+		if frames > 20 {
+			t.Fatal("the picture never arrived")
+		}
+		tc.BeginFrame()
+		h, ok = tc.Acquire(big)
+		if tc.frameBytes > tc.cfg.UploadBytesPerFrame {
+			t.Fatalf("frame %d uploaded %d bytes, over the budget of %d", frames, tc.frameBytes, tc.cfg.UploadBytesPerFrame)
+		}
+		if !ok && tc.Deferred() == 0 {
+			t.Fatalf("frame %d left the picture unfinished without asking for another frame", frames)
+		}
+		tc.Tick()
+	}
+	if frames != 7 {
+		t.Errorf("64 rows in bands of ten took %d frames, want 7", frames)
+	}
+	if id, ok := tc.Resolve(h); !ok || tc.image(id) == nil {
+		t.Fatal("the finished picture does not resolve")
+	}
+	if tc.bytes != big.Bytes() {
+		t.Errorf("%d bytes resident, want %d", tc.bytes, big.Bytes())
+	}
+	// Without a key the same picture is uploaded whole, as before.
+	whole := pixels(64)
+	tc.BeginFrame()
+	if _, ok := tc.Acquire(whole); !ok {
+		t.Error("a large picture without a key was not admitted in one frame")
+	}
+}
+
+func TestAnAbandonedPartialUploadGivesItsBytesBack(t *testing.T) {
+	released := 0
+	tc := NewTextureCache(TextureConfig{UploadBytesPerFrame: 10 * 64 * 4, UploadsPerFrame: -1})
+	tc.onDeallocate = func(*eb.Image) { released++ }
+	big := pixels(64)
+	big.Key = 7
+	tc.BeginFrame()
+	if _, ok := tc.Acquire(big); ok {
+		t.Fatal("finished in one frame")
+	}
+	for range partialMaxAge + 2 {
+		tc.Tick()
+		tc.BeginFrame()
+	}
+	if len(tc.partial) != 0 || tc.bytes != 0 || released != 1 {
+		t.Errorf("after the user went away: %d partial, %d bytes, %d released", len(tc.partial), tc.bytes, released)
+	}
+}

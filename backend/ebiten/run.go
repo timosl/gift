@@ -2,6 +2,7 @@ package ebiten
 
 import (
 	"image/color"
+	"sync/atomic"
 
 	"log/slog"
 	"math"
@@ -243,6 +244,31 @@ type Config struct {
 	// the machine.
 	GlassQuality render.GlassQuality
 
+	// Textures configures the texture cache: how many bytes of pictures are
+	// uploaded per drawn frame and how many may be resident. The zero value
+	// selects the defaults of [TextureConfig]. A picture larger than the per
+	// frame budget is uploaded in bands over several frames; on a Raspberry
+	// Pi a smaller budget trades a picture that arrives a few frames later
+	// for frames that keep their time while it does.
+	Textures TextureConfig
+
+	// Touchscreen selects the touch panel that is read directly from the
+	// kernel on Linux, past the display server: the empty string finds one
+	// — a direct touch device with the multitouch protocol B, the touch
+	// screen of a Raspberry Pi display — a device path such as
+	// /dev/input/event4 names one, and "off" reads none. The environment
+	// variable GIFT_TOUCHSCREEN overrides it with the same values.
+	//
+	// Under X11 and XWayland a touch screen reaches the window as an
+	// emulated mouse: one finger, no time stamps, one position per tick.
+	// Read directly it has every finger — a pinch works — and every sample
+	// with the time the panel took it, which gift resamples to the frame
+	// the way Android does, so that a dragged list moves without judder and
+	// a fling starts at the speed the finger had. The emulated mouse is
+	// ignored while a finger is on the panel. Other platforms ignore the
+	// field and use Ebitengine's own touch input.
+	Touchscreen string
+
 	// NoInput disables the input bridge. It exists for a measurement run that
 	// must not be perturbed by a cursor that happens to rest over a button,
 	// and for a test harness that dispatches events into [gift.App] itself.
@@ -302,6 +328,9 @@ func Run(app *gift.App, cfg Config) error {
 	r, err := NewRenderer()
 	if err != nil {
 		return err
+	}
+	if cfg.Textures != (TextureConfig{}) {
+		r.SetTextures(NewTextureCache(cfg.Textures))
 	}
 	// The one route from a painter in ui to a texture in this package. gift
 	// carries the service and never uses it; see [gift.App.SetImages].
@@ -364,6 +393,9 @@ func Run(app *gift.App, cfg Config) error {
 	}
 	if cfg.NoInput {
 		g.input = nil
+	} else {
+		g.input.attachPanel(cfg.Touchscreen, cfg.Logger, g.wake)
+		defer g.input.detachPanel()
 	}
 
 	// Before the window opens and on this goroutine, which is the UI
@@ -440,7 +472,9 @@ type game struct {
 	input    *inputBridge
 
 	activeTPS, busyTPS, idleTPS, idleAfter int
-	idleCount                              int
+	// idle is set while the game ticks at its idle rate; see [game.wake].
+	idle      atomic.Bool
+	idleCount int
 
 	w, h     int
 	lastDraw time.Time
@@ -703,8 +737,21 @@ func (g *game) logGlassLevel() {
 		slog.Uint64("changes", s.Changes))
 }
 
+// wake raises the tick rate of an idle game at once. The touch panel calls
+// it from its reader when a finger comes down, so the first touch after a
+// pause is handled in the next frame and not in the next idle tick, which at
+// an IdleTPS of ten is up to a tenth of a second later. SetTPS is safe from
+// any goroutine; the bookkeeping is the update's, which sees the input and
+// confirms the rate.
+func (g *game) wake() {
+	if g.idleTPS > 0 && g.idle.Load() {
+		eb.SetTPS(g.busyTPS)
+	}
+}
+
 // applyIdlePolicy raises or lowers the tick rate. See [Config.IdleTPS].
 func (g *game) applyIdlePolicy(changed bool) {
+	g.idle.Store(!changed && g.idleCount >= g.idleAfter)
 	if changed {
 		g.idleCount = 0
 		if g.activeTPS != g.busyTPS {

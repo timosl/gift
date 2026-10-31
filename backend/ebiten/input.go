@@ -143,6 +143,23 @@ type inputBridge struct {
 	// buffers are allocated once and never again.
 	ids, prevIDs []eb.TouchID
 	pos, prevPos []geom.Point
+
+	// panel is the touch panel read past the display server, or nil; see
+	// touchpanel.go. panelEvs is the reused buffer of its events, contacts
+	// the fingers it has down, and screen the mapping of its coordinates
+	// into the window, read once per tick.
+	panel    panel
+	panelEvs []panelEvent
+	// panelPeriod is the estimated sample period of the panel; see
+	// [inputBridge.latency].
+	panelPeriod time.Duration
+	contacts    [gift.MaxTouches]contact
+	screen      func() panelMap
+	// parked is set while the mouse is where the display server's
+	// emulation of the last touch left it, at parkedPos. A cursor that has
+	// not moved since is not a mouse anybody is using.
+	parked    bool
+	parkedPos geom.Point
 }
 
 // trackedKeys maps the keys gift knows to Ebitengine's codes.
@@ -218,13 +235,17 @@ func newInputBridge(app *gift.App) *inputBridge {
 // It allocates nothing: the touch buffers are reused and every other reading
 // is a scalar.
 func (b *inputBridge) poll() {
-	b.app.BeginInput(time.Since(b.start))
+	now := time.Since(b.start)
+	b.app.BeginInput(now)
 	b.density = b.app.Density()
 	b.app.SetModifiers(b.modifiers())
 	b.pollKeys()
 	b.pollRunes()
-	b.pollMouse()
+	b.pollMouse(now)
 	b.pollTouches()
+	if b.panel != nil {
+		b.pollPanel(now, b.screen())
+	}
 }
 
 func (b *inputBridge) pollKeys() {
@@ -299,10 +320,28 @@ func (b *inputBridge) logical(x, y float64) geom.Point {
 	return geom.Pt(float32(x)/b.density, float32(y)/b.density)
 }
 
-func (b *inputBridge) pollMouse() {
+func (b *inputBridge) pollMouse(now time.Duration) {
 	x, y := b.cursor()
 	pos := b.logical(x, y)
-	b.app.PointerMove(gift.MousePointer, gift.PointerMouse, pos)
+	if b.panel != nil && b.panel.recent(now, panelLinger) {
+		// The display server turns a touch into a mouse, and the panel has
+		// reported that finger already, with its time and its neighbours.
+		// The buttons are followed silently so that no edge is replayed
+		// later, and the cursor is parked where the emulation leaves it.
+		for i, btn := range trackedButtons {
+			b.mouse[i] = eb.IsMouseButtonPressed(btn)
+		}
+		b.parked, b.parkedPos = true, pos
+		return
+	}
+	switch {
+	case b.parked && pos == b.parkedPos:
+		// Where the last touch left it: no hover, no arrows, nothing a
+		// moved mouse would bring up.
+	default:
+		b.parked = false
+		b.app.PointerMove(gift.MousePointer, gift.PointerMouse, pos)
+	}
 
 	for i, btn := range trackedButtons {
 		now := eb.IsMouseButtonPressed(btn)
