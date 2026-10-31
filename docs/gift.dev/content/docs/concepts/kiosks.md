@@ -209,9 +209,13 @@ if turbojpeg.Register() { // github.com/worldiety/gift/asset/turbojpeg
 }
 ```
 
-**Touch arrives as a mouse.** Under X11 and XWayland a touchscreen reports to Ebitengine as a mouse. gift's
-controls and scroll views handle that: a finger taps a button and drag-scrolls a list. But gift cannot tell a kiosk
-from a desktop by the input, which is why the on-screen keyboard has an explicit switch.
+**Touch is read from the panel.** Under X11 and XWayland a touch screen reports to Ebitengine as a mouse with one
+finger and no time stamps. The backend therefore reads the panel directly from `/dev/input`, which the default user
+may as a member of the group `input`: every finger, so a pinch works, and every sample with its time, resampled to
+the frame so that a dragged list moves without judder on a panel that samples at 50 Hz. The emulated mouse is
+ignored while a finger is down. `backend.Config.Touchscreen` names the device or turns this `"off"`; see
+[Gestures](../gestures/#touch-screens-on-linux). gift still cannot tell a kiosk from a desktop by the input, which is
+why the on-screen keyboard has an explicit switch.
 
 **Performance.** 1080p at 60 Hz on a Raspberry Pi is a target, not a verified guarantee. Measure on your device
 with the `giftmetrics` build tag and `GIFT_METRICS=1`; see [Diagnostics](../diagnostics/). If you pass a `Logger` in `backend.Config`,

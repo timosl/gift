@@ -103,7 +103,7 @@
       },
       "DiskCacheConfig": {
         "synopsis": "DiskCacheConfig configures the persistent thumbnail cache of the project plan, section 9, point 4.",
-        "decl": "type DiskCacheConfig struct {\n\tDir    string\n\tBudget int64\n\tNow    func() time.Time\n}",
+        "decl": "type DiskCacheConfig struct {\n\tDir     string\n\tBudget  int64\n\tNow     func() time.Time\n\tMaxSize int\n}",
         "constructors": [],
         "methods": []
       },
@@ -614,7 +614,7 @@
       },
       "Config": {
         "synopsis": "Config configures the window and the frame loop of Run.",
-        "decl": "type Config struct {\n\tTitle                         string\n\tX11ClassName, X11InstanceName string\n\tWidth, Height                 int\n\tLogger                        *slog.Logger\n\tTPS                           int\n\tIdleTPS                       int\n\tIdleFrames                    int\n\tDrawOnDemand                  bool\n\tDirectToScreen                bool\n\tNominalFrameInterval          time.Duration\n\tIntervalTolerance             time.Duration\n\tWarmupFrames                  int\n\tAudioSampleRate               int\n\tOnRenderer                    func(*Renderer)\n\tOnUpdate                      func() error\n\tAssetStats                    func() metrics.AssetStats\n\tGlassQuality                  render.GlassQuality\n\tNoInput                       bool\n}",
+        "decl": "type Config struct {\n\tTitle                         string\n\tX11ClassName, X11InstanceName string\n\tWidth, Height                 int\n\tLogger                        *slog.Logger\n\tTPS                           int\n\tIdleTPS                       int\n\tIdleFrames                    int\n\tDrawOnDemand                  bool\n\tDirectToScreen                bool\n\tNominalFrameInterval          time.Duration\n\tIntervalTolerance             time.Duration\n\tWarmupFrames                  int\n\tAudioSampleRate               int\n\tOnRenderer                    func(*Renderer)\n\tOnUpdate                      func() error\n\tAssetStats                    func() metrics.AssetStats\n\tGlassQuality                  render.GlassQuality\n\tTextures                      TextureConfig\n\tTouchscreen                   string\n\tNoInput                       bool\n}",
         "constructors": [],
         "methods": []
       },
@@ -1737,6 +1737,320 @@
       }
     ]
   },
+  "gesture": {
+    "importPath": "github.com/worldiety/gift/ui/gesture",
+    "synopsis": "",
+    "types": {
+      "Axis": {
+        "synopsis": "Axis restricts the direction a DragGesture may begin in.",
+        "decl": "type Axis uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "Common": {
+        "synopsis": "Common is what every value carries.",
+        "decl": "type Common struct {\n\tTime   time.Duration\n\tBounds geom.Rect\n\tDevice gift.PointerKind\n\tMods   gift.Mods\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Local",
+            "signature": "Local(p geom.Point) geom.Point",
+            "synopsis": "Local converts a device space position into the recognising node's own coordinates, with the origin at its top left corner."
+          }
+        ]
+      },
+      "DragGesture": {
+        "synopsis": "DragGesture recognises a pointer that moves.",
+        "decl": "type DragGesture struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Drag",
+            "signature": "Drag() DragGesture",
+            "synopsis": "Drag returns a drag recogniser that begins after Slop in any direction, for fingers and the mouse."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Axis",
+            "signature": "Axis(a Axis) DragGesture",
+            "synopsis": "Axis restricts the direction the drag may begin in; see Horizontal."
+          },
+          {
+            "name": "MinimumDistance",
+            "signature": "MinimumDistance(d float32) DragGesture",
+            "synopsis": "MinimumDistance sets how far the pointer travels before the drag begins."
+          },
+          {
+            "name": "Mouse",
+            "signature": "Mouse(v bool) DragGesture",
+            "synopsis": "Mouse sets whether the mouse may drag."
+          },
+          {
+            "name": "OnCancelled",
+            "signature": "OnCancelled(fn func()) DragGesture",
+            "synopsis": "OnCancelled sets the function called when a drag that began is taken away: by an ancestor that stole the pointer, or by the platform."
+          },
+          {
+            "name": "OnChanged",
+            "signature": "OnChanged(fn func(DragValue)) DragGesture",
+            "synopsis": "OnChanged sets the function called when the drag begins and on every move."
+          },
+          {
+            "name": "OnEnded",
+            "signature": "OnEnded(fn func(DragValue)) DragGesture",
+            "synopsis": "OnEnded sets the function called when the last finger lifts."
+          },
+          {
+            "name": "ShouldBegin",
+            "signature": "ShouldBegin(fn func(DragValue) bool) DragGesture",
+            "synopsis": "ShouldBegin sets a predicate that is asked when the drag is about to begin, with the value it would begin with."
+          }
+        ]
+      },
+      "DragValue": {
+        "synopsis": "DragValue is the state of a drag.",
+        "decl": "type DragValue struct {\n\tCommon\n\tPhase                   Phase\n\tLocation, StartLocation geom.Point\n\tTranslation             geom.Point\n\tVelocity                geom.Point\n\tPredictedEndTranslation geom.Point\n\tFingers                 int\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Gesture": {
+        "synopsis": "Gesture is one recogniser declaration.",
+        "decl": "type Gesture interface {\n\n}// contains filtered or unexported methods\n",
+        "constructors": [],
+        "methods": []
+      },
+      "HoverGesture": {
+        "synopsis": "HoverGesture follows a mouse that moves over the view without a button held.",
+        "decl": "type HoverGesture struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Hover",
+            "signature": "Hover() HoverGesture",
+            "synopsis": "Hover returns a hover recogniser."
+          }
+        ],
+        "methods": [
+          {
+            "name": "OnChanged",
+            "signature": "OnChanged(fn func(HoverValue)) HoverGesture",
+            "synopsis": "OnChanged sets the function called on every movement, and once with Inside false when the mouse leaves."
+          }
+        ]
+      },
+      "HoverValue": {
+        "synopsis": "HoverValue is the position of a mouse over the view.",
+        "decl": "type HoverValue struct {\n\tCommon\n\tLocation geom.Point\n\tInside   bool\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "LongPressGesture": {
+        "synopsis": "LongPressGesture recognises a finger or a mouse button held still.",
+        "decl": "type LongPressGesture struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "LongPress",
+            "signature": "LongPress() LongPressGesture",
+            "synopsis": "LongPress returns a long press recogniser with LongPressDuration."
+          }
+        ],
+        "methods": [
+          {
+            "name": "MinimumDuration",
+            "signature": "MinimumDuration(d time.Duration) LongPressGesture",
+            "synopsis": "MinimumDuration sets how long the press must last."
+          },
+          {
+            "name": "OnEnded",
+            "signature": "OnEnded(fn func(LongPressValue)) LongPressGesture",
+            "synopsis": "OnEnded sets the function called when the press has lasted long enough."
+          }
+        ]
+      },
+      "LongPressValue": {
+        "synopsis": "LongPressValue is a recognised long press.",
+        "decl": "type LongPressValue struct {\n\tCommon\n\tLocation geom.Point\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "MagnifyGesture": {
+        "synopsis": "MagnifyGesture recognises two fingers moving apart or together.",
+        "decl": "type MagnifyGesture struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Magnify",
+            "signature": "Magnify() MagnifyGesture",
+            "synopsis": "Magnify returns a pinch recogniser."
+          }
+        ],
+        "methods": [
+          {
+            "name": "OnCancelled",
+            "signature": "OnCancelled(fn func()) MagnifyGesture",
+            "synopsis": "OnCancelled sets the function called when a pinch that began is taken away."
+          },
+          {
+            "name": "OnChanged",
+            "signature": "OnChanged(fn func(MagnifyValue)) MagnifyGesture",
+            "synopsis": "OnChanged sets the function called when the pinch begins and on every move."
+          },
+          {
+            "name": "OnEnded",
+            "signature": "OnEnded(fn func(MagnifyValue)) MagnifyGesture",
+            "synopsis": "OnEnded sets the function called when the pinch ends."
+          }
+        ]
+      },
+      "MagnifyValue": {
+        "synopsis": "MagnifyValue is the state of a pinch.",
+        "decl": "type MagnifyValue struct {\n\tCommon\n\tPhase                 Phase\n\tMagnification         float64\n\tVelocity              float64\n\tStartAnchor, Location geom.Point\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Phase": {
+        "synopsis": "Phase is where a continuous gesture is in its life.",
+        "decl": "type Phase uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "RotateGesture": {
+        "synopsis": "RotateGesture recognises two fingers turning.",
+        "decl": "type RotateGesture struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Rotate",
+            "signature": "Rotate() RotateGesture",
+            "synopsis": "Rotate returns a rotation recogniser."
+          }
+        ],
+        "methods": [
+          {
+            "name": "OnCancelled",
+            "signature": "OnCancelled(fn func()) RotateGesture",
+            "synopsis": "OnCancelled sets the function called when a rotation that began is taken away."
+          },
+          {
+            "name": "OnChanged",
+            "signature": "OnChanged(fn func(RotateValue)) RotateGesture",
+            "synopsis": "OnChanged sets the function called when the rotation begins and on every move."
+          },
+          {
+            "name": "OnEnded",
+            "signature": "OnEnded(fn func(RotateValue)) RotateGesture",
+            "synopsis": "OnEnded sets the function called when the rotation ends."
+          }
+        ]
+      },
+      "RotateValue": {
+        "synopsis": "RotateValue is the state of a two finger rotation.",
+        "decl": "type RotateValue struct {\n\tCommon\n\tPhase                 Phase\n\tRotation              float64\n\tVelocity              float64\n\tStartAnchor, Location geom.Point\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "TapGesture": {
+        "synopsis": "TapGesture recognises one or more taps of one finger or of the mouse.",
+        "decl": "type TapGesture struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Tap",
+            "signature": "Tap() TapGesture",
+            "synopsis": "Tap returns a single tap recogniser."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Count",
+            "signature": "Count(n int) TapGesture",
+            "synopsis": "Count sets how many taps the gesture needs."
+          },
+          {
+            "name": "OnEnded",
+            "signature": "OnEnded(fn func(TapValue)) TapGesture",
+            "synopsis": "OnEnded sets the function called when the taps are complete."
+          }
+        ]
+      },
+      "TapValue": {
+        "synopsis": "TapValue is a recognised tap.",
+        "decl": "type TapValue struct {\n\tCommon\n\tLocation geom.Point\n\tCount    int\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "View": {
+        "synopsis": "View is content with gestures attached; see On.",
+        "decl": "type View struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "On",
+            "signature": "On(content gift.View, gs ...Gesture) View",
+            "synopsis": "On attaches gestures to content, the counterpart of SwiftUI's .gesture modifier:"
+          }
+        ],
+        "methods": [
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) View",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) View",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "KeyFallback",
+            "signature": "KeyFallback(b bool) View",
+            "synopsis": "KeyFallback makes the view receive keys while nothing holds the focus; see gift.Element.KeyFallback."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) View",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "OnKey",
+            "signature": "OnKey(fn func(gift.Event) bool) View",
+            "synopsis": "OnKey makes the view focusable and hands it key and character events."
+          }
+        ]
+      },
+      "WheelGesture": {
+        "synopsis": "WheelGesture receives the wheel.",
+        "decl": "type WheelGesture struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Wheel",
+            "signature": "Wheel() WheelGesture",
+            "synopsis": "Wheel returns a wheel recogniser."
+          }
+        ],
+        "methods": [
+          {
+            "name": "OnChanged",
+            "signature": "OnChanged(fn func(WheelValue) bool) WheelGesture",
+            "synopsis": "OnChanged sets the function called for every wheel event."
+          }
+        ]
+      },
+      "WheelValue": {
+        "synopsis": "WheelValue is one scroll of a wheel or of two fingers on a trackpad.",
+        "decl": "type WheelValue struct {\n\tCommon\n\tLocation geom.Point\n\tDelta    geom.Point\n}",
+        "constructors": [],
+        "methods": []
+      }
+    },
+    "funcs": [
+      {
+        "name": "Handle",
+        "signature": "Handle(ctx *gift.EventContext, e gift.Event, gs []Gesture) bool",
+        "synopsis": "Handle feeds one event to a set of gestures on the node receiving it and reports whether the event was used."
+      },
+      {
+        "name": "NeedsMultiTouch",
+        "signature": "NeedsMultiTouch(gs []Gesture) bool",
+        "synopsis": "NeedsMultiTouch reports whether a set contains a recogniser that needs more than one finger."
+      }
+    ]
+  },
   "gift": {
     "importPath": "github.com/worldiety/gift",
     "synopsis": "Package gift is the runtime core of the gift UI toolkit.",
@@ -1933,14 +2247,29 @@
             "synopsis": "PointerDown reports a press of the pointer id at pos."
           },
           {
+            "name": "PointerDownAt",
+            "signature": "PointerDownAt(id PointerID, kind PointerKind, pos geom.Point, t time.Duration)",
+            "synopsis": "PointerDownAt is App.PointerDown for a press the backend measured at t; see App.PointerMoveAt."
+          },
+          {
             "name": "PointerMove",
             "signature": "PointerMove(id PointerID, kind PointerKind, pos geom.Point)",
             "synopsis": "PointerMove reports that the pointer id moved to pos, in device space."
           },
           {
+            "name": "PointerMoveAt",
+            "signature": "PointerMoveAt(id PointerID, kind PointerKind, pos geom.Point, t time.Duration)",
+            "synopsis": "PointerMoveAt is App.PointerMove for a sample the backend measured at t, on the clock of App.BeginInput, and Event.Time is then t rather than the tick time."
+          },
+          {
             "name": "PointerUp",
             "signature": "PointerUp(id PointerID, kind PointerKind, pos geom.Point)",
             "synopsis": "PointerUp reports a release of the pointer id at pos."
+          },
+          {
+            "name": "PointerUpAt",
+            "signature": "PointerUpAt(id PointerID, kind PointerKind, pos geom.Point, t time.Duration)",
+            "synopsis": "PointerUpAt is App.PointerUp for a release the backend measured at t; see App.PointerMoveAt."
           },
           {
             "name": "PointerWheel",
@@ -2104,7 +2433,7 @@
       },
       "Element": {
         "synopsis": "Element is the description of one retained node.",
-        "decl": "type Element struct {\n\tKey            string\n\tLabel          string\n\tLayouter       Layouter\n\tPainter        Painter\n\tChildren       []View\n\tFlex           float32\n\tInteractor     Interactor\n\tFocusable      bool\n\tDisabled       bool\n\tObstructs      bool\n\tClip           bool\n\tTransform      *geom.Affine2D\n\tScroll         *ScrollSpec\n\tHidden         bool\n\tLayer          bool\n\tFocusTrap      bool\n\tTransition     TransitionSpec\n\tKeyFallback    bool\n\tPreservesFocus bool\n}",
+        "decl": "type Element struct {\n\tKey            string\n\tLabel          string\n\tLayouter       Layouter\n\tPainter        Painter\n\tChildren       []View\n\tFlex           float32\n\tInteractor     Interactor\n\tFocusable      bool\n\tDisabled       bool\n\tObstructs      bool\n\tClip           bool\n\tTransform      *geom.Affine2D\n\tScroll         *ScrollSpec\n\tHidden         bool\n\tLayer          bool\n\tFocusTrap      bool\n\tTransition     TransitionSpec\n\tKeyFallback    bool\n\tMultiTouch     bool\n\tPreservesFocus bool\n}",
         "constructors": [],
         "methods": []
       },
@@ -2131,6 +2460,11 @@
         "decl": "type EventContext struct {\n\t// Has unexported fields.\n}",
         "constructors": [],
         "methods": [
+          {
+            "name": "After",
+            "signature": "After(d time.Duration)",
+            "synopsis": "After asks for one EventTimer to be delivered to the receiving node d from now, on the clock App.BeginInput is given."
+          },
           {
             "name": "Animate",
             "signature": "Animate(d time.Duration)",
@@ -2182,6 +2516,11 @@
             "synopsis": "Now returns the timestamp of the event being dispatched, on the clock App.BeginInput is given: the clock a control's animation is started on."
           },
           {
+            "name": "PointerIsDown",
+            "signature": "PointerIsDown(id PointerID) bool",
+            "synopsis": "PointerIsDown reports whether the pointer id is currently pressed: the mouse with its primary button held, or a finger on the glass."
+          },
+          {
             "name": "Repaint",
             "signature": "Repaint()",
             "synopsis": "Repaint marks the receiving node as needing to be drawn again, without rebuilding or re measuring anything."
@@ -2200,6 +2539,11 @@
             "name": "RequestSoftKeyboard",
             "signature": "RequestSoftKeyboard(want bool)",
             "synopsis": "RequestSoftKeyboard declares whether the receiving node wants an on-screen keyboard, and asks for a rebuild when the answer changed."
+          },
+          {
+            "name": "Retained",
+            "signature": "Retained[T any]() *T",
+            "synopsis": "Retained returns the value of type T the receiving node keeps across builds, creating a zero T on first use."
           },
           {
             "name": "ScrollBy",
@@ -2283,6 +2627,11 @@
         "decl": "type LayoutContext struct {\n\t// Has unexported fields.\n}",
         "constructors": [],
         "methods": [
+          {
+            "name": "After",
+            "signature": "After(d time.Duration)",
+            "synopsis": "After is EventContext.After for the node being laid out."
+          },
           {
             "name": "AnchorScroll",
             "signature": "AnchorScroll(off float64) bool",
@@ -2382,6 +2731,11 @@
             "name": "RequestLayout",
             "signature": "RequestLayout()",
             "synopsis": "RequestLayout asks for another layout pass over this node in the next update, without rebuilding anything."
+          },
+          {
+            "name": "Retained",
+            "signature": "Retained[T any]() *T",
+            "synopsis": "Retained is EventContext.Retained for the node being laid out."
           },
           {
             "name": "ScrollOffset",
@@ -2535,6 +2889,11 @@
             "name": "PushTransform",
             "signature": "PushTransform(m geom.Affine2D)",
             "synopsis": "PushTransform applies m to everything this painter adds from now on and to the children it paints, until the matching PaintContext.PopTransform."
+          },
+          {
+            "name": "Retained",
+            "signature": "Retained[T any]() *T",
+            "synopsis": "Retained is EventContext.Retained for the node being painted."
           },
           {
             "name": "ScrollIndicator",
@@ -2860,9 +3219,29 @@
             "synopsis": "FindAll returns every node matching s, in document order."
           },
           {
+            "name": "FingerDown",
+            "signature": "FingerDown(id int, p geom.Point)",
+            "synopsis": "FingerDown puts the finger with the given identifier down at the device space point p and leaves it there."
+          },
+          {
+            "name": "FingerMove",
+            "signature": "FingerMove(id int, p geom.Point)",
+            "synopsis": "FingerMove moves the finger id to p without advancing the clock."
+          },
+          {
+            "name": "FingerUp",
+            "signature": "FingerUp(id int, p geom.Point)",
+            "synopsis": "FingerUp lifts the finger id at p."
+          },
+          {
             "name": "First",
             "signature": "First(s Selector) Node",
             "synopsis": "First returns the first node matching s in document order and fails when there is none."
+          },
+          {
+            "name": "Fling",
+            "signature": "Fling(from, to geom.Point, d time.Duration)",
+            "synopsis": "Fling is a finger that goes down at from, travels to to in d at an even speed with one move per FrameInterval, and lifts there."
           },
           {
             "name": "Focused",
@@ -2913,6 +3292,11 @@
             "name": "Ops",
             "signature": "Ops() []render.Op",
             "synopsis": "Ops returns a copy of the display list of the most recent frame."
+          },
+          {
+            "name": "Pinch",
+            "signature": "Pinch(centre geom.Point, fromSpread, toSpread float32, d time.Duration)",
+            "synopsis": "Pinch puts two fingers down on a horizontal line through centre, spread fromSpread apart, moves them to toSpread apart in d with one move per FrameInterval, and lifts them."
           },
           {
             "name": "PressAt",
@@ -3434,6 +3818,304 @@
         "name": "Update",
         "signature": "Update() bool",
         "synopsis": "Update reports whether goldens are being rewritten, that is whether GIFT_UPDATE_GOLDEN is set to something other than \"0\" or \"\"."
+      }
+    ]
+  },
+  "imageviewer": {
+    "importPath": "github.com/worldiety/gift/ui/imageviewer",
+    "synopsis": "Package imageviewer shows pictures as large and as interactive as the screen allows: a picture that zooms and pans in place, and a full screen viewer that pages through a catalogue, in the manner of iOS's Photos.",
+    "types": {
+      "FullscreenView": {
+        "synopsis": "FullscreenView is the view of a Viewer; see Fullscreen.",
+        "decl": "type FullscreenView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Fullscreen",
+            "signature": "Fullscreen(v *Viewer) FullscreenView",
+            "synopsis": "Fullscreen returns the full screen view of v."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c ui.Color) FullscreenView",
+            "synopsis": "Background sets the colour behind the pictures."
+          },
+          {
+            "name": "Card",
+            "signature": "Card(fn func(asset.ID) gift.View) FullscreenView",
+            "synopsis": "Card sets the content of the card a swipe up reveals below the picture: details, metadata, actions."
+          },
+          {
+            "name": "Closable",
+            "signature": "Closable(b bool) FullscreenView",
+            "synopsis": "Closable sets whether the user can close the viewer with a gesture or a key; Viewer.Close works either way."
+          },
+          {
+            "name": "DoubleTapZoom",
+            "signature": "DoubleTapZoom(z float64) FullscreenView",
+            "synopsis": "DoubleTapZoom sets the zoom of a double tap; see ZoomableView.DoubleTapZoom."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) FullscreenView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "MaxZoom",
+            "signature": "MaxZoom(z float64) FullscreenView",
+            "synopsis": "MaxZoom sets the largest zoom; see ZoomableView.MaxZoom."
+          },
+          {
+            "name": "ShowsControls",
+            "signature": "ShowsControls(b bool) FullscreenView",
+            "synopsis": "ShowsControls sets whether the close button and the arrows are drawn."
+          },
+          {
+            "name": "Spacing",
+            "signature": "Spacing(px float32) FullscreenView",
+            "synopsis": "Spacing sets the gap between two pages."
+          },
+          {
+            "name": "Wheel",
+            "signature": "Wheel(m WheelMode) FullscreenView",
+            "synopsis": "Wheel sets what the wheel does."
+          }
+        ]
+      },
+      "Origin": {
+        "synopsis": "Origin is where the pictures of a viewer are shown small: a gallery, a row of thumbnails, a filmstrip.",
+        "decl": "type Origin interface {\n\tThumbnailFrame(id asset.ID) (geom.Rect, float32, bool)\n\tConceal(id asset.ID)\n\tReveal(id asset.ID) bool\n}// ThumbnailFrame is where the thumbnail of id was drawn in the last\n// frame, in device space, with its corner radius, and whether it was\n// drawn at all.\n// Reveal brings the thumbnail of id into view, so that the viewer can\n// close into it.\n",
+        "constructors": [],
+        "methods": []
+      },
+      "Viewer": {
+        "synopsis": "Viewer is the retained model of a full screen picture viewer: the catalogue it pages through, the picture it shows, and everything the gestures leave behind between two frames — the zoom, the position of the pages, a picture half dragged away.",
+        "decl": "type Viewer struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "New",
+            "signature": "New(c *asset.Collection, sources func(asset.ID) asset.Source) *Viewer",
+            "synopsis": "New returns a closed viewer over the catalogue c, whose entries sources resolves to something the image pipeline can open — the same resolver a ui.Gallery is given."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Close",
+            "signature": "Close()",
+            "synopsis": "Close shrinks the picture back into its thumbnail and closes the viewer."
+          },
+          {
+            "name": "Collection",
+            "signature": "Collection() *asset.Collection",
+            "synopsis": "Collection returns the catalogue the viewer pages through."
+          },
+          {
+            "name": "Current",
+            "signature": "Current() (asset.ID, bool)",
+            "synopsis": "Current returns the entry the viewer shows, and whether it is open."
+          },
+          {
+            "name": "IsOpen",
+            "signature": "IsOpen() bool",
+            "synopsis": "IsOpen reports whether the viewer is on the screen, opening or closing included."
+          },
+          {
+            "name": "Next",
+            "signature": "Next() bool",
+            "synopsis": "Next turns to the next picture, as the right arrow key does, and reports whether there is one."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(fn func(asset.ID))",
+            "synopsis": "OnChange sets the function called when the viewer shows a different picture, after a page was turned, and when it opens."
+          },
+          {
+            "name": "OnClose",
+            "signature": "OnClose(fn func())",
+            "synopsis": "OnClose sets the function called when the viewer has closed, after the transition back."
+          },
+          {
+            "name": "Open",
+            "signature": "Open(id asset.ID) bool",
+            "synopsis": "Open shows the entry id, growing it out of its thumbnail in the origin."
+          },
+          {
+            "name": "Previous",
+            "signature": "Previous() bool",
+            "synopsis": "Previous turns to the previous picture."
+          },
+          {
+            "name": "SetOrigin",
+            "signature": "SetOrigin(o Origin)",
+            "synopsis": "SetOrigin sets where the viewer opens from and closes into."
+          }
+        ]
+      },
+      "WheelMode": {
+        "synopsis": "WheelMode says what the wheel does over a zoomable picture.",
+        "decl": "type WheelMode uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "ZoomableView": {
+        "synopsis": "ZoomableView is a picture that can be zoomed and panned in place: pinched, double tapped, wheeled and moved with the keys.",
+        "decl": "type ZoomableView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Zoomable",
+            "signature": "Zoomable(src asset.Source) ZoomableView",
+            "synopsis": "Zoomable returns a zoomable view of src."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(c ui.Color) ZoomableView",
+            "synopsis": "Background sets the colour behind the picture, where it does not cover the view."
+          },
+          {
+            "name": "DoubleTapZoom",
+            "signature": "DoubleTapZoom(f float64) ZoomableView",
+            "synopsis": "DoubleTapZoom sets the zoom a double tap goes to."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) ZoomableView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Frame",
+            "signature": "Frame(w, h float32) ZoomableView",
+            "synopsis": "Frame fixes the size of the view."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) ZoomableView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) ZoomableView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "MaxZoom",
+            "signature": "MaxZoom(f float64) ZoomableView",
+            "synopsis": "MaxZoom sets the largest zoom relative to the fit."
+          },
+          {
+            "name": "Wheel",
+            "signature": "Wheel(m WheelMode) ZoomableView",
+            "synopsis": "Wheel sets what the wheel does; see WheelMode."
+          }
+        ]
+      }
+    },
+    "funcs": []
+  },
+  "motion": {
+    "importPath": "github.com/worldiety/gift/ui/motion",
+    "synopsis": "Package motion is the arithmetic of things that move under a finger and after it: the rubber band past an edge, the deceleration of a fling, and the spring that brings something home.",
+    "types": {
+      "Decay": {
+        "synopsis": "Decay is the free deceleration of a fling: a velocity that is multiplied by Rate every millisecond.",
+        "decl": "type Decay struct{ Rate float64 }",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "At",
+            "signature": "At(t time.Duration, x0, v0 float64) (x, v float64)",
+            "synopsis": "At returns the position and velocity t after a release at x0 with velocity v0, in units and units per second."
+          },
+          {
+            "name": "Duration",
+            "signature": "Duration(v0, minSpeed float64) time.Duration",
+            "synopsis": "Duration is how long a release with velocity v0 takes until its speed falls below minSpeed units per second."
+          },
+          {
+            "name": "Rest",
+            "signature": "Rest(x0, v0 float64) float64",
+            "synopsis": "Rest is where a release at x0 with velocity v0 comes to rest."
+          }
+        ]
+      },
+      "Glide": {
+        "synopsis": "Glide is the motion of content let go between two edges: it decelerates freely while it is inside [Lo, Hi], and a spring brings it back to the edge it crossed or was already past.",
+        "decl": "type Glide struct {\n\tDecay  Decay\n\tSpring Spring\n\tLo, Hi float64\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "NewGlide",
+            "signature": "NewGlide(x0, v0, lo, hi float64, d Decay, s Spring) Glide",
+            "synopsis": "NewGlide starts a glide at x0 with velocity v0, in units and units per second."
+          }
+        ],
+        "methods": [
+          {
+            "name": "At",
+            "signature": "At(t time.Duration) (x, v float64)",
+            "synopsis": "At returns the position and velocity t after the release."
+          },
+          {
+            "name": "Done",
+            "signature": "Done(t time.Duration, eps float64) bool",
+            "synopsis": "Done reports whether the glide has come to rest within eps."
+          },
+          {
+            "name": "Rest",
+            "signature": "Rest() float64",
+            "synopsis": "Rest is where the glide comes to rest."
+          }
+        ]
+      },
+      "Spring": {
+        "synopsis": "Spring is a damped spring in SwiftUI's parametrisation.",
+        "decl": "type Spring struct {\n\tResponse time.Duration\n\tDamping  float64\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "At",
+            "signature": "At(t time.Duration, from, to, v0 float64) (x, v float64)",
+            "synopsis": "At returns the position and velocity t after the spring was let go at from with velocity v0, pulling towards to."
+          },
+          {
+            "name": "Duration",
+            "signature": "Duration(dist, v0, eps float64) time.Duration",
+            "synopsis": "Duration is how long the spring takes from a standing start to settle within eps of a target dist away: an upper bound for an animation window such as [gift.EventContext.Animate]."
+          },
+          {
+            "name": "Settled",
+            "signature": "Settled(t time.Duration, from, to, v0, eps float64) bool",
+            "synopsis": "Settled reports whether the spring is within eps of its target and slower than ten eps per second, the point at which a frame more or less is invisible."
+          }
+        ]
+      }
+    },
+    "funcs": [
+      {
+        "name": "Band",
+        "signature": "Band(x, lo, hi, dim float64) float64",
+        "synopsis": "Band maps a position to what is shown for it when the content may be dragged between lo and hi and rubber bands beyond: positions inside are unchanged, positions outside are pulled back towards the edge by Rubber in a viewport of dim."
+      },
+      {
+        "name": "Lerp",
+        "signature": "Lerp(a, b, f float64) float64",
+        "synopsis": "Lerp interpolates from a to b by f."
+      },
+      {
+        "name": "Project",
+        "signature": "Project(v, rate float64) float64",
+        "synopsis": "Project returns how far a fling with velocity v, in units per second, travels before it comes to rest under the deceleration rate per millisecond: Apple's v/1000 · rate/(1 − rate)."
+      },
+      {
+        "name": "Rubber",
+        "signature": "Rubber(x, dim float64) float64",
+        "synopsis": "Rubber returns the displacement shown for a pull of x past an edge, in a viewport of size dim along the same axis: UIKit's (1 − 1/(x·c/dim + 1))·dim with c = 0.55."
+      },
+      {
+        "name": "RubberInverse",
+        "signature": "RubberInverse(r, dim float64) float64",
+        "synopsis": "RubberInverse is the pull that Rubber shows as r: the finger travel that produced a displacement."
       }
     ]
   },
@@ -4222,6 +4904,11 @@
             "synopsis": "Compact releases the recycled scratch of the layout index."
           },
           {
+            "name": "Conceal",
+            "signature": "Conceal(id asset.ID)",
+            "synopsis": "Conceal hides the picture of the entry id in its tile until another call conceals a different one; the empty ID shows every tile again."
+          },
+          {
             "name": "ContentExtent",
             "signature": "ContentExtent() float64",
             "synopsis": "ContentExtent is the document height of the committed layout, in logical pixels."
@@ -4305,6 +4992,11 @@
             "name": "String",
             "signature": "String() string",
             "synopsis": "String makes a gallery readable in a test failure."
+          },
+          {
+            "name": "ThumbnailFrame",
+            "signature": "ThumbnailFrame(id asset.ID) (geom.Rect, float32, bool)",
+            "synopsis": "ThumbnailFrame returns where the tile of the entry id was drawn in the last frame, in device space, with the tile's corner radius, and whether it was drawn at all."
           },
           {
             "name": "VisibleCount",
@@ -4457,6 +5149,11 @@
             "name": "OnActivate",
             "signature": "OnActivate(fn func(asset.ID)) GalleryView",
             "synopsis": "OnActivate is called when the user activates an entry: enter on the keyboard cursor."
+          },
+          {
+            "name": "OnOpen",
+            "signature": "OnOpen(fn func(asset.ID)) GalleryView",
+            "synopsis": "OnOpen is called when a tile is tapped or clicked without a modifier, after it was selected: the gesture with which Photos opens a picture."
           },
           {
             "name": "OnSelect",
@@ -5207,6 +5904,59 @@
           }
         ]
       },
+      "Picture": {
+        "synopsis": "Picture is a handle on one picture at one size in the shared image service of SetImagePipeline: the request, the decoded pixels and the texture.",
+        "decl": "type Picture struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "PrefetchPicture",
+            "signature": "PrefetchPicture(ctx *gift.LayoutContext, src asset.Source, size int) Picture",
+            "synopsis": "PrefetchPicture is RequestPicture at asset.Prefetch priority and without a layout when the answer arrives: for the neighbours of what is on screen, which should be ready when they are needed and must not delay what is needed now."
+          },
+          {
+            "name": "RequestPicture",
+            "signature": "RequestPicture(ctx *gift.LayoutContext, src asset.Source, size int) Picture",
+            "synopsis": "RequestPicture asks the shared image service for src at size pixels along its longest edge, and returns the handle."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Dimensions",
+            "signature": "Dimensions() (w, h uint32)",
+            "synopsis": "Dimensions are the oriented pixel dimensions the pipeline reported for the picture, or zero before it has."
+          },
+          {
+            "name": "Draw",
+            "signature": "Draw(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius float32) bool",
+            "synopsis": "Draw draws the whole picture stretched into dst, in the local space of the node being painted, with tint and with its corners rounded by radius."
+          },
+          {
+            "name": "DrawCover",
+            "signature": "DrawCover(ctx *gift.PaintContext, dst geom.Rect, tint Color, radius float32) bool",
+            "synopsis": "DrawCover draws the picture into dst like FitCover: the centred part of it with the aspect ratio of dst."
+          },
+          {
+            "name": "Err",
+            "signature": "Err() error",
+            "synopsis": "Err is the permanent failure of the picture, or nil."
+          },
+          {
+            "name": "Prepare",
+            "signature": "Prepare(ctx *gift.PaintContext) bool",
+            "synopsis": "Prepare makes the picture resident without drawing it, and reports whether it is."
+          },
+          {
+            "name": "Ready",
+            "signature": "Ready() bool",
+            "synopsis": "Ready reports whether the pixels have arrived."
+          },
+          {
+            "name": "Rung",
+            "signature": "Rung() int",
+            "synopsis": "Rung is the ladder rung the pixels were produced at, or zero before they have arrived."
+          }
+        ]
+      },
       "ProgressBarView": {
         "synopsis": "ProgressBarView shows how much of a task is done, or that one is running when there is no way to say how much.",
         "decl": "type ProgressBarView struct {\n\t// Has unexported fields.\n}",
@@ -5820,6 +6570,11 @@
           }
         ],
         "methods": [
+          {
+            "name": "Draw",
+            "signature": "Draw(ctx *gift.PaintContext, dst geom.Rect, c Color, px int) bool",
+            "synopsis": "Draw draws the symbol into dst, in the local space of the node being painted, tinted with c: the mask of an Icon without the view, for a painter that composes symbols with its own drawing — a control that fades in and out, say, which a view of its own cannot do because nothing in gift fades a subtree."
+          },
           {
             "name": "IsZero",
             "signature": "IsZero() bool",

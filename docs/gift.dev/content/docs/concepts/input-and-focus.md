@@ -107,8 +107,10 @@ activation.
 ### Limits
 
 - Only the primary mouse button drives the pointer model. The right and middle buttons produce no events.
-- gift tracks one touch at a time. A second finger that comes down while the first is still down is dropped and
-  counted in `Diagnostics.DiscardedTouches`. There is no pinch or multi-finger gesture.
+- gift delivers one finger at a time unless a view asks for more. A second finger that comes down while the first
+  is still down is dropped and counted in `Diagnostics.DiscardedTouches`, unless it lands in a view that set
+  `Element.MultiTouch`; such a view receives up to `gift.MaxTouches` fingers. Pinch, rotation and the other
+  gestures beyond tap, long press and drag-to-scroll are package `ui/gesture`; see [Gestures](../gestures/).
 
 ## Hover, press and focus: `gift.Interaction`
 
@@ -142,14 +144,17 @@ is down, so it sends no `EventPointerEnter` or `EventPointerLeave` and never set
 touchscreen therefore leaves no hover highlight behind on the button that was tapped.
 
 {{< callout type="warning" >}}
-Do not decide behavior on `Event.Device`. Ebitengine reports touches only on mobile platforms. On Linux under
-X11, which is what a Raspberry Pi kiosk runs, a touchscreen arrives through the display server **as a mouse**:
-every event is `PointerMouse`, and because the cursor stays where the finger lifted, the last tapped control
-keeps its hover look until the pointer goes somewhere else. A
-control that only worked for `PointerTouch` would never work on that hardware. Write controls that behave
-correctly for both, and use explicit switches such as [`ui.SetOnScreenKeyboard`](#the-on-screen-keyboard) for
-behavior that depends on the deployment.
+Do not decide behavior on `Event.Device`. Ebitengine reports touches only on mobile platforms; on Linux the
+backend reads a touch screen directly from the kernel and reports `PointerTouch` — see
+[Gestures](../gestures/#touch-screens-on-linux) — but with `Touchscreen: "off"`, or a panel it cannot read, a
+touch arrives through the display server **as a mouse**: every event is `PointerMouse`, and because the cursor
+stays where the finger lifted, the last tapped control keeps its hover look until the pointer goes somewhere else.
+Write controls that behave correctly for both, and use explicit switches such as
+[`ui.SetOnScreenKeyboard`](#the-on-screen-keyboard) for behavior that depends on the deployment.
 {{< /callout >}}
+
+`Event.Time` of a move, a press and a release is the time the pointer was sampled when the backend knows it, which
+the Linux touch path does; a velocity computed from it is the finger's and not the frame rate's.
 
 ## Keyboard focus
 

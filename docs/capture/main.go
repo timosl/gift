@@ -81,6 +81,20 @@ var exampleShots = []exampleShot{
 	{Name: "example-effects", Args: []string{"-quality=full"}, Settle: 30},
 	// A five inch panel; the tap on the play button pauses the clip, so that the shot shows the play symbol and
 	// the same picture every time, with the controls kept by -autohide 0.
+	// The viewer opened on a panorama, and a swipe up that slides the card with its details over it.
+	{Name: "example-photos", Args: []string{"-width", "1000", "-height", "625", "-open", "2"}, Settle: 30, Input: `{"steps":[
+		{"op":"waitFrames","frames":90},
+		{"op":"pointerDown","x":500,"y":520},
+		{"op":"waitFrames","frames":1},
+		{"op":"pointerMove","x":500,"y":490},
+		{"op":"waitFrames","frames":1},
+		{"op":"pointerMove","x":500,"y":430},
+		{"op":"waitFrames","frames":1},
+		{"op":"pointerMove","x":500,"y":340},
+		{"op":"waitFrames","frames":1},
+		{"op":"pointerUp","x":500,"y":340},
+		{"op":"waitFrames","frames":60}
+	]}`},
 	{Name: "example-video", Args: []string{"-width", "800", "-height", "480", "-autohide", "0", "-loop=false"}, Settle: 20, Input: `{"steps":[
 		{"op":"waitFrames","frames":60},
 		{"op":"tap","x":400,"y":240},

@@ -44,6 +44,7 @@ go run ./cmd/example-counter      # Start here: state, buttons, scrolling
 go run ./cmd/example-kitchensink  # UI component showcase
 go run ./cmd/example-gallery      # Generates its own sample images
 go run ./cmd/example-effects -quality=full
+go run ./cmd/example-photos       # Gallery and full screen viewer, see Pictures below
 go run ./cmd/example-video        # Needs the FFmpeg libraries, see Video below
 ```
 
@@ -121,6 +122,34 @@ if turbojpeg.Register() { // github.com/worldiety/gift/asset/turbojpeg
 ```
 
 Without the library, `Register` returns false and image/jpeg stays in charge.
+
+### Pictures And Gestures
+
+`ui/imageviewer` shows pictures as large and as interactive as the screen
+allows, in the manner of iOS's Photos: a full screen viewer that grows out of
+the gallery tile that was tapped and shrinks back into it, to swipe through,
+pinch, double tap, drag down to close and swipe up for a sheet of details, with
+fading arrows, wheel zoom and keys on the desktop. Pictures load in stages — a
+preview at once, which libjpeg-turbo decodes from the DC coefficients of the
+JPEG's blocks, the screen size next, more detail while zoomed.
+
+```go
+viewer := imageviewer.New(gallery.Collection(), resolve) // github.com/worldiety/gift/ui/imageviewer
+viewer.SetOrigin(gallery)
+return ui.ZStack(
+    ui.ImageGallery(gallery).OnOpen(func(id asset.ID) { viewer.Open(id) }),
+    imageviewer.Fullscreen(viewer).Card(details),
+)
+```
+
+The gestures are reusable on their own, SwiftUI style: `ui/gesture` has tap,
+long press, drag, pinch, rotation, hover and wheel recognizers, `ui/motion`
+the rubber band, deceleration and springs of UIKit. On Linux the backend reads
+the touch screen directly, so a pinch works on a Raspberry Pi display, and
+resamples the finger to the frame as Android does, so that nothing judders
+on a 50 Hz panel. Try it with `go run ./cmd/example-photos`.
+
+<img src="docs/screenshots/photos.png" alt="A photo full screen on a Raspberry Pi 5 with a sheet of its file name and size slid over it, opened through a virtual touch screen" width="600">
 
 ### Video
 

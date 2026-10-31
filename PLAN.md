@@ -526,6 +526,12 @@ erzeugen keine synthetischen Hover-Zustaende. Multitouch beschraenkt sich auf
 die Erkennung und Verwerfung zusaetzlicher Finger. Pinch-Zoom, Rotation und
 vollstaendige native Accessibility-Bridges sind nicht Teil des MVP.
 
+**Nachtrag Abschnitt 26.** Multitouch ist jetzt opt-in pro Knoten
+(`Element.MultiTouch`, wie `isMultipleTouchEnabled` bei UIKit): weitere Finger
+erreichen nur einen Knoten, der sie verlangt, alle anderen werden weiter
+verworfen und gezaehlt. Die Begruendung "unter X11 kommt Touch als Maus an"
+gilt nicht mehr, weil das Backend den Touchscreen unter Linux direkt liest.
+
 ## 8. Border, Shadow und Glass
 
 Effekte sind rendererneutrale Deklarationen und keine Ebitengine-Shader im
@@ -1240,6 +1246,9 @@ Wachstum hier bemerkt und begruendet, statt im Code zu passieren.
   Font-Register, das ist nicht dasselbe: das Register waehlt eine Schrift
   anhand von Familie, Gewicht und Stil, es setzt keine zweite Schrift fuer
   fehlende Glyphen ein.
+- `Pinch-Zoom und Rotation` faellt. Fuer den Bildbetrachter des
+  Folgeprojekts ist ein zoombares Bild mit Vollbildansicht angefordert;
+  Abschnitt 26 haelt Recherche, Entscheidungen und Messungen fest.
 - `Videoformate` faellt, `RAW` bleibt ausgeschlossen. Fuer ein Folgeprojekt
   ist ein integrierter Videoplayer mit Ton angefordert. Abschnitt 25 haelt
   Machbarkeit, Messungen und Architektur fest; `render.OpVideo`,
@@ -2290,6 +2299,147 @@ Pfadwahl. Sie werden uebersprungen, wo FFmpeg fehlt.
 2. 10 Bit in Full HD 60p (Hardware: 57,6 fps im Prototyp).
 3. Untertitel, Wiedergaberaten ungleich 1, Quellen ueber `asset.Source`.
 4. GPU-Golden-Tests je Layout und Matrix der beiden Video-Shader.
+
+## 26. Bildbetrachter, Gesten und Multitouch
+
+Angefordert fuer das Folgeprojekt: eine zoombare Bildkomponente, die sich
+nahtlos mit der Galerie und dem Asset-Store verwenden laesst, eine
+Vollbildvorschau mit Uebergang aus der getippten Kachel, Pinch-Zoom mit
+korrektem Verhalten an den Grenzen, horizontales Blaettern, eine vertikale
+Wischgeste fuer Karten, Desktop-Bedienung (Mausrad, einblendende Pfeile,
+Tastatur), ein zweistufiges Laden fuer die Reaktionszeit auf dem Pi und die
+Gestenlogik als eigene, wiederverwendbare Komponenten. Spaeter kommen weitere
+Darstellungen hinzu, etwa ein Filmstreifen wie in Lightroom.
+
+### Pakete
+
+| Paket            | Inhalt                                                                         |
+|------------------|--------------------------------------------------------------------------------|
+| `ui/motion`      | Rubberband, Abbremsen, Projektion, Federn, Glide: geschlossene Formeln der Zeit |
+| `ui/gesture`     | Tap, LongPress, Drag, Magnify, Rotate, Hover, Wheel; `On` und `Handle`         |
+| `ui/imageviewer` | `Zoomable`, `Viewer` + `Fullscreen`, `Origin`; Zoom-, Pager- und Kartenphysik  |
+
+Dazu im Kern: `Element.MultiTouch`, `MaxTouches`, `EventContext.Retained[T]`
+(ein Wert pro Typ und Knoten, die offene Schwester von `ControlState`),
+`EventContext.After` und `LayoutContext.After` mit `EventTimer` (Doppeltipp
+und Long-Press brauchen Zeitentscheidungen ohne Ereignis) sowie
+`App.PointerDownAt`/`MoveAt`/`UpAt` mit Messzeitpunkten. In `ui`:
+`ui.Picture` als exportierter Zugang zum gemeinsamen Bilddienst,
+`Gallery.ThumbnailFrame`, `Gallery.Conceal`, `GalleryView.OnOpen` und
+`Symbol.Draw`. In `asset`: `DiskCacheConfig.MaxSize`. Im Backend:
+`render.Pixels.Key` fuer bandweise Uploads, die Texturgrenze aus
+`MaxImageSize`, `Config.Textures`, `Config.Touchscreen` und der evdev-Leser.
+
+Die Filmstreifen-Darstellung ist nicht gebaut, aber vorbereitet: `Viewer`
+traegt Katalog, Position und Zoom, `Fullscreen` ist nur eine Ansicht davon,
+und `Origin` ist eine Schnittstelle, die ein Filmstreifen ebenso erfuellen
+kann wie die Galerie.
+
+### iOS als Vorbild: Konstanten und Quellen
+
+| Groesse                       | Wert                                   | Quelle |
+|-------------------------------|----------------------------------------|--------|
+| Rubberband                    | (1 − 1/(x·0.55/d + 1))·d               | Grant Paul (iOS 6), gist.github.com/originell/6961057 |
+| Abbremsen                     | 0.998 / 0.99 pro ms                    | UIScrollView.DecelerationRate, gemessen |
+| Ruhepunkt eines Wurfs         | v/1000 · r/(1 − r)                     | WWDC 2018 "Designing Fluid Interfaces" |
+| Schwelle einer Geste          | 10 pt                                  | ebenda; SwiftUI `DragGesture(minimumDistance: 10)` |
+| Zurueckfedern                 | kritisch gedaempft, ca. 10 rad/s       | ScrollMechanics (k = 100); natives Setzen ~0.63 s laut Flutter-Issue 181752 |
+| Zoom ueber die Grenzen        | Rubberband auf log(Zoom)               | iOS dokumentiert nur "animates just past these limits"; Herleitung hier |
+| Anker beim Pinch              | p = (offset0 + c0)/s0, offset = p·s − c | Standardherleitung, Verhalten beobachtet |
+| Doppeltipp                    | auf Fuellen, mindestens 2×, um den Tipp | iOS 18 fuellt; MWPhotoBrowser (min+max)/2 |
+| Seitenabstand                 | 20 pt                                  | MWPhotoBrowser, Photos nicht verifiziert |
+| Seitenwechsel                 | Wurf ueber 400 px/s, sonst halbe Seite | Flutter PageScrollPhysics |
+| Wischen zum Schliessen        | Start bei ty > 0 und \|ty\| > \|tx\|, Fortschritt ty/(H/2), Schliessen bei 1200 pt/s oder 33 % | Apple-Beispiel PhotoTransitioning (2016) |
+
+Die Erkenner laufen nebeneinander wie SwiftUIs simultaneous gestures, mit drei
+Regeln: ein Tap wartet auf das Scheitern eines Taps hoeherer Zahl (UIKits
+require-to-fail), ein ausgeloester Long-Press nimmt den Taps den Druck, und
+ein Tap scheitert bei derselben Distanz, bei der ein Drag beginnt.
+`ShouldBegin` entspricht `gestureRecognizerShouldBegin`. Ein Drag folgt wie
+UIKits Pan-Erkenner dem Schwerpunkt aller Finger; die Translation springt
+nicht, wenn ein Finger dazukommt oder geht.
+
+### Zweistufiges, eigentlich dreistufiges Laden
+
+1. Vorschau in `PreviewSize` (256 logische Pixel): die Groesse der
+   Galeriekacheln, also beim Oeffnen aus der Galerie bereits im CPU-Cache und
+   im ersten Frame des Uebergangs sichtbar. Sonst decodiert libjpeg-turbo bei
+   1/8 aus den DC-Koeffizienten der 8×8-Bloecke — die "Makrobloecke". Die
+   Entropie-Decodierung aller Koeffizienten bleibt bei Baseline-JPEG
+   unvermeidlich; IDCT und Farbwandlung entfallen fuer 63 von 64 Werten.
+2. Bildschirmgroesse.
+3. Beim Zoomen eine groessere Stufe in Zweierpotenzen der Bildschirmgroesse,
+   hoechstens `MaxDetail` (4096, die Texturgrenze, die jedes Ziel einhaelt).
+
+Die Leiter des Pipelines braucht dafuer grosse Stufen; der Disk-Cache haelt
+Rohpixel und darf sie nicht aufnehmen (`MaxSize`, Standard 1024).
+
+### Touch auf dem Pi
+
+Unter X11/XWayland kommt ein Touchscreen als emulierte Maus an: ein Finger,
+keine Zeitstempel, eine Position pro Tick. Das Backend liest deshalb unter
+Linux `/dev/input` direkt (Gruppe `input`, Protokoll B, `INPUT_PROP_DIRECT`),
+cgo-frei ueber `x/sys/unix`, und ignoriert die emulierte Maus, solange ein
+Finger liegt und bis der Cursor sich wirklich bewegt. Nachgebaut nach Android
+und iOS:
+
+- Kernel-Zeitstempel auf `CLOCK_MONOTONIC` (`EVIOCSCLOCKID`, direkt nach dem
+  Oeffnen, sonst flusht der Kernel mit `SYN_DROPPED`), umgerechnet in die Uhr
+  der Bruecke; `Event.Time` ist die Messzeit, Geschwindigkeiten rechnen damit
+  (Android VelocityTracker: Ereigniszeiten, Horizont 100 ms, 40 ms Pause
+  setzt zurueck).
+- Resampling auf den Frame nach `InputConsumer` (libs/input/InputConsumer.cpp):
+  Abtastzeit = Framezeit − 5 ms, Interpolation zwischen den umgebenden
+  Proben, sonst Extrapolation aus den letzten zwei (2 ms ≤ Δ ≤ 20 ms,
+  hoechstens 8 ms und Δ/2). Ein Test belegt den Effekt: 100-Hz-Proben bei
+  60 Hz ergeben ohne Resampling Schritte von 20, 20, 10 px, mit Resampling
+  gleichmaessig 16,7 px.
+- Abweichung von Android: Androids 5 ms setzen Digitizer ab 120 Hz voraus.
+  Die Treiber der Pi-Displays pollen alle 17 ms, mit HZ=250 real 20 ms. Fuer
+  ein Panel langsamer als 12 ms folgt die Latenz der gemessenen Periode (+3 ms,
+  hoechstens 30 ms), damit immer interpoliert wird.
+- Ein Finger auf einer leerlaufenden Anwendung hebt die Tickrate sofort an.
+- `cmd/gift-touchinject` erzeugt per uinput einen virtuellen
+  Multitouch-Bildschirm. Damit sind Tipp, Wischen, Pinch und Doppeltipp auf
+  dem Pi 500+ ohne Touchscreen ueber den echten Pfad getestet, einschliesslich
+  der emulierten Maus des Compositors.
+
+### Messungen auf dem Raspberry Pi 5
+
+Full HD, 24 Bilder bis 12 Megapixel, libjpeg-turbo, Gestenfolge ueber den
+virtuellen Touchscreen (Tipp, vier Seitenwechsel, Pinch auf, Pan, Pinch zu),
+`giftmetrics`:
+
+| Stand                                         | p50     | p95     | p99     | max     | Draw-CPU max |
+|-----------------------------------------------|---------|---------|---------|---------|--------------|
+| erste Fassung, 4 Worker                       | 16,7 ms | 18,2 ms | 26,0 ms | 90,5 ms | 40,8 ms      |
+| bandweise Uploads                             | 16,8 ms | 18,2 ms | 23,5 ms | 57,4 ms | 4,4 ms       |
+| + 2 Worker, DirectToScreen, Nachbarn im Stillstand | 16,6 ms | 17,4 ms | 20,1 ms | 54,2 ms | 1,9 ms |
+
+Die Ursachen, einzeln protokolliert: ein Bild ueber dem Upload-Budget wurde
+in einem Frame hochgeladen (11 MB Bildschirmstufe, 45 MB Detailstufe, 41 ms
+Draw). Jetzt wird es in Zeilenbaendern ueber mehrere Frames hochgeladen
+(`render.Pixels.Key`), ohne API-Aenderung, weil die Bruecke ohnehin weiterzeichnet,
+solange ein Upload aussteht. Das Anlegen einer bildschirmgrossen Textur
+kostet den V3D dennoch rund einen Frame, gleich wie klein das erste Band ist;
+deshalb bereitet der Betrachter die Nachbarseiten nur vor, wenn nichts sich
+bewegt. Vier Decoder auf vier Kernen verdraengen die Frameschleife (p99
+24,2 statt 20,3 ms mit zwei).
+
+### Offen
+
+- Rotation ist erkannt, aber nicht im Betrachter verwendet.
+- Kein Neuaufsetzen nach `SYN_DROPPED` ueber `EVIOCGMTSLOTS`; liegende Finger
+  werden gehoben.
+- Der Touchscreen wird dem Monitor des Fensters zugeordnet; gedrehte Displays
+  und mehrere Monitore sind nicht behandelt.
+- Tiefes Zoomen ueber 4096 Pixel braeuchte Kacheln (Tiles); `MaxDetail`
+  begrenzt bis dahin.
+- Ein Texturpool fuer gleich grosse Bilder koennte die Anlegekosten beim
+  Blaettern durch eine Kamerarolle ganz vermeiden.
+- Trackpad-Pinch auf dem Mac liefert GLFW nicht; dort zoomen Mausrad, Tasten
+  und Doppelklick.
+- Der Filmstreifen ist nicht gebaut.
 
 ## Quellen der Architekturpruefung
 

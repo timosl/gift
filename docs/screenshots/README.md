@@ -34,4 +34,14 @@ go run -tags giftauto ./cmd/example-video -width 800 -height 480 -autohide 0
 curl -fsS 'http://127.0.0.1:7391/screenshot?settle=3' -o docs/screenshots/video.png
 ```
 
+`photos.png` was taken on a Raspberry Pi 5 at 1920x1080 and scaled to 1200 pixels. The
+viewer was opened and its card swiped up on the virtual touch screen of `gift-touchinject`,
+through the same path a real panel takes:
+
+```sh
+example-photos -fullscreen -workers 2        # built with -tags giftauto
+sudo gift-touchinject -hz 50 tap:1500,276 wait:1500 swipe:960,900,960,500,300 wait:1500
+curl -fsS http://127.0.0.1:7391/screenshot -o photos.png
+```
+
 No offscreen reconstruction or separate screenshot application is involved.

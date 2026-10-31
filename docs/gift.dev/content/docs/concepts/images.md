@@ -355,6 +355,25 @@ A `Collection` and a `Selection` belong to the UI goroutine and are not safe for
 entries on another goroutine if you like, then hand it over with `app.Post` and call `SetCollection` there. The
 [gallery example](../../examples/example-gallery/) shows the whole setup with files, HTTP and deliberate failures.
 
+## Pictures as large as the screen
+
+The [image viewer](../../components/media/image-viewer/) and a [zoomable image](../../components/media/zoomable-image/)
+show a picture in stages: a thumbnail at once, the size of the screen when it has arrived, and more detail while it
+is zoomed. They draw through `ui.Picture`, the low level half of `ui.Image`: `ui.RequestPicture` asks the shared
+service for a source at a size from a layouter, and `Picture.Draw`, `DrawCover` and `Prepare` draw it into any
+rectangle or only make it resident. A picture already in the CPU cache is ready in the call that asks for it.
+
+A pipeline that serves such views needs rungs that large, and should keep them off the disk:
+
+- `Config.Sizes` with rungs up to 2048 or 4096: a request is served at the nearest rung, and a pipeline that stops
+  at 512 shows a full screen picture at 512.
+- `DiskCacheConfig.MaxSize` (default 1024) keeps larger rungs out of the disk cache, which stores raw pixels: one
+  picture the size of a screen would otherwise push out a hundred thumbnails.
+- `Config.PixelBudget` with room for a few screens; 256 MiB is comfortable on a Raspberry Pi 5.
+
+The Ebitengine backend uploads a picture larger than its per frame budget in bands of rows over several frames,
+instead of stalling one frame for it, and refuses a texture larger than the device allows.
+
 ## Faster JPEG decoding with libjpeg-turbo
 
 Camera photos of 12 to 50 megapixels are slow to decode with Go's `image/jpeg`, which always decodes the whole

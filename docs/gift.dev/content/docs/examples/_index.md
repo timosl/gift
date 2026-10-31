@@ -14,6 +14,7 @@ source code.
   {{< card link="example-kitchensink/" title="Kitchen Sink" image="example-kitchensink/screenshot-light.png" subtitle="Most components in one window: four tabs, navigation, controls, lists, a form and dialogs." >}}
   {{< card link="example-gallery/" title="Image Gallery" image="example-gallery/screenshot-light.png" subtitle="A photo browser with the full image pipeline: files, HTTP, decode errors and a disk cache." >}}
   {{< card link="example-effects/" title="Effects" image="example-effects/screenshot-light.png" subtitle="Glass over a scrolling gallery, and cards with borders and shadows." >}}
+  {{< card link="example-photos/" title="Photos" image="example-photos/screenshot-light.png" subtitle="A gallery of large photos and a full screen viewer to swipe, pinch and drag away." >}}
   {{< card link="example-video/" title="Video" image="example-video/screenshot-light.png" subtitle="A video with sound and touch controls, sized for a five inch panel." >}}
 {{< /cards >}}
 

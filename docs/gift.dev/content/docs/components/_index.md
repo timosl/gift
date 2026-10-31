@@ -7,7 +7,8 @@ sidebar:
 
 Components are the views you build an interface from. They live in package
 [`ui`](https://github.com/worldiety/gift/tree/main/ui), the file picker in
-[`ui/filepicker`](https://github.com/worldiety/gift/tree/main/ui/filepicker) and the video player in
+[`ui/filepicker`](https://github.com/worldiety/gift/tree/main/ui/filepicker), the image viewer in
+[`ui/imageviewer`](https://github.com/worldiety/gift/tree/main/ui/imageviewer) and the video player in
 [`ui/videoplayer`](https://github.com/worldiety/gift/tree/main/ui/videoplayer). Every page shows a screenshot, the code
 that drew it, how to use the component well and its API. The pages are grouped into:
 
@@ -18,7 +19,7 @@ that drew it, how to use the component well and its API. The pages are grouped i
   {{< card link="navigation/" title="Navigation" icon="map" subtitle="Navigation stack and tab bar." >}}
   {{< card link="dialogs/" title="Dialogs & Overlays" icon="collection" subtitle="Modal, alert, sheet, on-screen keyboard and file picker." >}}
   {{< card link="styling/" title="Styling" icon="color-swatch" subtitle="Colors, shadow and border, gradients and glass." >}}
-  {{< card link="media/" title="Media" icon="film" subtitle="A video player with sound and touch controls." >}}
+  {{< card link="media/" title="Media" icon="film" subtitle="A full screen image viewer, a zoomable image and a video player with touch controls." >}}
 {{< /cards >}}
 
 ## Views are values

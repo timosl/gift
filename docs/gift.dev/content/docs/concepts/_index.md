@@ -17,6 +17,7 @@ in action.
   {{< card link="icons/" title="Icons" icon="star" subtitle="The outline and solid symbol sets, your own icons and what they cost." >}}
   {{< card link="images/" title="Images" icon="photograph" subtitle="The image pipeline: sources, thumbnails, caches, budgets and errors." >}}
   {{< card link="input-and-focus/" title="Input and Focus" icon="cursor-click" subtitle="Hit testing, pointer capture, touch, keyboard focus, clipboard and the on-screen keyboard." >}}
+  {{< card link="gestures/" title="Gestures" icon="hand" subtitle="Tap, drag, pinch and hover recognizers, multitouch and touch screens on Linux." >}}
   {{< card link="navigation/" title="Navigation" icon="map" subtitle="Navigation stacks, tab bars and overlays, all driven by your state." >}}
   {{< card link="animation/" title="Animation" icon="sparkles" subtitle="What animates by itself, transitions and animating your own painters." >}}
   {{< card link="concurrency/" title="Concurrency" icon="switch-horizontal" subtitle="The UI goroutine, App.Post, tokens and background work." >}}
