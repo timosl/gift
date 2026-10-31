@@ -142,6 +142,14 @@ var views = []struct {
 	{name: "ui.toastLayer", set: setInternal, why: "the window-sized, input-transparent layer a ui.Toast hangs in"},
 	{name: "ui.toastCard", set: setInternal, why: "the capsule of a ui.Toast; its settings are ToastView's"},
 	{
+		name: "ui.Swipe", set: setMinimal, v: ui.Swipe(ui.Box()),
+		why: "a row as tall and as wide as its content, which carries the styling; Background is the cover over the actions",
+	},
+	{name: "ui.swipeRow", set: setInternal, why: "the row of a ui.Swipe with its actions; its settings are SwipeView's"},
+	{name: "ui.swipeButton", set: setInternal, why: "one action behind a ui.Swipe row; its settings are SwipeActionView's"},
+	{name: "ui.swipeCatcher", set: setInternal, why: "the top layer of an open ui.Swipe row, which closes it on a press elsewhere"},
+	{name: "ui.swipeShield", set: setInternal, why: "one rectangle of the catcher of an open ui.Swipe row"},
+	{
 		name: "ui.WheelPicker", set: setMinimal, v: ui.WheelPicker(),
 		why: "a wheel has the height of its rows and draws its own band and fading; its size is VisibleRows, RowHeight and Width",
 	},
