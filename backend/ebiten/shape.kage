@@ -150,10 +150,44 @@ func shadowCoverage(p vec2, half vec2, radius float, sigma float) float {
 	return sdf + (prod-sdf)*w
 }
 
+// sdArc is the signed distance from p to an arc of radius ra around the
+// origin, stroked rb either side of it with round ends, that starts at the
+// angle a0 and sweeps s, clockwise from twelve o'clock with y pointing down.
+//
+// It is Inigo Quilez's arc in the frame of the arc's own middle: q.y runs
+// along the direction of the middle and q.x across it, folded onto one side,
+// so the arc is symmetric about the q.y axis with half aperture s/2. Inside
+// the aperture the distance is to the circle; past it, to the end point,
+// which is what makes the ends round.
+func sdArc(p vec2, a0 float, s float, ra float, rb float) float {
+	if s >= 6.283 {
+		return abs(length(p)-ra) - rb
+	}
+	m := a0 + s*0.5
+	d := vec2(sin(m), -cos(m))
+	q := vec2(abs(p.x*d.y-p.y*d.x), dot(p, d))
+	h := s * 0.5
+	sc := vec2(sin(h), cos(h))
+	if sc.y*q.x > sc.x*q.y {
+		return length(q-sc*ra) - rb
+	}
+	return abs(length(q)-ra) - rb
+}
+
 func Fragment(dstPos vec4, src0Pos vec2, color vec4, custom vec4) vec4 {
 	half := custom.xy
 	radius := custom.z
 	stroke := custom.w
+
+	// A negative first slot is an arc: minus the radius of the centre line,
+	// half the stroke width, the start and the sweep. See the renderer's
+	// appendArc.
+	if half.x < 0.0 {
+		ra := -half.x
+		rb := half.y
+		p := src0Pos - vec2(ra+rb)
+		return color * clamp(0.5-sdArc(p, radius, stroke, ra, rb), 0.0, 1.0)
+	}
 
 	// A negative stroke slot is a shadow and its magnitude is sigma, already
 	// in device pixels like everything else here. The quad the CPU side

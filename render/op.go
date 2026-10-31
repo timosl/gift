@@ -148,6 +148,19 @@ const (
 	// picture pixel onto one device pixel, through a converted texture
 	// otherwise. See [Videos].
 	OpVideo
+
+	// OpArc strokes an arc of the circle inscribed in Bounds, with Color, a
+	// line width of StrokeWidth and round ends: the ring of a progress
+	// indicator, the track and the value of a gauge, a circular slider.
+	//
+	// The stroke lies inside Bounds, as for [OpStrokeRoundRect]: its outer
+	// edge is the inscribed circle. Where the arc starts and how far it
+	// sweeps are the [ArcParams] of the [MaterialArc] that Material names,
+	// in radians, clockwise from twelve o'clock; a sweep of a whole turn or
+	// more is the whole ring. The angles ride in the material side table and
+	// not in the operation so that an arc costs every other operation
+	// nothing, the reason [Op] gives for every field it does not have.
+	OpArc
 )
 
 // Op is a single drawing operation.

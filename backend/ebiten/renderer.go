@@ -273,6 +273,7 @@ type Renderer struct {
 	// evaluated in the shader, so there is nothing to hit, miss, upload or
 	// evict. See the shadow section of the package documentation.
 	shadowOps      uint64
+	arcOps         uint64
 	shadowSharpOps uint64
 
 	// The glass counters. See [RendererStats].
@@ -812,6 +813,9 @@ func (r *Renderer) appendOp(l *render.List, op render.Op) {
 	case render.OpMaterial:
 		r.appendMaterial(l, op)
 		return
+	case render.OpArc:
+		r.appendArc(l, op)
+		return
 	default:
 		// An unknown kind is skipped rather than fatal, as [render.OpKind]
 		// documents: a newer gift with an older backend must still run.
@@ -920,6 +924,74 @@ func (r *Renderer) appendOp(l *render.List, op render.Op) {
 		}
 	}
 
+	r.material(MaterialShape, nil)
+	if xf.B == 0 && xf.C == 0 && xf.A != 0 && xf.D != 0 {
+		r.appendAxisAligned(quad, clip, xf, shape)
+		return
+	}
+	r.appendTransformed(quad, clip, xf, shape)
+}
+
+// appendArc turns one [render.OpArc] into a quad of the shape shader, which
+// draws the arc from a distance field like every other shape, in the same
+// batch.
+//
+// The arc travels in the four slots a rounded box uses, told apart by the
+// sign of the first: minus the radius of the centre line of the stroke, half
+// the stroke width, both in device pixels, and the start and the sweep in
+// radians. A box never has a negative half width, so the sign is a tag that
+// costs no slot; see shape.kage.
+func (r *Renderer) appendArc(l *render.List, op render.Op) {
+	m := l.Material(op.Material)
+	if m.Kind != render.MaterialArc {
+		r.unknowns++
+		return
+	}
+	sweep := m.Arc.Sweep
+	if op.Color.IsTransparent() {
+		r.skipTransparent++
+		return
+	}
+	b := op.Bounds
+	if b.IsEmpty() || !(sweep > 0) {
+		r.skipEmptyBounds++
+		return
+	}
+	if sweep > 2*math.Pi {
+		sweep = 2 * math.Pi
+	}
+	clip := r.opClip(l, op.Clip)
+	if clip.IsEmpty() {
+		r.skipEmptyClip++
+		return
+	}
+	// The inscribed circle: a square around the centre of the bounds.
+	half := min(b.Width(), b.Height()) * 0.5
+	stroke := min(op.StrokeWidth, half)
+	if !(stroke > 0) {
+		r.skipZeroStroke++
+		return
+	}
+	c := geom.Pt((b.Min.X+b.Max.X)*0.5, (b.Min.Y+b.Max.Y)*0.5)
+	b = geom.Rc(c.X-half, c.Y-half, c.X+half, c.Y+half)
+
+	xf := r.opXform(l, op.Xform)
+	sx, sy := deviceScale(xf)
+	sr := min(sx, sy)
+	padX, padY := aaPad/sx, aaPad/sy
+	quad := geom.Rc(b.Min.X-padX, b.Min.Y-padY, b.Max.X+padX, b.Max.Y+padY)
+	shape := shapeParams{
+		color:   op.Color,
+		halfW:   -(half - stroke*0.5) * sr,
+		halfH:   stroke * 0.5 * sr,
+		radius:  m.Arc.Start,
+		stroke:  sweep,
+		originX: b.Min.X,
+		originY: b.Min.Y,
+		scaleX:  sx,
+		scaleY:  sy,
+	}
+	r.arcOps++
 	r.material(MaterialShape, nil)
 	if xf.B == 0 && xf.C == 0 && xf.A != 0 && xf.D != 0 {
 		r.appendAxisAligned(quad, clip, xf, shape)

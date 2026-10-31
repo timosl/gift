@@ -51,6 +51,10 @@ const (
 	// drawn with a vertical gradient from its Color at the top of its bounds
 	// to [GradientParams.To] at the bottom. See [Gradient].
 	MaterialGradient
+	// MaterialArc is not a backdrop material either. It is the geometry of
+	// an [OpArc], which has no fields of its own for it: [ArcParams]. See
+	// [Arc].
+	MaterialArc
 )
 
 // String makes a failing test readable.
@@ -60,6 +64,8 @@ func (k MaterialKind) String() string {
 		return "glass"
 	case MaterialGradient:
 		return "gradient"
+	case MaterialArc:
+		return "arc"
 	}
 	return "none"
 }
@@ -159,6 +165,29 @@ type Material struct {
 	Glass GlassParams
 	// Gradient are the parameters of a [MaterialGradient].
 	Gradient GradientParams
+	// Arc are the parameters of a [MaterialArc].
+	Arc ArcParams
+}
+
+// ArcParams are where an [OpArc] starts and how far it sweeps, in radians,
+// clockwise from twelve o'clock.
+type ArcParams struct {
+	Start, Sweep float32
+}
+
+// Arc is the geometry of an [OpArc]: from Start, Sweep radians clockwise, with
+// zero at twelve o'clock. Its Material goes into the side table of the list
+// and its index into the operation:
+//
+//	op := render.Op{Kind: render.OpArc, Bounds: square, Color: c, StrokeWidth: 4,
+//		Material: l.AddMaterial(render.Arc{Sweep: math.Pi}.Material())}
+type Arc struct {
+	Start, Sweep float32
+}
+
+// Material returns the side table entry of the arc.
+func (a Arc) Material() Material {
+	return Material{Kind: MaterialArc, Arc: ArcParams{Start: a.Start, Sweep: a.Sweep}}
 }
 
 // GradientParams are the numbers of a [MaterialGradient]: the colour at the
