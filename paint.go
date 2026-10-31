@@ -310,6 +310,14 @@ func (p *PaintContext) GlyphsLen() uint32 { return p.list.GlyphsLen() }
 // shaping result to the frame that produced it; see [render.List.AppendGlyph].
 func (p *PaintContext) AppendGlyph(g render.Glyph) { p.list.AppendGlyph(g) }
 
+// VerticesLen returns the number of vertices in the vertex side table of the
+// display list: the first index of the next [render.OpTriangles].
+func (p *PaintContext) VerticesLen() uint32 { return p.list.VerticesLen() }
+
+// AppendVertex appends a vertex to the vertex side table of the display list;
+// see [render.OpTriangles].
+func (p *PaintContext) AppendVertex(v render.Vertex) { p.list.AppendVertex(v) }
+
 // Images returns the backend's image resource service, or nil when there is
 // none.
 //

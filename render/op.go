@@ -162,6 +162,19 @@ const (
 	// not in the operation so that an arc costs every other operation
 	// nothing, the reason [Op] gives for every field it does not have.
 	OpArc
+	// OpTriangles draws triangles of coloured vertices: three vertices of
+	// the vertex side table of the owning list per triangle, from the first
+	// of [Op.Triangles], in the local space of Xform and under Clip. The
+	// colours are premultiplied and interpolated across each triangle, and
+	// nothing else is: no texture and no antialiasing, so a producer that
+	// wants a soft edge gives the outer vertices of its geometry a colour of
+	// alpha zero. Bounds is the rectangle the vertices lie in, for culling.
+	//
+	// It is for many small things that move each frame — the particles of
+	// the wind and the rain of a weather map — which as operations of their
+	// own would cost a transform and an operation each; see the project
+	// plan, section 37.
+	OpTriangles
 )
 
 // Op is a single drawing operation.
@@ -304,6 +317,11 @@ type Op struct {
 // It is not the *visible* area: a clip may cut it, and a hit test ignores it
 // entirely. In particular it does not consult the colour: a transparent
 // shadow is skipped by the backend rather than resized here.
+// Triangles is, for an [OpTriangles], the first vertex in the vertex side
+// table of the owning list and the number of vertices, three per triangle;
+// see [List.Vertices].
+func (o Op) Triangles() (first, count uint32) { return o.Glyphs, o.GlyphCount }
+
 // LayerOps is, for an [OpLayer], the number of operations that follow it and
 // belong to the layer.
 func (o Op) LayerOps() int { return int(o.GlyphCount) }

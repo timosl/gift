@@ -291,6 +291,9 @@ type Renderer struct {
 	// painted is set by BeginPaint and cleared by the BeginFrame that
 	// follows it.
 	painted bool
+	// white is the texture of the triangles; triangleOps counts them.
+	white       *eb.Image
+	triangleOps int
 }
 
 // Material is what a batch is drawn with. A batch ends where the material
@@ -843,6 +846,9 @@ func (r *Renderer) appendOp(l *render.List, op render.Op) {
 		return
 	case render.OpArc:
 		r.appendArc(l, op)
+		return
+	case render.OpTriangles:
+		r.appendTriangles(l, op)
 		return
 	default:
 		// An unknown kind is skipped rather than fatal, as [render.OpKind]

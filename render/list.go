@@ -26,6 +26,8 @@ type List struct {
 	clips  []geom.Rect
 	xforms []geom.Affine2D
 	glyphs []Glyph
+	// vertices is the side table of [OpTriangles].
+	vertices []Vertex
 	// materials is the side table of [OpMaterial]. Index 0 is a reserved
 	// sentinel meaning "no material", like index 0 of clips and xforms.
 	materials []Material
@@ -63,6 +65,7 @@ func (l *List) Reset() {
 	l.clips = l.clips[:0]
 	l.xforms = l.xforms[:0]
 	l.glyphs = l.glyphs[:0]
+	l.vertices = l.vertices[:0]
 	l.materials = l.materials[:0]
 	l.clipStack = l.clipStack[:0]
 	l.layerStack = l.layerStack[:0]
@@ -284,6 +287,30 @@ func (l *List) Len() int { return len(l.ops) }
 // Copying the glyph here, during the frame that shaped it, is what keeps those
 // two lifetimes from having to be reconciled at all.
 func (l *List) AppendGlyph(g Glyph) { l.glyphs = append(l.glyphs, g) }
+
+// Vertex is one vertex of an [OpTriangles]: a position in the local space
+// of the operation's transform and a premultiplied colour.
+type Vertex struct {
+	X, Y  float32
+	Color Color
+}
+
+// AppendVertex appends a vertex to the vertex side table.
+func (l *List) AppendVertex(v Vertex) { l.vertices = append(l.vertices, v) }
+
+// VerticesLen returns the number of vertices in the side table, the index
+// the next [List.AppendVertex] writes to.
+func (l *List) VerticesLen() uint32 { return uint32(len(l.vertices)) }
+
+// Vertices returns count vertices from first, normally [Op.Triangles] of an
+// [OpTriangles], under the borrowing rule of [List.Glyphs].
+func (l *List) Vertices(first, count uint32) []Vertex {
+	end := uint64(first) + uint64(count)
+	if end > uint64(len(l.vertices)) {
+		return nil
+	}
+	return l.vertices[first:end:end]
+}
 
 // GlyphsLen returns the number of glyphs currently in the side table. It is
 // the index the next [List.AppendGlyph] will write to.
