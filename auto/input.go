@@ -49,6 +49,11 @@ type Step struct {
 	DX float32 `json:"dx,omitempty"`
 	DY float32 `json:"dy,omitempty"`
 
+	// Phase is the stage of a trackpad gesture a "wheel" step belongs to:
+	// "contact", "lift" or "momentum", as macOS reports it; see
+	// [gift.App.PointerWheelPhase]. Empty is a wheel whose stage is unknown.
+	Phase string `json:"phase,omitempty"`
+
 	// Key is the name of a key, such as "tab", "escape" or "backspace". See
 	// [keyByName] for the whole table.
 	Key string `json:"key,omitempty"`
@@ -103,6 +108,14 @@ type Step struct {
 	// frame, base64 encoded, and not only their hashes and their counts of
 	// changed pixels.
 	PNG bool `json:"png,omitempty"`
+}
+
+// wheelPhases are the names of [Step.Phase].
+var wheelPhases = map[string]gift.WheelPhase{
+	"":         gift.WheelPhaseUnknown,
+	"contact":  gift.WheelPhaseContact,
+	"lift":     gift.WheelPhaseLift,
+	"momentum": gift.WheelPhaseMomentum,
 }
 
 // Batch is the body of a /input request.
@@ -327,8 +340,16 @@ func (d *driver) runStep(s Step) error {
 			app.PointerUp(gift.MousePointer, gift.PointerMouse, p)
 		})
 	case "wheel":
+		phase, ok := wheelPhases[s.Phase]
+		if !ok {
+			return fmt.Errorf("unknown wheel phase %q", s.Phase)
+		}
 		return d.do(func(app *gift.App) {
-			app.PointerWheel(d.at(s), geom.Pt(s.DX, s.DY))
+			if phase == gift.WheelPhaseUnknown {
+				app.PointerWheel(d.at(s), geom.Pt(s.DX, s.DY))
+				return
+			}
+			app.PointerWheelPhase(d.at(s), geom.Pt(s.DX, s.DY), phase)
 		})
 	case "keyDown", "keyUp", "key":
 		k, ok := keyByName[s.Key]

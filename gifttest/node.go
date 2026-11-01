@@ -700,6 +700,16 @@ func (h *Harness) Wheel(p geom.Point, d geom.Point) {
 	h.Settle()
 }
 
+// WheelPhase scrolls at the device space point p by d as a trackpad of a
+// platform that reports the stage of its gesture; see
+// [gift.App.PointerWheelPhase].
+func (h *Harness) WheelPhase(p geom.Point, d geom.Point, phase gift.WheelPhase) {
+	h.t.Helper()
+	h.beginInput()
+	h.app.PointerWheelPhase(p, d, phase)
+	h.Settle()
+}
+
 // Tab moves the keyboard focus to the next focusable node, by actually
 // pressing tab.
 func (h *Harness) Tab() {

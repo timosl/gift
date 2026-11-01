@@ -319,9 +319,17 @@ type scrollState struct {
 	// running bounce springs to; see [scrollState.rest].
 	hold, overTo float32
 	// wheeling says that a precise wheel is scrolling this container, which
-	// it last did at wheelAt; see [App.wheelBounce].
-	wheeling bool
-	wheelAt  time.Duration
+	// it last did at wheelAt; see [App.wheelBounce]. phased says that the
+	// platform reported the stages of that stroke, wheelVel is the speed of
+	// its momentum, and dropMomentum that the rest of the momentum is taken
+	// and ignored. macBounce says that the running bounce follows AppKit's
+	// curve rather than the spring of a finger; see [App.stepBounce].
+	wheeling     bool
+	wheelAt      time.Duration
+	phased       bool
+	wheelVel     float32
+	dropMomentum bool
+	macBounce    bool
 
 	// lastActive is the clock value at which this container last moved or was
 	// last touched by a gesture. [ScrollInfo.IdleFor] is derived from it.
@@ -523,7 +531,7 @@ func (scrollHandler) HandleEvent(ctx *EventContext, e Event) bool {
 		if e.Precise {
 			step = -float64(d) * float64(s.cfg.PreciseWheelStep)
 			if !s.cfg.HardStop {
-				return a.wheelBounce(h, s, step)
+				return a.wheelBounce(h, s, step, e.Phase)
 			}
 		}
 		if !s.canMove(step) {
@@ -605,7 +613,7 @@ func (scrollHandler) HandleEvent(ctx *EventContext, e Event) bool {
 		v := -s.velocity()
 		s.resetTrack()
 		if s.pull != 0 {
-			a.releaseBounce(h, s)
+			a.releaseBounce(h, s, false)
 			return true
 		}
 		if absf(v) >= s.cfg.FlingVelocity {
@@ -631,7 +639,7 @@ func (scrollHandler) HandleEvent(ctx *EventContext, e Event) bool {
 		s.dragging = false
 		s.resetTrack()
 		if s.pull != 0 {
-			a.releaseBounce(h, s)
+			a.releaseBounce(h, s, false)
 		}
 		return true
 	}

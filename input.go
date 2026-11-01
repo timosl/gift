@@ -378,6 +378,12 @@ type Event struct {
 	// numbers a trackpad reports in passing.
 	Precise bool
 
+	// Phase is, for [EventWheel], the stage of the trackpad gesture the delta
+	// belongs to, where the platform reports it, and [WheelPhaseUnknown]
+	// everywhere else; see [App.PointerWheelPhase]. It is never
+	// [WheelPhaseLift], which carries no delta and is no event.
+	Phase WheelPhase
+
 	// Inside reports whether Pos lies inside the receiving node, taking the
 	// clips of its ancestors into account.
 	//
@@ -798,6 +804,9 @@ type inputState struct {
 	// preciseWheelAt when the last one was; see [Event.Precise].
 	preciseWheel   bool
 	preciseWheelAt time.Duration
+	// wheelContact says that fingers are on the trackpad, as far as the
+	// platform reported it; see [App.PointerWheelPhase].
+	wheelContact bool
 
 	focus scene.Handle
 	ectx  EventContext
@@ -1279,6 +1288,69 @@ func (a *App) PointerCancel(id PointerID) {
 // simply dropped.
 func (a *App) PointerWheel(pos geom.Point, delta geom.Point) {
 	a.assertInputPhase("PointerWheel")
+	a.pointerWheel(pos, delta, WheelPhaseUnknown)
+}
+
+// WheelPhase is the stage of a trackpad gesture a wheel delta belongs to, for
+// a backend whose platform reports it; see [App.PointerWheelPhase].
+type WheelPhase uint8
+
+const (
+	// WheelPhaseUnknown is a delta whose stage nobody reported: a mouse
+	// wheel, or a trackpad behind GLFW, which drops the phases macOS has.
+	// A trackpad then stretches a container past its end for as long as the
+	// deltas come, and it springs back once they have stopped.
+	WheelPhaseUnknown WheelPhase = iota
+	// WheelPhaseContact is a delta of fingers on the trackpad.
+	WheelPhaseContact
+	// WheelPhaseLift says that the fingers left the trackpad. It carries no
+	// delta of its own.
+	WheelPhaseLift
+	// WheelPhaseMomentum is a delta of the momentum the platform adds after
+	// the fingers left the trackpad, decaying until it stops.
+	WheelPhaseMomentum
+)
+
+// PointerWheelPhase is [App.PointerWheel] for a platform that reports the
+// stages of a trackpad gesture, as macOS does in NSEvent.phase and
+// NSEvent.momentumPhase. A delta with a phase is precise; see [Event.Precise].
+//
+// # Why the stage matters
+//
+// Because the momentum of macOS is a stream of ordinary deltas that goes on
+// for a second or more after the fingers left, and a scroll container that
+// cannot tell it from the fingers stretches past its end under it as under a
+// finger pulling all that way. AppKit instead lets content that the momentum
+// carries into an end bounce off it with the speed it had, and drops the
+// rest; and it springs a stretch back the moment the fingers that made it
+// lift, not once the deltas stop. Both need the stage, and GLFW, and with it
+// Ebitengine, drops it; gift's Ebitengine backend reads it from AppKit
+// itself.
+func (a *App) PointerWheelPhase(pos geom.Point, delta geom.Point, phase WheelPhase) {
+	a.assertInputPhase("PointerWheelPhase")
+	switch phase {
+	case WheelPhaseContact:
+		a.in.wheelContact = true
+	case WheelPhaseLift:
+		a.in.wheelContact = false
+		a.liftWheel()
+		return
+	case WheelPhaseMomentum:
+		a.in.wheelContact = false
+	}
+	if phase != WheelPhaseUnknown {
+		a.in.preciseWheel = true
+		a.in.preciseWheelAt = a.in.now
+		if delta == (geom.Point{}) {
+			// Fingers that touched down without moving yet.
+			return
+		}
+	}
+	a.pointerWheel(pos, delta, phase)
+}
+
+// pointerWheel is [App.PointerWheel] with the stage of the gesture.
+func (a *App) pointerWheel(pos geom.Point, delta geom.Point, phase WheelPhase) {
 	// Through pointerFor like every other mouse entry point, and not by
 	// indexing the slot directly. Slot zero is the mouse's for its whole life,
 	// but it is only *initialised* — id MousePointer, kind PointerMouse — by
@@ -1314,6 +1386,7 @@ func (a *App) PointerWheel(pos geom.Point, delta geom.Point) {
 	e.Pos = pos
 	e.Delta = delta
 	e.Precise = a.in.preciseWheel && a.in.now-a.in.preciseWheelAt < preciseWheelFor
+	e.Phase = phase
 	e.Inside = true
 	a.deliver(h, e, false)
 }

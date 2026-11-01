@@ -48,9 +48,13 @@ gift handles the gestures for you:
 
 - The wheel scrolls the scroll view under the pointer, also when the pointer is over a child. One notch of a
   mouse wheel moves 48 logical pixels by default; `WheelStep` changes it.
-- A trackpad scrolls as far as the fingers travel, and past either end the content stretches and springs back
-  when the fingers and the momentum after them stop, as on macOS. gift tells a trackpad from a mouse wheel by its
-  deltas, which come in fractions; see `gift.Event.Precise`.
+- A trackpad scrolls as far as the fingers travel, and past either end the content stretches with resistance. On
+  macOS the fingers hold the stretch until they lift, and it springs back then. Momentum that carries the content
+  into an end makes it bounce off by about a hundredth of its speed and come home in about half a second, as an
+  AppKit scroll view does; the rest of the momentum is dropped. The Ebitengine backend reads the phases of the
+  gesture from AppKit for this; see `gift.App.PointerWheelPhase`. Where no phases are reported, the content springs
+  back once the deltas stop. gift tells a trackpad from a mouse wheel by its deltas, which come in fractions; see
+  `gift.Event.Precise`.
 - A drag that travels further than `gift.DragSlop` scrolls and takes the press away from a button underneath. A
   shorter press stays a tap on the button.
 - On release, a fast drag turns into a fling that slows down over time. `Friction` sets how fast it slows down,

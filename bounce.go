@@ -100,10 +100,35 @@ func (a *App) dragBounce(h scene.Handle, s *scrollState, d float64) {
 }
 
 // wheelRelease is how long a precise wheel has to be quiet before the
-// stretch it made springs back. GLFW reports no phases of a trackpad gesture,
-// so the end of the stroke, and of the momentum macOS adds to it, is the
-// moment the deltas stop; they come with every frame until then.
+// stretch it made springs back. Where the platform reports no phases of a
+// trackpad gesture, as GLFW does not, the end of the stroke, and of any
+// momentum the platform adds to it, is the moment the deltas stop; they come
+// with every frame until then.
 const wheelRelease = 120 * time.Millisecond
+
+// wheelHold is how long a stretch is held for fingers that rest on the
+// trackpad without moving, where the platform reports them; see
+// [App.stepWheel]. AppKit holds it until they lift; this is the bound for a
+// lift that never arrives, a gesture whose end went to another window.
+const wheelHold = 2 * time.Second
+
+// The rubber band of AppKit, for a trackpad whose platform reports the stages
+// of its gesture; see [App.PointerWheelPhase]. WebKit's
+// ScrollingEffectsController reproduces it for its own scrolling on the Mac
+// with these constants and the curve of [App.stepBounce]:
+//
+//	x(t) = (x0 + a·v0·t)·e^(−k·t),  k = stiffness/period = 20/1.6,  a = 0.31
+//
+// Content the momentum carries into an end at v0 overshoots by a·v0/(k·e),
+// about a hundredth of its speed — 36 points at 4000 points a second — and is
+// home in about half a second; a stretch let go of, v0 = 0, decays in the
+// same time without swinging. That is a third of what the spring of a touch
+// fling, [bounceStiffness], lets the same speed overshoot by, which is the
+// difference between a scroll view on the Mac and on an iPhone.
+const (
+	macBounceRate      = 20.0 / 1.6
+	macBounceAmplitude = 0.31
+)
 
 // wheelBounce scrolls a container by d offset units for a precise wheel, a
 // trackpad, with the rubber band of a finger: past an end the content
@@ -117,17 +142,90 @@ const wheelRelease = 120 * time.Millisecond
 // with it to the end, momentum included, which is what makes a list scrolled
 // into its end bounce rather than drag the page along. Content that fits does
 // not stretch, as macOS leaves it.
-func (a *App) wheelBounce(h scene.Handle, s *scrollState, d float64) bool {
+//
+// # Momentum, where the platform reports it
+//
+// A delta of [WheelPhaseMomentum] is not a finger and does not stretch. It
+// scrolls within the bounds, and where it runs into an end the content
+// bounces off it with the speed the momentum had, on AppKit's curve, and the
+// rest of the momentum is dropped, as AppKit drops it; so is the momentum
+// after fingers that lifted from a stretch. Dropped means taken and ignored,
+// so that it does not scroll the page around either.
+//
+// Before the phases were read, the momentum stretched the content like a
+// finger that went on pulling for as long as it lasted: a list flicked into
+// its end was dragged a good third of its height past it and held there for
+// a second, until the momentum ran out.
+func (a *App) wheelBounce(h scene.Handle, s *scrollState, d float64, phase WheelPhase) bool {
+	if phase == WheelPhaseMomentum && s.wheeling && s.dropMomentum {
+		s.wheelAt = a.in.now
+		return true
+	}
 	if !s.wheeling && s.pull == 0 && !s.canMove(d) {
 		if !(s.maxOffset() > 0) || a.outerCanScroll(h, s.axis, d) {
 			return false
 		}
 	}
 	s.flinging, s.vel = false, 0
-	a.dragBounce(h, s, d)
+	s.phased = phase != WheelPhaseUnknown
+	switch phase {
+	case WheelPhaseMomentum:
+		a.momentumBounce(h, s, d)
+	default:
+		s.dropMomentum = false
+		a.dragBounce(h, s, d)
+	}
 	s.wheeling, s.wheelAt = true, a.in.now
 	a.enrolScroll(h)
 	return true
+}
+
+// momentumBounce scrolls a container by d offset units of the momentum after
+// a trackpad gesture; see [App.wheelBounce].
+func (a *App) momentumBounce(h scene.Handle, s *scrollState, d float64) {
+	if s.pull != 0 || s.bouncing {
+		// Stretched still, or springing back: fingers lifted from a
+		// stretch, and the momentum that follows them is not theirs to
+		// carry on with.
+		if s.pull != 0 {
+			a.releaseBounce(h, s, true)
+		}
+		s.dropMomentum = true
+		return
+	}
+	// The speed of the momentum, over the time since the delta before it.
+	// Two deltas in one update share its time, and the second keeps the
+	// speed the first measured.
+	if dt := (a.in.now - s.wheelAt).Seconds(); s.wheeling && dt > 0 && dt < maxFlingStep.Seconds() {
+		s.wheelVel = float32(d / dt)
+	} else if !s.wheeling || s.wheelVel == 0 {
+		s.wheelVel = float32(d * 60)
+	}
+	s.wheelVel = max(-s.cfg.MaxVelocity, min(s.cfg.MaxVelocity, s.wheelVel))
+
+	target := s.off + d
+	clamped := s.clamp(target)
+	a.setScroll(h, s, clamped)
+	if target != clamped {
+		a.startBounce(h, s, 0, s.wheelVel)
+		s.macBounce = true
+		s.dropMomentum = true
+	}
+}
+
+// liftWheel springs back what fingers on a trackpad stretched, the moment
+// they lift, and has the momentum that follows them dropped; see
+// [App.PointerWheelPhase].
+func (a *App) liftWheel() {
+	for _, h := range a.in.flings {
+		if !a.store.Valid(h) {
+			continue
+		}
+		if s := a.data(h).scroll; s != nil && s.wheeling && s.pull != 0 {
+			a.releaseBounce(h, s, true)
+			s.dropMomentum = true
+		}
+	}
 }
 
 // outerCanScroll reports whether a scroll container around h moves along axis
@@ -144,34 +242,48 @@ func (a *App) outerCanScroll(h scene.Handle, axis ScrollAxis, d float64) bool {
 // stepWheel ends the stroke of a precise wheel once it has been quiet for
 // wheelRelease and springs back what it stretched. It reports whether the
 // stroke is still going.
+//
+// Fingers that rest on the trackpad, where the platform reports them, hold
+// the stretch they made until they lift, as on the Mac, and not only until
+// they have been still for wheelRelease; [App.liftWheel] then lets it go.
 func (a *App) stepWheel(h scene.Handle, s *scrollState, now time.Duration) bool {
-	if now-s.wheelAt < wheelRelease {
+	quiet := wheelRelease
+	if s.phased && s.pull != 0 && a.in.wheelContact {
+		quiet = wheelHold
+	}
+	if now-s.wheelAt < quiet {
 		// Painted, so that the backend keeps its rate until the release.
 		a.markNeedsPaint(h)
 		return true
 	}
-	s.wheeling = false
+	s.wheeling, s.dropMomentum = false, false
 	if s.pull != 0 {
-		a.releaseBounce(h, s)
+		a.releaseBounce(h, s, s.phased)
 		// From the moment the wheel went quiet, which a frame that comes
 		// late is past already.
-		s.overStart = s.wheelAt + wheelRelease
+		s.overStart = s.wheelAt + quiet
 	}
 	return false
 }
 
-// releaseBounce springs a container that was let go past an end back.
-func (a *App) releaseBounce(h scene.Handle, s *scrollState) {
+// releaseBounce springs a container that was let go past an end back, on
+// AppKit's curve for a trackpad whose phases are known and on the spring of a
+// finger otherwise.
+func (a *App) releaseBounce(h scene.Handle, s *scrollState, mac bool) {
 	over := s.over
 	s.pull = 0
 	a.startBounce(h, s, over, 0)
+	s.macBounce = mac
 }
 
 // startBounce starts the spring from displacement x0 with velocity v0, both
 // in offset units, towards the rest of [scrollState.rest], and enrols the
 // container in the scroll tick.
+//
+// It is the spring of a finger, [bounceStiffness]; a caller that wants
+// AppKit's curve sets [scrollState.macBounce] after it.
 func (a *App) startBounce(h scene.Handle, s *scrollState, x0, v0 float32) {
-	s.bouncing = true
+	s.bouncing, s.macBounce = true, false
 	s.overFrom, s.overVel, s.overStart, s.overTo = x0, v0, a.in.now, s.rest()
 	s.over = x0
 	a.enrolScroll(h)
@@ -190,15 +302,25 @@ func (a *App) enrolScroll(h scene.Handle) {
 
 // stepBounce advances the spring: critically damped, so it returns without
 // swinging through its rest, x(t) = r + (d0 + (v0 + ω·d0)·t)·e^(−ω·t) with
-// d0 = x0 − r. It reports whether the container is still moving.
+// d0 = x0 − r. AppKit's curve, [macBounceRate], is the same without the ω·d0
+// term and with the speed scaled by [macBounceAmplitude]. It reports whether
+// the container is still moving.
 func (a *App) stepBounce(h scene.Handle, s *scrollState, now time.Duration) bool {
 	t := (now - s.overStart).Seconds()
-	const w = bounceStiffness
 	r := float64(s.overTo)
 	d0, v0 := float64(s.overFrom)-r, float64(s.overVel)
-	e := math.Exp(-w * t)
-	d := (d0 + (v0+w*d0)*t) * e
-	v := (v0 - w*(v0+w*d0)*t) * e
+	var d, v float64
+	if s.macBounce {
+		const k, amp = macBounceRate, macBounceAmplitude
+		e := math.Exp(-k * t)
+		d = (d0 + amp*v0*t) * e
+		v = (amp*v0 - k*(d0+amp*v0*t)) * e
+	} else {
+		const w = bounceStiffness
+		e := math.Exp(-w * t)
+		d = (d0 + (v0+w*d0)*t) * e
+		v = (v0 - w*(v0+w*d0)*t) * e
+	}
 	a.markNeedsPaint(h)
 	if math.Abs(d) < 0.25 && math.Abs(v) < 20 {
 		s.over, s.bouncing = s.overTo, false

@@ -171,3 +171,103 @@ func TestATrackpadAtTheEndOfAnInnerListScrollsTheOuterOne(t *testing.T) {
 		t.Errorf("the inner list moved to %v and stretched by %v; the stroke was the page's", info.Offset, info.Overscroll)
 	}
 }
+
+// momentum delivers the momentum of a flick as macOS does after the fingers
+// lifted: a delta a tick, from first, decaying by a twentieth a tick, for n
+// ticks. It returns the largest displacement of the first row from rest seen
+// on the way, and its sign.
+func momentum(h *gifttest.Harness, at geom.Point, first float32, n int, rest float32) float32 {
+	var peak float32
+	d := first
+	for range n {
+		h.WheelPhase(at, geom.Pt(0, d), gift.WheelPhaseMomentum)
+		h.Advance(16 * time.Millisecond)
+		if y := firstRowY(h) - rest; y*y > peak*peak {
+			peak = y
+		}
+		d *= 0.95
+	}
+	return peak
+}
+
+// TestMomentumIntoTheTopBouncesOffItAsOnAMac: macOS reports the momentum
+// after a flick as a phase of its own. Carried into the top at 3000 points a
+// second, the list overshoots by about a hundredth of that, as AppKit's
+// rubber band lets it, and is home well within a second; the rest of the
+// momentum is dropped. Treated as a finger, the same momentum stretched the
+// list past a hundred points and held it there until it ran out.
+func TestMomentumIntoTheTopBouncesOffItAsOnAMac(t *testing.T) {
+	h := bounceList(t)
+	rest := firstRowY(h)
+	at := geom.Pt(150, 150)
+
+	h.WheelPhase(at, geom.Pt(0, -5), gift.WheelPhaseContact)
+	h.Advance(16 * time.Millisecond)
+	h.WheelPhase(at, geom.Pt(0, 0), gift.WheelPhaseLift)
+	if y := firstRowY(h); y != rest-50 {
+		t.Fatalf("five units down left the first row at %v, want %v", y, rest-50)
+	}
+
+	// 4.8 units a tick of 16 ms is 3000 points a second, towards the top.
+	peak := momentum(h, at, 4.8, 15, rest)
+	if !(peak > 15 && peak < 40) {
+		t.Errorf("the momentum carried the first row %v past the top; want the 27 or so AppKit lets 3000 points a second overshoot by", peak)
+	}
+	momentum(h, at, 4.8*0.46, 45, rest)
+	if y := firstRowY(h); y != rest {
+		t.Errorf("after the momentum the first row is at %v, want it home at %v", y, rest)
+	}
+	h.Advance(time.Second)
+	if h.App().Diagnostics().Animating {
+		t.Error("the list keeps animating after it came home")
+	}
+}
+
+// TestFingersHoldAStretchUntilTheyLift: fingers resting on the trackpad hold
+// the stretch they made, as on a Mac, and the lift springs it back at once
+// and drops the momentum after it, which goes neither into the stretch nor
+// into a scroll.
+func TestFingersHoldAStretchUntilTheyLift(t *testing.T) {
+	h := bounceList(t)
+	rest := firstRowY(h)
+	at := geom.Pt(150, 150)
+
+	h.WheelPhase(at, geom.Pt(0, 3), gift.WheelPhaseContact)
+	stretched := firstRowY(h)
+	if !(stretched > rest+10 && stretched < rest+30) {
+		t.Fatalf("30 points past the top the first row is at %v (rest %v); want it to follow with resistance", stretched, rest)
+	}
+	h.Advance(500 * time.Millisecond)
+	if y := firstRowY(h); y != stretched {
+		t.Fatalf("half a second of resting fingers moved the first row from %v to %v; want the stretch held", stretched, y)
+	}
+
+	h.WheelPhase(at, geom.Pt(0, 0), gift.WheelPhaseLift)
+	h.Advance(50 * time.Millisecond)
+	if y := firstRowY(h); !(y < stretched && y > rest) {
+		t.Errorf("50 ms after the lift the first row is at %v; want it on its way home from %v", y, stretched)
+	}
+	if peak := momentum(h, at, 2, 40, rest); peak > stretched-rest {
+		t.Errorf("the momentum after the lift carried the first row %v past the top, further than the fingers did", peak)
+	}
+	if y := firstRowY(h); y != rest {
+		t.Errorf("after the momentum the first row is at %v, want it home at %v", y, rest)
+	}
+}
+
+// TestMomentumWithinTheBoundsScrollsAsFarAsItGoes: away from the ends the
+// momentum is a scroll like the fingers before it.
+func TestMomentumWithinTheBoundsScrollsAsFarAsItGoes(t *testing.T) {
+	h := bounceList(t)
+	rest := firstRowY(h)
+	at := geom.Pt(150, 150)
+
+	h.WheelPhase(at, geom.Pt(0, -1), gift.WheelPhaseContact)
+	h.WheelPhase(at, geom.Pt(0, 0), gift.WheelPhaseLift)
+	h.WheelPhase(at, geom.Pt(0, -2), gift.WheelPhaseMomentum)
+	h.Advance(16 * time.Millisecond)
+	h.WheelPhase(at, geom.Pt(0, -1.5), gift.WheelPhaseMomentum)
+	if y := firstRowY(h); y != rest-45 {
+		t.Errorf("one unit of fingers and three and a half of momentum left the first row at %v, want %v", y, rest-45)
+	}
+}

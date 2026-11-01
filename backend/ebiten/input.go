@@ -105,6 +105,20 @@ type inputBridge struct {
 	cursor func() (float64, float64)
 	wheel  func() (float64, float64)
 
+	// wheelPhases drains the scroll events the platform reported with the
+	// stage of their trackpad gesture, where the backend can read them, and
+	// is nil everywhere else; see wheelphase_darwin.go. Where it is set it is
+	// the source of the wheel and [inputBridge.wheel] is read only to be
+	// emptied. wheelBuf is the reused buffer it drains into.
+	//
+	// wheelSeen says that the monitor behind wheelPhases has reported an
+	// event. Until it has, a wheel the monitor did not see is read from
+	// [inputBridge.wheel] after all, so that a monitor AppKit never calls
+	// costs the phases and not the wheel.
+	wheelPhases func([]wheelSample) []wheelSample
+	wheelBuf    []wheelSample
+	wheelSeen   bool
+
 	// noMouse is [Config.NoMouse].
 	noMouse bool
 
@@ -371,12 +385,39 @@ func (b *inputBridge) pollMouse(now time.Duration) {
 		}
 	}
 
-	if wx, wy := b.wheel(); wx != 0 || wy != 0 {
+	wx, wy := b.wheel()
+	if b.wheelPhases != nil {
+		// The same events as the wheel's, with their phases; the wheel's
+		// sum of them is delivered here instead. AppKit calls the monitor
+		// before it dispatches the event to the window, so an event the
+		// wheel has is in here already.
+		b.wheelBuf = b.wheelPhases(b.wheelBuf[:0])
+		b.wheelSeen = b.wheelSeen || len(b.wheelBuf) > 0
+		for _, w := range b.wheelBuf {
+			if w.phase == gift.WheelPhaseUnknown {
+				b.app.PointerWheel(pos, w.delta)
+			} else {
+				b.app.PointerWheelPhase(pos, w.delta, w.phase)
+			}
+		}
+		if b.wheelSeen {
+			return
+		}
+	}
+	if wx != 0 || wy != 0 {
 		// The wheel is *not* divided. It is a notch count and not a length;
 		// see [gift.ScrollConfig.WheelStep], which turns one notch into a
 		// distance in logical pixels.
 		b.app.PointerWheel(pos, geom.Pt(float32(wx), float32(wy)))
 	}
+}
+
+// wheelSample is a scroll the platform reported with the stage of the
+// trackpad gesture it belongs to: consecutive events of one stage summed, in
+// the units of [eb.Wheel]. A lift carries no delta.
+type wheelSample struct {
+	phase gift.WheelPhase
+	delta geom.Point
 }
 
 // pollTouches turns the current set of touch identifiers into down, move and

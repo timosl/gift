@@ -3466,6 +3466,46 @@ Inhalt: der Compositor setzt das Fenster zusammen.
 - GFS ueber NOMADS: https://nomads.ncep.noaa.gov/
 - Hash ohne Sinus: https://www.shadertoy.com/view/4djSRW
 
+## 38. Trackpad-Momentum unter macOS
+
+Gemeldet (01.11.2026): mit Schwung gescrollt schiesst besonders die Liste weit
+ueber das Ende hinaus und bleibt dort viel zu lange.
+
+- Ursache: Ebitengines Cocoa-Port liest wie GLFW nur `scrollingDeltaX/Y`,
+  nimmt praezise Deltas mal 0,1 und verwirft `phase`, `momentumPhase` und
+  jedes Event ohne Delta, also auch das Abheben. Das Momentum, das macOS nach
+  dem Abheben schickt, kam bei gift als Finger an, der noch eine Sekunde
+  weiterzieht: `wheelBounce` dehnte damit wie unter einem Finger. Gemessen im
+  Kitchensink (Viewport 676 pt): bis 280 pt ueber den Anfang gezogen, rund
+  1,3 s gehalten, Rueckfeder erst 120 ms nach dem letzten Momentum-Delta. Ein
+  eigener Fling lief nicht zusaetzlich; ein praezises Rad stoppt ihn.
+- Entscheidung: das Backend liest die Phasen selbst, mit einem lokalen
+  NSEvent-Monitor (purego/objc, in `Run` auf dem Hauptthread installiert), und
+  nimmt Delta und Phase aus demselben Event; `eb.Wheel` bleibt Rueckfall,
+  solange der Monitor nichts gesehen hat. Neu: `App.PointerWheelPhase`,
+  `WheelPhase` (Contact, Lift, Momentum) und `Event.Phase`.
+- Physik wie AppKit, das WebKit im `ScrollingEffectsController` nachbaut:
+  Finger dehnen mit (1 − 1/(x·0,55/d + 1))·d und halten die Dehnung bis zum
+  Abheben; das Abheben federt sofort zurueck und verwirft das folgende
+  Momentum; Momentum, das an ein Ende stoesst, prallt mit seiner
+  Geschwindigkeit ab, x(t) = (x0 + 0,31·v·t)·e^(−12,5·t), und der Rest wird
+  geschluckt, auch nicht an einen aeusseren Container weitergereicht.
+- Lokal gegen AppKit (macOS 27.2) per `dlsym` nachgemessen:
+  `_NSElasticDeltaForTimeDelta` ist genau (x0 − 0,31·v·t)·e^(−12,5·t), mit
+  umgekehrtem Vorzeichen der Geschwindigkeit, und
+  `_NSHyperbolicElasticDeltaForReboundDelta(x, c, d)` genau gifts `rubber`.
+  Ergebnis am Bildschirm: 26 pt Ausschlag bei rund 3000 pt/s, nach etwa
+  0,45 s zurueck.
+- Unveraendert: ohne Phasen (Linux, Pi, Windows) dehnt ein Trackpad weiter,
+  bis die Deltas aufhoeren; Touch federt weiter mit ω = 14.
+- Offen: Praezisions-Touchpads unter Windows liefern ebenfalls Traegheit ohne
+  Phasen. Systemweit gepostete Events (`CGEventPost`) brauchen das Recht der
+  Bedienungshilfen; geprueft wurde mit `postEvent:` in den eigenen Prozess.
+- Quellen: WebKit `ScrollingEffectsController.mm`, `NSScrollViewSPI.h` und
+  der alte `ScrollElasticityController.mm`; Chromium
+  `elastic_overscroll_controller_exponential.cc`; Apple-Doku zu
+  `NSEvent.phase` und `momentumPhase`; GLFW-Issue 1429.
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb

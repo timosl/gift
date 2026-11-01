@@ -438,6 +438,11 @@ func Run(app *gift.App, cfg Config) error {
 		g.input = nil
 	} else {
 		g.input.noMouse = cfg.NoMouse
+		if !cfg.NoMouse {
+			// Here, on the main thread, which AppKit wants for its event
+			// monitor; Run is on it, because RunGame has to be.
+			g.input.wheelPhases = openWheelPhases()
+		}
 		g.input.attachPanel(cfg.Touchscreen, cfg.Logger, g.wake)
 		defer g.input.detachPanel()
 	}

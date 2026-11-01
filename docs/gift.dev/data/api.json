@@ -2492,6 +2492,11 @@
             "synopsis": "PointerWheel reports a scroll of delta at pos."
           },
           {
+            "name": "PointerWheelPhase",
+            "signature": "PointerWheelPhase(pos geom.Point, delta geom.Point, phase WheelPhase)",
+            "synopsis": "PointerWheelPhase is App.PointerWheel for a platform that reports the stages of a trackpad gesture, as macOS does in NSEvent.phase and NSEvent.momentumPhase."
+          },
+          {
             "name": "Post",
             "signature": "Post(fn func())",
             "synopsis": "Post queues fn to run on the UI executor at the beginning of the next App.Update."
@@ -2665,7 +2670,7 @@
       },
       "Event": {
         "synopsis": "Event is one input event as an Interactor sees it.",
-        "decl": "type Event struct {\n\tKind    EventKind\n\tPointer PointerID\n\tDevice  PointerKind\n\tPos     geom.Point\n\tDelta   geom.Point\n\tPrecise bool\n\tInside  bool\n\tDragged bool\n\tKey     Key\n\tMods    Mods\n\tRune    rune\n\tRepeat  bool\n\tTime    time.Duration\n}",
+        "decl": "type Event struct {\n\tKind    EventKind\n\tPointer PointerID\n\tDevice  PointerKind\n\tPos     geom.Point\n\tDelta   geom.Point\n\tPrecise bool\n\tPhase   WheelPhase\n\tInside  bool\n\tDragged bool\n\tKey     Key\n\tMods    Mods\n\tRune    rune\n\tRepeat  bool\n\tTime    time.Duration\n}",
         "constructors": [],
         "methods": [
           {
@@ -3323,6 +3328,12 @@
           }
         ],
         "methods": []
+      },
+      "WheelPhase": {
+        "synopsis": "WheelPhase is the stage of a trackpad gesture a wheel delta belongs to, for a backend whose platform reports it; see App.PointerWheelPhase.",
+        "decl": "type WheelPhase uint8",
+        "constructors": [],
+        "methods": []
       }
     },
     "funcs": [
@@ -3637,6 +3648,11 @@
             "name": "Wheel",
             "signature": "Wheel(p geom.Point, d geom.Point)",
             "synopsis": "Wheel scrolls at the device space point p by d."
+          },
+          {
+            "name": "WheelPhase",
+            "signature": "WheelPhase(p geom.Point, d geom.Point, phase gift.WheelPhase)",
+            "synopsis": "WheelPhase scrolls at the device space point p by d as a trackpad of a platform that reports the stage of its gesture; see gift.App.PointerWheelPhase."
           }
         ]
       },
