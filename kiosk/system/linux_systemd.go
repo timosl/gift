@@ -288,6 +288,11 @@ func (s *linuxSystem) SetBoot(ctx context.Context, b Boot, now bool) error {
 	if err := sd.CallWithContext(ctx, sdManager+".StartUnit", 0, enable, "replace").Store(&job); err != nil {
 		return fmt.Errorf("system: starting %s: %w", enable, err)
 	}
+	if b == BootDesktop {
+		// The kiosk took the first terminal from its login prompt, which
+		// does not come back by itself.
+		sd.CallWithContext(ctx, sdManager+".StartUnit", 0, "getty@tty1.service", "replace").Store(&job)
+	}
 	if disable != "" && disable != unitName("") {
 		time.Sleep(200 * time.Millisecond)
 		sd.CallWithContext(ctx, sdManager+".StopUnit", 0, disable, "replace").Store(&job)

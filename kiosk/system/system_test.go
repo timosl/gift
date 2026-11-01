@@ -116,6 +116,7 @@ func TestTheKioskUnitTakesThePlaceOfTheDisplayManager(t *testing.T) {
 		"Environment=GIFT_KIOSK=werkbank",
 		"PAMName=login",
 		"TTYPath=/dev/tty1",
+		"ExecStartPre=-/usr/bin/chvt 1",
 		`ExecStart=/usr/bin/labwc --config-dir /etc/werkbank/labwc --session "/usr/local/bin/werkbank -x 'it'\\''s'"`,
 	} {
 		if !strings.Contains(u, want) {

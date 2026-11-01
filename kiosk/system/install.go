@@ -61,6 +61,10 @@ UtmpMode=user
 Environment=` + kioskEnv + `=` + name + `
 Environment=XDG_SESSION_TYPE=wayland
 Environment=WLR_DRM_FORCE_LIBLIFTOFF=1
+# logind gives the seat to the session of the terminal in front; when the
+# kiosk starts while the desktop is in front on its own terminal, labwc
+# would wait for the seat until somebody switched.
+ExecStartPre=-/usr/bin/chvt 1
 ExecStart=/usr/bin/labwc --config-dir ` + configDir(name) + `/labwc --session ` + systemdQuote(cmd) + `
 Restart=always
 RestartSec=2
@@ -84,7 +88,6 @@ func renderRCXML(output string) string {
 <!-- ` + strings.TrimPrefix(kioskMarker, "# ") + ` -->
 <labwc_config>
   <core><decoration>server</decoration><gap>0</gap></core>
-  <theme><titlebar><layout></layout></titlebar></theme>
   <windowRules>
     <windowRule identifier="*" serverDecoration="no"><action name="Maximize"/></windowRule>
   </windowRules>

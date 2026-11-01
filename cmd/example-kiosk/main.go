@@ -73,7 +73,7 @@ var goal = 120
 func workbench(ctx *gift.Context, k *kiosk.Kiosk) gift.View {
 	count := ctx.State("count", 0)
 	ctx.Read(count)
-	return ui.VStack(
+	return ui.ZStack(ui.VStack(
 		ui.Text("Workpieces").FontSize(22).Foreground(ui.ColorSecondaryLabel),
 		ui.Text(fmt.Sprint(count.Get())).FontSize(96).Key("count"),
 		ui.Text(fmt.Sprintf("of %d this shift", goal)).FontSize(17).Foreground(ui.ColorSecondaryLabel),
@@ -81,7 +81,7 @@ func workbench(ctx *gift.Context, k *kiosk.Kiosk) gift.View {
 			ui.Button(ui.Text("−").FontSize(32), func() { count.Set(max(count.Get()-1, 0)) }).Frame(96, 72).Key("minus"),
 			ui.Button(ui.Text("+").FontSize(32), func() { count.Set(count.Get() + 1) }).Frame(160, 72).Key("plus"),
 		).Gap(16),
-	).Gap(12).Align(geom.Center).Frame(geom.Unbounded(), geom.Unbounded()).Background(ui.ColorBackground)
+	).Gap(12).Align(geom.Center)).Align(geom.Center).Background(ui.ColorBackground)
 }
 
 // counterSettings is the page of the program in the settings.

@@ -3751,9 +3751,20 @@ und zurueck zum Desktop fuehrt kein Weg. Recherche unter
   erzeugte Dateien, `-race`. Auf dem Pi 500 lesend als root (Info,
   Speicher, Schnittstellen, WLAN-Suche 3,8 s, Uhr, 485 Zeitzonen) und das
   Beispiel als Fenster im Desktop, ohne root, beide Layouts. macOS lesend.
-- Nicht geprueft: Installation und Bootwechsel auf einem Geraet (aendert den
-  Start des Pi), labwc als root aus der Unit, schreibende Netzwerkpfade
-  gegen NetworkManager, ein echter apt-Lauf, Ubuntu 26.04 ueberhaupt.
+- Auf dem Pi 500 (01.11.2026, mit Erlaubnis): als root installiert (1,1 s,
+  lightdm aus, Kiosk-Unit an, Alias umgehaengt), sofort in den Kiosk
+  gewechselt (bereit nach 1,4 s: labwc als root auf tty1, Xwayland, die
+  App vollflaechig, Einstellungen mit root-Rechten), ueber Einstellungen,
+  Start, "Switch to the Desktop Now" zurueck (lightdm, VT 7, Alias, die
+  Konsole auf tty1), danach alles wieder entfernt. Zwei Befunde dabei: die
+  Sitzung auf tty1 wurde nicht aktiv, solange der Desktop auf VT 7 vorn war,
+  und labwc wartete auf den Sitz (jetzt `ExecStartPre=-/usr/bin/chvt 1`);
+  der Kiosk nahm getty@tty1 per Conflicts weg und der Rueckweg holte ihn
+  nicht zurueck (SetBoot startet ihn jetzt). Ausserdem lehnte labwc die
+  leere Titelleiste in rc.xml ab.
+- Nicht geprueft: schreibende Netzwerkpfade gegen NetworkManager (eth0 des
+  Testgeraets haengt im MSR-Netz), ein echter apt-Lauf, Installation ueber
+  pkexec mit Passwortdialog, ein Neustart in den Kiosk, Ubuntu 26.04.
 - Offen: WLAN-Land auf dem Pi (rfkill bis gesetzt), Bildschirmabschaltung
   nach Leerlauf, Ubuntu Server ohne NetworkManager, Anzeige in der Doku mit
   Screenshots.
