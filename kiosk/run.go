@@ -2,6 +2,7 @@ package kiosk
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -55,8 +56,8 @@ func Run(cfg Config) error {
 	disp, _ := k.sys.Display(ctx)
 	cancel()
 
-	bc := backend.Config{Title: cfg.Title, Width: 1100, Height: 720, X11ClassName: cfg.Name, X11InstanceName: cfg.Name,
-		DrawOnDemand: true, IdleTPS: 30}
+	bc := backend.Config{Title: cfg.Title, Width: cmp.Or(cfg.Width, 1100), Height: cmp.Or(cfg.Height, 720),
+		X11ClassName: cfg.Name, X11InstanceName: cfg.Name, DrawOnDemand: true, IdleTPS: 30}
 	// A simulated system only pretends to be the kiosk; the program runs in
 	// a window like any other.
 	if st.Kiosk && k.sys.Platform().Kind != system.SimulatedKind {

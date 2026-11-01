@@ -17,6 +17,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -64,6 +65,10 @@ type exampleShot struct {
 	Input string
 	// Settle is the number of frames to wait for pictures to arrive.
 	Settle int
+	// Prefix names the files, <Prefix>-light.png and <Prefix>-dark.png;
+	// screenshot if empty. A page with more than one shot of its example
+	// shows the others with the prefix of the gallery-shot shortcode.
+	Prefix string
 }
 
 var exampleShots = []exampleShot{
@@ -100,6 +105,24 @@ var exampleShots = []exampleShot{
 	// The document as it starts, set once the library is unpacked and the
 	// fonts are loaded.
 	{Name: "example-typst", Settle: 60},
+	// The settings of a simulated Raspberry Pi opened by the gear, in a
+	// window that has the size of a 7 inch panel, where they open on Wi-Fi
+	// beside the list, and in one of a 5 inch panel upright, where they
+	// open on the list; then the pointer leaves the buttons.
+	{Name: "example-kiosk", Args: []string{"-simulate", "-regular"}, Settle: 20, Input: `{"steps":[
+		{"op":"waitFrames","frames":4},
+		{"op":"tap","x":1080,"y":20},
+		{"op":"waitFrames","frames":40},
+		{"op":"pointerMove","x":700,"y":700},
+		{"op":"waitFrames","frames":4}
+	]}`},
+	{Name: "example-kiosk", Prefix: "compact", Args: []string{"-simulate", "-compact", "-width", "360", "-height", "640"}, Settle: 20, Input: `{"steps":[
+		{"op":"waitFrames","frames":4},
+		{"op":"tap","x":340,"y":20},
+		{"op":"waitFrames","frames":40},
+		{"op":"pointerMove","x":5,"y":630},
+		{"op":"waitFrames","frames":4}
+	]}`},
 	{Name: "example-video", Args: []string{"-sample", "-width", "800", "-height", "480", "-autohide", "0", "-loop=false"}, Settle: 20, Input: `{"steps":[
 		{"op":"waitFrames","frames":60},
 		{"op":"tap","x":400,"y":240},
@@ -144,7 +167,7 @@ func run() error {
 			continue
 		}
 		dir := filepath.Join(*site, "content", "docs", "components", d.Group, d.Name)
-		err := capture(gallery, []string{"-demo", d.Name}, d.Input, d.Settle, !d.FullWindow, dir)
+		err := capture(gallery, []string{"-demo", d.Name}, d.Input, d.Settle, !d.FullWindow, dir, "screenshot")
 		report(d.Name, err, &failed)
 	}
 
@@ -154,12 +177,14 @@ func run() error {
 				continue
 			}
 			bin := filepath.Join(tmp, e.Name)
-			if err := goBuild(bin, "./cmd/"+e.Name); err != nil {
-				return err
+			if _, err := os.Stat(bin); err != nil {
+				if err := goBuild(bin, "./cmd/"+e.Name); err != nil {
+					return err
+				}
 			}
 			dir := filepath.Join(*site, "content", "docs", "examples", e.Name)
-			err := capture(bin, e.Args, e.Input, e.Settle, false, dir)
-			report(e.Name, err, &failed)
+			err := capture(bin, e.Args, e.Input, e.Settle, false, dir, cmp.Or(e.Prefix, "screenshot"))
+			report(strings.TrimSpace(e.Name+" "+e.Prefix), err, &failed)
 		}
 	}
 	if len(failed) > 0 {
@@ -191,8 +216,8 @@ func goBuild(out, pkg string) error {
 }
 
 // capture starts bin, takes a light and a dark screenshot and writes them
-// into dir.
-func capture(bin string, args []string, input string, settle int, crop bool, dir string) error {
+// into dir as <prefix>-light.png and <prefix>-dark.png.
+func capture(bin string, args []string, input string, settle int, crop bool, dir, prefix string) error {
 	addr, err := freeAddr()
 	if err != nil {
 		return err
@@ -236,7 +261,7 @@ func capture(bin string, args []string, input string, settle int, crop bool, dir
 		if crop {
 			img = cropToContent(img, int(24*density))
 		}
-		if err := writePNG(filepath.Join(dir, "screenshot-"+mode+".png"), img); err != nil {
+		if err := writePNG(filepath.Join(dir, prefix+"-"+mode+".png"), img); err != nil {
 			return err
 		}
 	}

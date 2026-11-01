@@ -280,7 +280,8 @@ err := kiosk.Run(kiosk.Config{
 ```
 
 `kiosk.Run` opens the window and returns when it closes. A small gear in the top right corner opens the
-settings; `Config.Entry` hides it behind five taps in a corner, or leaves opening them to the program.
+settings; `Config.Entry` hides it behind five taps in a corner, or leaves opening them to the program. The
+[kiosk example](../../examples/example-kiosk/) is this program, with screenshots of both layouts.
 
 ### No install scripts
 
@@ -348,5 +349,5 @@ the count.
   [example-effects](../../examples/example-effects/) for glass quality levels
 - [`backend/ebiten` on pkg.go.dev](https://pkg.go.dev/github.com/worldiety/gift/backend/ebiten#Config) for every
   field of `Config`
-- [`cmd/example-kiosk`](https://github.com/worldiety/gift/tree/main/cmd/example-kiosk), a counter for a workbench
-  with the settings of its device; `-simulate` runs it on any machine
+- [example-kiosk](../../examples/example-kiosk/), a counter for a workbench with the settings of its device;
+  `-simulate` runs it on any machine

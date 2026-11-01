@@ -11,13 +11,15 @@
 // to install it as the kiosk, after which the device starts into it full
 // screen, as root. -simulate pretends instead, on any system, and changes
 // nothing. -compact and -regular fix the layout of the settings, as on a
-// 5 inch and a 7 inch panel.
+// 5 inch and a 7 inch panel, and -width and -height give the window the
+// size of one.
 package main
 
 import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/worldiety/gift"
@@ -34,6 +36,8 @@ func main() {
 	compact := flag.Bool("compact", false, "lay the settings out as on a 5 inch panel")
 	regular := flag.Bool("regular", false, "lay the settings out as on a 7 inch panel")
 	pin := flag.String("pin", "", "a passcode set by the program, which protects the settings")
+	width := flag.Int("width", 0, "width of the window on a desktop, 1100 if 0")
+	height := flag.Int("height", 0, "height of the window on a desktop, 720 if 0")
 	flag.Parse()
 
 	if err := example.LoadFont(); err != nil {
@@ -45,6 +49,7 @@ func main() {
 		App:     workbench,
 		Updates: kiosk.Updates{System: true, Release: true},
 		PIN:     *pin,
+		Width:   *width, Height: *height,
 		Pages: []kiosk.Page{{
 			Title: "Counter", Icon: outline.ChartMixed, Protected: true,
 			View: counterSettings,
@@ -58,6 +63,13 @@ func main() {
 	}
 	if *simulate {
 		cfg.System = system.Simulated(300 * time.Millisecond)
+	}
+	// docs/capture sets GIFT_CAPTURE, so that a passcode or an appearance
+	// chosen in an earlier run does not end up in the screenshots. It ends
+	// the program by killing it, so the state is cleared before, not after.
+	if os.Getenv("GIFT_CAPTURE") != "" {
+		cfg.DataDir = filepath.Join(os.TempDir(), "example-kiosk-capture")
+		_ = os.RemoveAll(cfg.DataDir)
 	}
 	if err := kiosk.Run(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, "example-kiosk:", err)

@@ -50,6 +50,11 @@ type Config struct {
 	// Entry is how the settings are opened from the program.
 	Entry Entry
 
+	// Width and Height are the size of the window on a desktop in logical
+	// pixels, 1100 by 720 if zero; as the kiosk of its device the program
+	// fills the screen.
+	Width, Height int
+
 	// DataDir is where the kiosk keeps its state: /var/lib/<Name> as root,
 	// the user's configuration directory otherwise.
 	DataDir string

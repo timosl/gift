@@ -6,6 +6,7 @@ import (
 
 	"log/slog"
 	"math"
+	"os"
 	"time"
 
 	eb "github.com/hajimehoshi/ebiten/v2"
@@ -305,7 +306,9 @@ type Config struct {
 	// through the automation interface: the mouse is polled every tick, so
 	// without it a hover shows wherever the operator's cursor happens to rest
 	// over the window, and a picture of an open menu has a highlighted row
-	// on one machine and none on the next.
+	// on one machine and none on the next. A build with the giftauto tag
+	// sets it when the environment has GIFT_CAPTURE, as docs/capture does,
+	// so a program that does not choose its own Config is covered too.
 	NoMouse bool
 
 	// NoInput disables the input bridge. It exists for a measurement run that
@@ -354,6 +357,9 @@ var Terminate = eb.Termination
 func Run(app *gift.App, cfg Config) error {
 	if app == nil {
 		panic("gift/backend/ebiten: Run with a nil App")
+	}
+	if autoEnabled && os.Getenv("GIFT_CAPTURE") != "" {
+		cfg.NoMouse = true
 	}
 	w, h := cfg.Width, cfg.Height
 	if w <= 0 {
