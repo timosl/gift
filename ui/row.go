@@ -165,6 +165,7 @@ type RowView struct {
 	subtitle  string
 	value     string
 	sym       Symbol
+	leading   gift.View
 	chevron   Symbol
 	accessory gift.View
 	onTap     func()
@@ -269,7 +270,9 @@ func (v RowView) parts() (out []gift.View, labels, value int8) {
 
 	labels, value = -1, -1
 	out = make([]gift.View, 0, 6)
-	if !v.sym.IsZero() {
+	if v.leading != nil {
+		out = append(out, v.leading)
+	} else if !v.sym.IsZero() {
 		fg := ColorAccent
 		if v.disabled {
 			fg = ColorSecondaryLabel
@@ -462,6 +465,11 @@ func (v RowView) Value(s string) RowView { v.value = s; return v }
 // no icon and no space taken, which is what an application that imports no
 // icon package gets.
 func (v RowView) Icon(s Symbol) RowView { v.sym = s; return v }
+
+// Leading sets a view in the place of the leading icon, such as the white
+// symbol on a coloured tile that the rows of a settings app have on iOS. It
+// takes the place of [RowView.Icon] when both are set.
+func (v RowView) Leading(view gift.View) RowView { v.leading = view; return v }
 
 // Chevron sets the trailing symbol that says "this row leads somewhere",
 // drawn faintly at the very end of the row:

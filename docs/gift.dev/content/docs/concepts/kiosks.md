@@ -263,6 +263,66 @@ only reports the path. Directories are read off the UI goroutine and shown in a
 [virtual list](../../components/lists/virtual-list/), so large folders scroll smoothly. See
 [File picker](../../components/dialogs/file-picker/).
 
+## The device as a gift program
+
+Package [`kiosk`](https://pkg.go.dev/github.com/worldiety/gift/kiosk) turns a gift program into the operating
+system of its device, after the settings of iOS and iPadOS. The program is what the device shows; the settings
+are what an operating system would otherwise bring: Wi-Fi, Ethernet with fixed addresses, the display, the
+storage, the date and time, software updates, the startup and a passcode. Everything lives in the one binary.
+
+```go
+err := kiosk.Run(kiosk.Config{
+	Name: "werkbank", Title: "Werkbank", Version: "1.0.0",
+	App:     workbench,                               // func(ctx *gift.Context, k *kiosk.Kiosk) gift.View
+	Updates: kiosk.Updates{System: true, Release: true},
+	PIN:     "2580",                                  // optional; without it the settings offer to set one
+})
+```
+
+`kiosk.Run` opens the window and returns when it closes. A small gear in the top right corner opens the
+settings; `Config.Entry` hides it behind five taps in a corner, or leaves opening them to the program.
+
+### No install scripts
+
+Start the program on the desktop of the device. There it runs in a window, without root, and its settings only
+show the system. **General → Startup → Install as Kiosk** asks for the password of an administrator and installs
+it: the binary goes to `/usr/local/bin/<Name>`, and a systemd unit `<Name>-kiosk.service` takes the place of the
+display manager. That unit runs the labwc compositor with the program as its only client, as root, on the first
+virtual terminal, so the program can watch, repair, update and configure the system. Nothing else is installed or
+changed. The same page switches back to the desktop, at the next start or at once, and to the kiosk again.
+
+### Two layouts
+
+A screen of 5 inches or less gets the layout of an iPhone: the list of settings, and each page pushed onto it. A
+screen of 7 inches or more gets the layout of an iPad: the list beside the page. The kiosk chooses by the width of
+the window, 680 logical pixels; `Config.SizeClass` fixes it. As the kiosk, the program also chooses the density
+from the physical size of the panel, so the 1280 × 720 pixels of a 5 inch Touch Display 2 are a 640 × 360 screen
+at density 2 and those of the 7 inch one a 1280 × 720 screen at density 1.
+
+### The system behind it
+
+Package [`kiosk/system`](https://pkg.go.dev/github.com/worldiety/gift/kiosk/system) is the operating system as the
+settings need it, and a program can use it on its own:
+
+- **Raspberry Pi OS** (Debian 13) and **Ubuntu 26.04 LTS** through the services of the system on D-Bus:
+  NetworkManager for the network, systemd for the name, the clock, the power and the units, and `apt-get` for
+  updates. A change of an IPv4 address runs under a checkpoint of NetworkManager and is undone after a minute
+  unless the settings keep it, so a wrong address cannot cut a device off for good.
+- **macOS** read only: what the Mac is, its storage and its network.
+- **`system.Simulated`**, a Raspberry Pi that only pretends, for tests and demos.
+
+Updates are allowed by the program: `Updates.App` with an `AppUpdater` such as `kiosk.Manifest` for new versions
+of the program itself, `Updates.System` for the packages of the operating system, and `Updates.Release` for an
+upgrade to the next release where the system supports one in place, which is Ubuntu; Raspberry Pi OS is upgraded
+by installing a new image.
+
+### The passcode
+
+A passcode of 4 or 6 digits protects the settings, or only some of their areas (`Config.Protect`). It is either set
+by the program and cannot be changed, or set on the device in **Passcode**, where it is kept as a PBKDF2 hash.
+After four wrong attempts it waits, as iOS does, a minute and then longer each time, and a restart does not reset
+the count.
+
 ## Pitfalls
 
 - **Benchmarks.** `DrawOnDemand`, `IdleTPS` and adaptive glass change what a frame-time measurement means. A
@@ -288,3 +348,5 @@ only reports the path. Directories are read off the UI goroutine and shown in a
   [example-effects](../../examples/example-effects/) for glass quality levels
 - [`backend/ebiten` on pkg.go.dev](https://pkg.go.dev/github.com/worldiety/gift/backend/ebiten#Config) for every
   field of `Config`
+- [`cmd/example-kiosk`](https://github.com/worldiety/gift/tree/main/cmd/example-kiosk), a counter for a workbench
+  with the settings of its device; `-simulate` runs it on any machine

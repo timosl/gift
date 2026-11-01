@@ -3658,6 +3658,106 @@ Syntaxfarben, den das Typst-Beispiel nutzt und der Fehlerzeilen rot markiert.
 - Offen: Undo, Tabstopps, Bilder und Pakete fuer Typst, Caret im Viewer,
   Hugo-Build der Seite nicht geprueft (hugo fehlt auf dem Mac).
 
+## 42. Kiosk: gift als Betriebssystem-Oberflaeche eines Geraets
+
+Anlass (01.11.2026): eine optionale Erweiterung fuer Anwendungen, die auf
+einem Kiosk oder Geraet laufen (Pi mit Display 5, 7 und 10 Zoll) und direkt
+hinein booten. Alles liegt im gift-Monolithen: die Fachanwendung und das, was
+sonst ein Betriebssystem waere, nach dem Vorbild der Einstellungen von iOS und
+iPadOS. Vorlage und Gegenbeispiel ist eventprint: dort steckt der Kiosk in
+Bash-Skripten (Autologin-Benutzer, labwc-Konfiguration, xhost, polkit,
+Provisionierung bei jedem Boot), WLAN laeuft ueber nmcli mit dem Passwort in
+argv, Ethernet, statische Adressen, Updates, Neustart und Systeminfos fehlen,
+und zurueck zum Desktop fuehrt kein Weg. Recherche unter
+`research_notes/Kiosk Systemeinstellungen/`.
+
+### Entscheidungen
+
+- Die Anwendung laeuft im Kiosk immer als root. Keine Installskripte: die
+  Anwendung wird auf dem Desktop gestartet, laeuft dort als Fenster ohne
+  Rechte (nur lesend) und bietet "Als Kiosk installieren" an; das erhebt sich
+  mit pkexec, kopiert das Programm nach `/usr/local/bin/<name>` und richtet
+  den Kiosk ein.
+- Kiosk-Boot ohne Kiosk-Benutzer und ohne Eingriff in lightdm/gdm: eine eigene
+  Unit `<name>-kiosk.service` mit `Alias=display-manager.service`, die als
+  root auf tty1 (PAM-Session ueber logind) labwc mit eigener Konfiguration
+  startet (`labwc -C /etc/<name>/labwc -S <programm>`); labwc liefert
+  Xwayland fuer Ebiten, Touch mit Mausemulation und `wlr-randr`. Boot zum
+  Desktop heisst: diese Unit aus, den Display-Manager der Distribution wieder
+  an. Beides schaltet die Anwendung selbst, in den Einstellungen.
+- Systemdienste ueber D-Bus (`github.com/godbus/dbus/v5`, reines Go):
+  NetworkManager, hostname1, timedate1, login1, systemd1. Kein Parsen
+  lokalisierter Ausgaben, keine Geheimnisse in argv. Jede Netzwerkaenderung
+  laeuft unter einem NetworkManager-Checkpoint mit Rollback, den die
+  Oberflaeche wie eine Bildschirmaufloesung bestaetigen laesst.
+- Updates: apt-get mit `APT::Status-Fd` fuer Fortschritt, getrennt nach
+  Anwendung (eine Schnittstelle, die die Anwendung liefert), System
+  (`update` + `full-upgrade`) und Release-Upgrade (Ubuntu
+  `do-release-upgrade`; Pi OS unterstuetzt das nicht, dort nur ein Hinweis).
+  Jede Art ist per Code erlaubt oder verboten.
+- Zielsysteme: Raspberry Pi OS trixie und Ubuntu 26.04 LTS (Desktop, mit
+  NetworkManager); macOS nur lesend; ein simuliertes System fuer Tests, die
+  Kitchen Sink und die Doku.
+- Groessenklassen nach iOS: kompakt (5 Zoll und kleiner) als
+  Navigationsstapel wie auf dem iPhone, regulaer (7 Zoll und groesser) mit
+  Seitenleiste und Detail wie auf dem iPad; Schwelle 680 logische Pixel
+  Breite. Die Dichte eines Panels folgt aus seiner physischen Groesse.
+- PIN nach dem Vorbild der Bildschirmzeit: optional per Code oder in den
+  Einstellungen gesetzt, schuetzt waehlbare Bereiche, Sperrzeiten nach der
+  Tabelle von iOS; gespeichert als PBKDF2-Hash.
+
+### Pakete
+
+- `kiosk/system`: die Abstraktion des Betriebssystems, ohne Oberflaeche.
+  Info, Speicher und Aufraeumen, Netzwerk, Updates, Strom, Start (Kiosk oder
+  Desktop, Installation), Anzeige, Zeit. Backends `linux` (Pi OS, Ubuntu),
+  `darwin` (lesend), `Simulated`.
+- `kiosk`: der Rahmen. Er zeigt die Anwendung, oeffnet die Einstellungen,
+  sperrt sie mit der PIN und traegt die Seiten der Anwendung ein.
+
+### Stand (01.11.2026)
+
+- `kiosk/system`: Schnittstelle `System` mit Info, Speicher und Aufraeumen
+  (apt-get clean, Journal auf 50 MB, systemd-tmpfiles, nie /tmp leeren, dort
+  liegen die Sockets von labwc und Xwayland), Netzwerk ueber NetworkManager
+  (Schnittstellen, WLAN suchen, beitreten mit Erkennung des falschen
+  Passworts ueber den StateReason, ein nie verbundenes Profil wird wieder
+  geloescht, Vergessen, IPv4 automatisch oder fest unter einem Checkpoint
+  mit 60 s Rollback; GetSettings laesst die Geheimnisse weg, sie werden vor
+  Update geholt), Updates ueber apt-get mit Status-Fd und einem
+  block-Inhibitor von logind, Release-Upgrade nur Ubuntu, Strom ueber
+  logind, Hostname ueber hostnamed samt 127.0.1.1 in /etc/hosts, Zeit ueber
+  timedated, Anzeige ueber wlr-randr und /sys/class/backlight, Installation
+  und Bootart ueber systemd (EnableUnitFiles/DisableUnitFiles, Alias
+  display-manager.service). Backends Linux, macOS (lesend), andere
+  (fast nichts) und `Simulated`.
+- `kiosk`: `Config`, `Kiosk`, `Run`. Einstellungen kompakt
+  (NavigationStack) und regulaer (Seitenleiste 320 px plus Stapel), Seiten
+  Info, Name, WLAN, Netzwerkdetail, anderes Netzwerk, Ethernet,
+  Schnittstelle mit IPv4 (Maske als 255.255.255.0 oder Praefix), Allgemein,
+  Softwareupdate (Programm, System, Release), Speicher (Balken nach
+  Kategorie, Aufraeumen), Datum & Uhrzeit, Zeitzone, Start (installieren,
+  Kiosk oder Desktop, jetzt wechseln), Anzeige (hell/dunkel, Helligkeit,
+  Drehung), Code-Sperre (setzen, aendern, Bereiche) und die Seiten der
+  Anwendung. PIN als PBKDF2 (200 000 Runden) in `<DataDir>/kiosk.json`,
+  Sperrzeiten nach iOS, ueber Neustarts erhalten. Ohne root laufen
+  Installation und Bootart ueber `pkexec /usr/bin/env GIFT_KIOSK_ACTION=...
+  <programm>`; ein Argument wuerde am flag.Parse der Anwendung scheitern.
+- `ui.Row.Leading` fuer die farbigen Kacheln, `backend.Config.Density` fuer
+  eine Dichte des Programms (Kiosk: 2 bis 5,5 Zoll, sonst 1).
+- `cmd/example-kiosk`: Werkstueckzaehler mit den Einstellungen, `-simulate`.
+- Geprueft: Tests ohne Fenster gegen `Simulated` (oeffnen, beide Layouts,
+  falsches WLAN-Passwort, feste Adresse mit Behalten, PIN, Updates), Parser,
+  erzeugte Dateien, `-race`. Auf dem Pi 500 lesend als root (Info,
+  Speicher, Schnittstellen, WLAN-Suche 3,8 s, Uhr, 485 Zeitzonen) und das
+  Beispiel als Fenster im Desktop, ohne root, beide Layouts. macOS lesend.
+- Nicht geprueft: Installation und Bootwechsel auf einem Geraet (aendert den
+  Start des Pi), labwc als root aus der Unit, schreibende Netzwerkpfade
+  gegen NetworkManager, ein echter apt-Lauf, Ubuntu 26.04 ueberhaupt.
+- Offen: WLAN-Land auf dem Pi (rfkill bis gesetzt), Bildschirmabschaltung
+  nach Leerlauf, Ubuntu Server ohne NetworkManager, Anzeige in der Doku mit
+  Screenshots.
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb

@@ -312,6 +312,13 @@ type Config struct {
 	// must not be perturbed by a cursor that happens to rest over a button,
 	// and for a test harness that dispatches events into [gift.App] itself.
 	NoInput bool
+
+	// Density, when positive, replaces the density the monitor reports. A
+	// Raspberry Pi reports 1 for every panel, which is right for a 7 inch
+	// one and makes everything too small on a 5 inch one of the same 1280
+	// by 720 pixels; package kiosk sets 2 there. It is rounded as every
+	// density is; see [gift.App.SetDensity].
+	Density float64
 }
 
 // Terminate is the error that stops the frame loop without making [Run] fail.
@@ -433,6 +440,7 @@ func Run(app *gift.App, cfg Config) error {
 		h:         h,
 
 		systemScale: newSystemScale(),
+		density:     cfg.Density,
 	}
 	if cfg.NoInput {
 		g.input = nil
@@ -576,6 +584,9 @@ type game struct {
 	// can differ from [game.scale]; 0 means it is unknown. Nil, as in tests,
 	// means there is nothing to correct. See [newSystemScale].
 	systemScale func() float64
+
+	// density is [Config.Density]: a density that replaces the monitor's.
+	density float64
 }
 
 // monitorScale is the density reading LayoutF uses: the seam if a test
@@ -661,6 +672,13 @@ func (g *game) LayoutF(outsideWidth, outsideHeight float64) (float64, float64) {
 			outsideHeight *= raw / s
 			raw = s
 		}
+	}
+	// A density of the application's own keeps the physical size of the
+	// screen, outside times raw, and divides it into fewer logical pixels.
+	if g.density > 0 && raw > 0 {
+		outsideWidth *= raw / g.density
+		outsideHeight *= raw / g.density
+		raw = g.density
 	}
 	if outsideWidth > 0 && outsideHeight > 0 {
 		g.w, g.h = int(outsideWidth), int(outsideHeight)

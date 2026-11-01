@@ -650,7 +650,7 @@
       },
       "Config": {
         "synopsis": "Config configures the window and the frame loop of Run.",
-        "decl": "type Config struct {\n\tTitle                         string\n\tX11ClassName, X11InstanceName string\n\tWidth, Height                 int\n\tLogger                        *slog.Logger\n\tTPS                           int\n\tIdleTPS                       int\n\tIdleFrames                    int\n\tDrawOnDemand                  bool\n\tDirectToScreen                bool\n\tNominalFrameInterval          time.Duration\n\tIntervalTolerance             time.Duration\n\tWarmupFrames                  int\n\tAudioSampleRate               int\n\tOnRenderer                    func(*Renderer)\n\tOnUpdate                      func() error\n\tAssetStats                    func() metrics.AssetStats\n\tGlassQuality                  render.GlassQuality\n\tTextures                      TextureConfig\n\tTouchscreen                   string\n\tNoMouse                       bool\n\tNoInput                       bool\n}",
+        "decl": "type Config struct {\n\tTitle                         string\n\tX11ClassName, X11InstanceName string\n\tWidth, Height                 int\n\tLogger                        *slog.Logger\n\tTPS                           int\n\tIdleTPS                       int\n\tIdleFrames                    int\n\tDrawOnDemand                  bool\n\tDirectToScreen                bool\n\tNominalFrameInterval          time.Duration\n\tIntervalTolerance             time.Duration\n\tWarmupFrames                  int\n\tAudioSampleRate               int\n\tOnRenderer                    func(*Renderer)\n\tOnUpdate                      func() error\n\tAssetStats                    func() metrics.AssetStats\n\tGlassQuality                  render.GlassQuality\n\tTextures                      TextureConfig\n\tTouchscreen                   string\n\tNoMouse                       bool\n\tNoInput                       bool\n\tDensity                       float64\n}",
         "constructors": [],
         "methods": []
       },
@@ -7982,6 +7982,11 @@
             "name": "Label",
             "signature": "Label(s string) RowView",
             "synopsis": "Label sets the accessible name of the row's command, replacing the title."
+          },
+          {
+            "name": "Leading",
+            "signature": "Leading(view gift.View) RowView",
+            "synopsis": "Leading sets a view in the place of the leading icon, such as the white symbol on a coloured tile that the rows of a settings app have on iOS."
           },
           {
             "name": "OnTap",
