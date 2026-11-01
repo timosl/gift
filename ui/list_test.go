@@ -1009,3 +1009,87 @@ func TestAHiddenItemInAListLeavesABlankBandBetweenTwoHairlines(t *testing.T) {
 	t.Logf("three rows, middle hidden: separators at y=%v and y=%v, bracketing a %v pixel "+
 		"blank band", ops[0].Bounds.Min.Y, ops[1].Bounds.Min.Y, gap)
 }
+
+// --- faces and the hairlines around them --------------------------------------
+
+// faceRows is four tappable rows with keys 0 to 3, row sel selected.
+func faceRows(sel int) []gift.View {
+	rows := make([]gift.View, 4)
+	for i := range rows {
+		rows[i] = ui.Row("row " + strconv.Itoa(i)).OnTap(func() {}).Selected(i == sel).Key(strconv.Itoa(i))
+	}
+	return rows
+}
+
+// TestNoHairlineRunsAlongARowWithAFace: the hairlines on either side of a
+// selected row, and of a row under the mouse, are not drawn, so that the
+// rounded face of the row is not cut by them, and drawn again when the mouse
+// leaves. The space stays: nothing moves.
+func TestNoHairlineRunsAlongARowWithAFace(t *testing.T) {
+	h := listHarness(t, ui.List(faceRows(1)...).Key("list"), geom.Sz(360, 600))
+	if got := separatorOps(t, h, sepColor()); len(got) != 1 {
+		t.Fatalf("four rows, the second selected, drew %d hairlines; want the one between the third and the fourth.\n%s", len(got), h.Dump())
+	}
+	below := h.Find(gifttest.ByKey("3")).Bounds()
+
+	h.MoveTo(h.Find(gifttest.ByKey("3")).Center())
+	if got := separatorOps(t, h, sepColor()); len(got) != 0 {
+		t.Errorf("with the mouse over the last row %d hairlines are drawn; want none, the rest run along a face", len(got))
+	}
+	if b := h.Find(gifttest.ByKey("3")).Bounds(); b != below {
+		t.Errorf("the hover moved the last row from %v to %v", below, b)
+	}
+	h.MoveTo(geom.Pt(350, 590))
+	if got := separatorOps(t, h, sepColor()); len(got) != 1 {
+		t.Errorf("with the mouse gone %d hairlines are drawn, want the one again", len(got))
+	}
+}
+
+// TestTheFacesOfARowAreOneRoundedShape: selected, hovered and pressed, a row
+// shows a neutral face rounded by RowCornerRadius, and the selected one keeps
+// its face under the mouse.
+func TestTheFacesOfARowAreOneRoundedShape(t *testing.T) {
+	h := listHarness(t, ui.List(faceRows(1)...).Key("list"), geom.Sz(360, 600))
+	face := func(key string) (render.Op, bool) {
+		b := h.Find(gifttest.ByKey(key)).Bounds()
+		for _, op := range h.Ops() {
+			if op.Kind == render.OpFillRoundRect && op.Bounds == b && op.Color.A > 0 {
+				return op, true
+			}
+		}
+		return render.Op{}, false
+	}
+	sel, ok := face("1")
+	if !ok || sel.CornerRadius != ui.RowCornerRadius {
+		t.Fatalf("the selected row has the face %+v (found %v); want one rounded by %v", sel, ok, ui.RowCornerRadius)
+	}
+	if _, ok := face("2"); ok {
+		t.Fatal("a row that is neither selected nor under the mouse has a face")
+	}
+
+	h.MoveTo(h.Find(gifttest.ByKey("2")).Center())
+	hover, ok := face("2")
+	if !ok || hover.CornerRadius != ui.RowCornerRadius || !(hover.Color.A < sel.Color.A) {
+		t.Errorf("the row under the mouse has the face %+v (found %v); want the selection's shape, fainter than %+v", hover, ok, sel.Color)
+	}
+	h.MoveTo(h.Find(gifttest.ByKey("1")).Center())
+	if got, _ := face("1"); got.Color != sel.Color {
+		t.Errorf("under the mouse the selected row turned %+v; want it to keep its face %+v", got.Color, sel.Color)
+	}
+	h.PressAt(h.Find(gifttest.ByKey("1")).Center())
+	if got, _ := face("1"); !(got.Color.A > sel.Color.A) || got.CornerRadius != ui.RowCornerRadius {
+		t.Errorf("pressed, the selected row has the face %+v; want the same shape, stronger than its selection", got)
+	}
+}
+
+// TestSeparatorsOffTakeNoSpace: a list without separators, a sidebar, is the
+// sum of its rows and draws no hairline.
+func TestSeparatorsOffTakeNoSpace(t *testing.T) {
+	h := listHarness(t, ui.List(faceRows(-1)...).Separators(false).Key("list"), geom.Sz(360, 600))
+	if got := separatorOps(t, h, sepColor()); len(got) != 0 {
+		t.Errorf("a list with separators off drew %d hairlines", len(got))
+	}
+	if got := h.Find(gifttest.ByKey("list")).Bounds().Height(); got != 4*ui.RowHeight {
+		t.Errorf("four rows without separators are %v tall, want %v", got, 4*ui.RowHeight)
+	}
+}

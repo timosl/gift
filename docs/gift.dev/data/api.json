@@ -3076,6 +3076,11 @@
             "synopsis": "ChildCount returns the number of children of the node being painted."
           },
           {
+            "name": "ChildInteraction",
+            "signature": "ChildInteraction(i int) Interaction",
+            "synopsis": "ChildInteraction returns the Interaction of child i of the node being painted, the zero value for an index out of range."
+          },
+          {
             "name": "ControlState",
             "signature": "ControlState() ControlState",
             "synopsis": "ControlState returns the control state of the node being painted."
@@ -6799,6 +6804,11 @@
             "synopsis": "SeparatorThickness sets the height of the hairlines in logical pixels, and with it the space each one takes in the layout."
           },
           {
+            "name": "Separators",
+            "signature": "Separators(on bool) ListView",
+            "synopsis": "Separators turns the hairlines between rows on, the default, or off."
+          },
+          {
             "name": "Shadow",
             "signature": "Shadow(s Shadow) ListView",
             "synopsis": "Shadow draws a blurred copy of the list's shape — its bounds, rounded by the corner radius — behind the list."
@@ -7412,6 +7422,11 @@
             "name": "OnTap",
             "signature": "OnTap(fn func()) RowView",
             "synopsis": "OnTap makes the whole row a control that runs fn when it is activated."
+          },
+          {
+            "name": "Selected",
+            "signature": "Selected(b bool) RowView",
+            "synopsis": "Selected marks the row as the one that is chosen, the page a sidebar shows say, with a face behind it; see RowView for its shape and colour."
           },
           {
             "name": "Subtitle",

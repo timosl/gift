@@ -207,7 +207,17 @@ func (v SectionHeaderView) Flex(f float32) SectionHeaderView { v.setFlex(f); ret
 // more force, because a list has many of them at many different fractional
 // offsets and a blurry one next to a crisp one is visible at a glance.
 //
-// It is drawn *after* the children, so a row's pressed face does not cover it.
+// It is drawn *after* the children, so a row's pressed face does not cover it,
+// and it is not drawn at all on either side of a row that shows a face: one
+// that is [RowView.Selected], or under the pointer, or pressed. The face is a
+// rounded rectangle, and a hairline running along its edge, or through the
+// gap between two faces, is what made a selected row in a list look cut out
+// rather than chosen; UIKit hides the separators around a highlighted cell for
+// the same reason. The space stays, so nothing moves when they go.
+//
+// [ListView.Separators] turns them off altogether, space and all, which is
+// what a sidebar wants: macOS and iPadOS draw none there, and their selection
+// alone sets one row apart from the next.
 //
 // # What counts as a header
 //
@@ -234,6 +244,7 @@ type ListView struct {
 	lead, trail  float32
 	hasSepInset  bool
 	sepThickness float32
+	noSep        bool
 }
 
 // List returns a list of items, which are normally [RowView]s and
@@ -267,7 +278,17 @@ func (v ListView) Build(*gift.BuildContext) gift.Element {
 		lead:      lead,
 		trail:     trail,
 		clip:      v.style.clip,
-		rule:      separatorRule(v.items),
+	}
+	if !v.noSep {
+		n.rule = separatorRule(v.items)
+		for i, it := range v.items {
+			if n.rule != nil && isSelectedRow(it) {
+				if n.selected == nil {
+					n.selected = make([]bool, len(v.items))
+				}
+				n.selected[i] = true
+			}
+		}
 	}
 	return gift.Element{
 		Key:        v.key,
@@ -340,6 +361,13 @@ func isSectionHeader(v gift.View) bool {
 	return ok
 }
 
+// isSelectedRow reports whether v is a [RowView] marked [RowView.Selected].
+// Like a header, a selected row wrapped in something else is not recognised.
+func isSelectedRow(v gift.View) bool {
+	r, ok := v.(RowView)
+	return ok && r.selected
+}
+
 // --- modifiers -------------------------------------------------------------
 
 // SeparatorColor sets the colour of the hairlines, replacing [ColorSeparator].
@@ -348,6 +376,12 @@ func isSectionHeader(v gift.View) bool {
 // when the separators were switched off would be a layout that depends on a
 // colour.
 func (v ListView) SeparatorColor(c Color) ListView { v.sep, v.hasSep = c, true; return v }
+
+// Separators turns the hairlines between rows on, the default, or off. Off
+// they take no space either, unlike [ColorClear] for [ListView.SeparatorColor],
+// so a list without them is the sum of its items: the look of a sidebar,
+// where the selection alone sets a row apart.
+func (v ListView) Separators(on bool) ListView { v.noSep = !on; return v }
 
 // SeparatorThickness sets the height of the hairlines in logical pixels, and
 // with it the space each one takes in the layout. It must be finite and
@@ -466,6 +500,9 @@ type listNode struct {
 	// rule[i] is true when a hairline is drawn under item i. It is built once
 	// per build by [separatorRule] and is nil for a list that has none.
 	rule []bool
+	// selected[i] is true when item i is a selected row, whose hairlines are
+	// not drawn; nil when there is none. See [listNode.highlighted].
+	selected []bool
 
 	origins []geom.Point
 	// sepY holds the local top edge of each hairline actually drawn, and
@@ -473,6 +510,7 @@ type listNode struct {
 	// Paint, which is the same direction every other node in this package
 	// works in.
 	sepY    []float32
+	sepItem []int
 	nsep    int
 	density float32
 }
@@ -514,6 +552,7 @@ func (n *listNode) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size
 		y += s.H
 		if i < len(n.rule) && n.rule[i] {
 			n.sepY[n.nsep] = y
+			n.sepItem[n.nsep] = i
 			n.nsep++
 			y += n.thickness
 		}
@@ -537,10 +576,22 @@ func (n *listNode) ensure(k int) {
 	if cap(n.origins) < k {
 		n.origins = make([]geom.Point, k)
 		n.sepY = make([]float32, k)
+		n.sepItem = make([]int, k)
 		return
 	}
 	n.origins = n.origins[:k]
 	n.sepY = n.sepY[:k]
+	n.sepItem = n.sepItem[:k]
+}
+
+// highlighted reports whether item i shows a face, selected, under the pointer
+// or pressed, so that the hairlines on either side of it are not drawn.
+func (n *listNode) highlighted(ctx *gift.PaintContext, i int) bool {
+	if i < len(n.selected) && n.selected[i] {
+		return true
+	}
+	ia := ctx.ChildInteraction(i)
+	return !ia.Disabled && (ia.Hover || ia.Pressed)
 }
 
 // Paint implements gift.Painter, in the drawing order of the project plan,
@@ -627,6 +678,9 @@ func (n *listNode) paintSeparators(ctx *gift.PaintContext, b geom.Rect, deviceTo
 		return
 	}
 	for i := range n.nsep {
+		if it := n.sepItem[i]; n.highlighted(ctx, it) || n.highlighted(ctx, it+1) {
+			continue
+		}
 		top, th := snapHairline(b.Min.Y+n.sepY[i], n.thickness, b.Min.Y, deviceTop, n.density)
 		ctx.Add(render.Op{
 			Kind:   render.OpFillRect,

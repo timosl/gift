@@ -47,6 +47,14 @@ ui.List(rows...).SeparatorInsets(ui.RowPadding+22+12, 0) // rows with icons
 ui.List(rows...).SeparatorInsets(0, 0)                   // full width
 ```
 
+**Separators give way to a row's face.** The separators on either side of a row that is selected, under the
+mouse pointer or pressed are not drawn, so that none runs along the row's rounded face. Their space stays.
+
+**Sidebars.** A sidebar on macOS and iPadOS draws no separators at all; the selection alone sets the page apart.
+`Separators(false)` turns them off together with their space. `SeparatorColor(ui.ColorClear)` keeps a point
+between two rows, so that the row under the pointer does not merge with the selected one next to it; the kitchen
+sink's sidebar does that.
+
 **Separator color and thickness.** `SeparatorColor` replaces `ui.ColorSeparator`. `ui.ColorClear` hides the
 lines but keeps their space, so the rows do not move. `SeparatorThickness` sets the height in logical pixels,
 `ui.DividerThickness` (1) by default. Each separator takes that height out of the layout, so rows never overlap

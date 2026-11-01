@@ -88,12 +88,10 @@ func sidebar(ctx *gift.Context, selected string, compact bool, query *gift.State
 			row := ui.Row(d.Title).OnTap(func() { choose(name) }).Key("row-" + d.Name)
 			if compact {
 				row = row.Subtitle(d.Summary).Chevron(outline.AngleRight)
-			}
-			if d.Name == selected && !compact {
-				group = append(group, ui.VStack(row).Background(ui.Fade(ui.ColorAccent, 0.14)).CornerRadius(8))
 			} else {
-				group = append(group, row)
+				row = row.Selected(d.Name == selected)
 			}
+			group = append(group, row)
 		}
 		if len(group) > 0 {
 			rows = append(rows, ui.Section(g.Title))
@@ -142,8 +140,25 @@ func sidebar(ctx *gift.Context, selected string, compact bool, query *gift.State
 			ui.SearchField(ui.Editor(ctx, "query-editor", query.Get())).Placeholder("Search components").
 				Bind(query.Binding()).Key("search"),
 		).Gap(12).PaddingInsets(geom.Insets{Left: 16, Right: 16, Top: 16, Bottom: 8}),
-		ui.VScroll(ui.List(rows...)).PaddingInsets(geom.Insets{Left: 8, Right: 8, Bottom: 16}).Flex(1).Key("list"),
+		// Beside a component the list is a sidebar, and a sidebar draws no
+		// hairlines: the selection sets the page apart, inset from the edges
+		// by the padding, as on macOS and iPadOS. Their space stays, a
+		// point between two faces, so that the row under the pointer does
+		// not merge with the selected one next to it. As the root of a
+		// navigation stack it is a plain list, rows with subtitles and
+		// hairlines between.
+		ui.VScroll(sidebarList(ui.List(rows...), compact)).
+			PaddingInsets(geom.Insets{Left: 8, Right: 8, Bottom: 16}).Flex(1).Key("list"),
 	).Gap(0)
+}
+
+// sidebarList is l without visible hairlines beside a component; see
+// [sidebar].
+func sidebarList(l ui.ListView, compact bool) ui.ListView {
+	if compact {
+		return l
+	}
+	return l.SeparatorColor(ui.ColorClear)
 }
 
 func matches(d showcase.Demo, q string) bool {

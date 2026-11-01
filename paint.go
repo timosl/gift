@@ -298,6 +298,21 @@ func (p *PaintContext) ChildCount() int { return len(p.nd.children) }
 // repaint; nothing was built and nothing was measured. See [Interaction].
 func (p *PaintContext) Interaction() Interaction { return p.nd.ia }
 
+// ChildInteraction returns the [Interaction] of child i of the node being
+// painted, the zero value for an index out of range.
+//
+// It is for a container that draws something between its children which has
+// to give way to their state: a list hides the hairlines on either side of a
+// row the pointer is over, so that the row's face is not cut by them. A
+// change of that state repaints the container, because a repaint of a node is
+// a repaint of its ancestors.
+func (p *PaintContext) ChildInteraction(i int) Interaction {
+	if i < 0 || i >= len(p.nd.children) || !p.app.store.Valid(p.nd.children[i]) {
+		return Interaction{}
+	}
+	return p.app.data(p.nd.children[i]).ia
+}
+
 // GlyphsLen returns the current length of the glyph side table of the display
 // list, which is the index the next [PaintContext.AppendGlyph] writes to.
 func (p *PaintContext) GlyphsLen() uint32 { return p.list.GlyphsLen() }

@@ -39,7 +39,11 @@ Package `ui` does not draw a chevron of its own, because it cannot import an ico
 
 Without `OnTap` the row is inert: it takes no focus, no pointer and has no pressed face. With `OnTap` the whole row
 behaves like a [button](../../basic/button/). It reacts to a tap, to space and to enter, and a release outside the
-row does not fire. It shows `ui.ColorControlHover` under a mouse pointer and `ui.ColorControlPressed` while pressed.
+row does not fire. Under a mouse pointer and while pressed it shows a neutral face, rounded by `ui.RowCornerRadius`.
+
+**Selection.** `Selected(true)` marks the chosen row, the page a sidebar shows, with a face of the same shape,
+stronger than the hover. As in a macOS sidebar it is neutral grey rather than the accent colour, and it stays
+when the pointer passes over it. A list hides its separators on either side of a row with a face.
 
 ```go
 ui.Row("Network").

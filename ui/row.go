@@ -31,7 +31,26 @@ const (
 	rowSubSize   = float32(12)
 	rowValueSize = float32(14)
 	rowTextGap   = float32(2)
+
+	// RowCornerRadius rounds the face of a row: the selection, the hover and
+	// the press, which are one shape so that the pointer passing over a
+	// selected row does not change what a highlighted row looks like.
+	RowCornerRadius = float32(8)
 )
+
+// The faces of a row, as label colour over whatever is behind the row, so
+// that they are neutral and step the same way on a white surface and on a
+// dark one. The amounts are those of a macOS 27 sidebar measured on screen:
+// its selection darkens a light sidebar by about a tenth and lightens a dark
+// one by about a seventh. Hover is half of that, which macOS does not have
+// and iPadOS shows under a pointer; a press is more than the selection, so
+// that pressing the selected row still answers.
+func rowFaces(dark bool) (hover, selected, pressed Color) {
+	if dark {
+		return Fade(ColorLabel, 0.07), Fade(ColorLabel, 0.14), Fade(ColorLabel, 0.20)
+	}
+	return Fade(ColorLabel, 0.05), Fade(ColorLabel, 0.10), Fade(ColorLabel, 0.16)
+}
 
 // RowView is the standard row of a [ListView]: a leading icon, a title over an
 // optional subtitle, and a trailing accessory. It is created by [Row]; the
@@ -131,6 +150,15 @@ const (
 // gives. The accessory is *not* disabled with it: it is a view the caller
 // passed in, and reaching into it would mean this type deciding what
 // "disabled" means for something it has never seen. Disable the accessory at the call site as well.
+//
+// # Selection, hover and press
+//
+// [RowView.Selected] marks the row a sidebar shows, and the pointer over a
+// row and a press on it show as faces of the same shape: a neutral fill
+// rounded by [RowCornerRadius], across the width of the row, which the list's
+// padding insets from the edges of the sidebar as a macOS sidebar insets its
+// selection. A [ListView] hides the hairlines on either side of a row with a
+// face, so that none of them runs along it.
 type RowView struct {
 	base
 	title     string
@@ -141,6 +169,7 @@ type RowView struct {
 	accessory gift.View
 	onTap     func()
 	disabled  bool
+	selected  bool
 	name      string
 }
 
@@ -163,9 +192,20 @@ func (v RowView) Build(bc *gift.BuildContext) gift.Element {
 			Left:   RowPadding,
 		})
 
+	hover, selected, pressed := rowFaces(CurrentTheme().IsDark())
+	// At rest a row draws no face, the list or the card behind it does,
+	// unless it is the selected one.
+	rest := Color(ColorClear)
+	if v.selected {
+		rest, hover = selected, selected
+	}
 	if v.onTap == nil {
 		// Inert. No interactor, no focus stop, and — because the content
-		// stack has no background, border or clip — no painter either.
+		// stack has no background, border or clip unless it is selected —
+		// no painter either.
+		if v.selected {
+			content = content.Background(rest).CornerRadius(RowCornerRadius)
+		}
 		return rowContent{content.MinHeight(RowHeight).Key(v.key).Flex(v.flex), labels, value}.Build(bc)
 	}
 	return Button(rowContent{content, labels, value}, v.onTap).
@@ -177,15 +217,14 @@ func (v RowView) Build(bc *gift.BuildContext) gift.Element {
 		Padding(0).
 		Align(geom.Leading).
 		MinHeight(RowHeight).
-		// A row draws no face at rest: the list or the card behind it does.
-		Background(ColorClear).
+		Background(rest).
 		Border(Border{}).
-		CornerRadius(0).
+		CornerRadius(RowCornerRadius).
 		// Hover and press are the states a rebuild cannot deliver, because
 		// neither causes one; see [gift.Interaction].
-		HoverStyle(ButtonStyle{Background: ColorControlHover}).
-		PressedStyle(ButtonStyle{Background: ColorControlPressed}).
-		DisabledStyle(ButtonStyle{Background: ColorClear}).
+		HoverStyle(ButtonStyle{Background: hover, CornerRadius: RowCornerRadius}).
+		PressedStyle(ButtonStyle{Background: pressed, CornerRadius: RowCornerRadius}).
+		DisabledStyle(ButtonStyle{Background: rest, CornerRadius: RowCornerRadius}).
 		Disabled(v.disabled).
 		Label(v.accessibleName()).
 		Build(bc)
@@ -444,6 +483,10 @@ func (v RowView) Accessory(a gift.View) RowView { v.accessory = a; return v }
 // OnTap makes the whole row a control that runs fn when it is activated. A nil
 // fn, the default, is an inert row.
 func (v RowView) OnTap(fn func()) RowView { v.onTap = fn; return v }
+
+// Selected marks the row as the one that is chosen, the page a sidebar shows
+// say, with a face behind it; see [RowView] for its shape and colour.
+func (v RowView) Selected(b bool) RowView { v.selected = b; return v }
 
 // Disabled takes the row out of input and draws its title and leading icon in
 // [ColorSecondaryLabel] and its subtitle fainter still; see [RowView]. It has

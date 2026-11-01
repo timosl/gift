@@ -3506,6 +3506,36 @@ ueber das Ende hinaus und bleibt dort viel zu lange.
   `elastic_overscroll_controller_exponential.cc`; Apple-Doku zu
   `NSEvent.phase` und `momentumPhase`; GLFW-Issue 1429.
 
+## 39. Listen: Auswahl, Hover und Trennstriche
+
+Gemeldet (01.11.2026): die Liste der Hauptnavigation im Kitchensink sieht mit
+Hover, Auswahl und Trennstrichen zusammen nicht harmonisch aus.
+
+- Befund: die Navigation ist `ui.List` aus `ui.Row` und `ui.Section` in einem
+  `ui.VScroll`. Der Hover war eine randvolle, eckige Flaeche in
+  `ColorControlHover` (hell 244/246/250 auf Weiss, kaum zu sehen; dunkel ein
+  kraeftiges Blaugrau), die Auswahl eine VStack-Huelle im Kitchensink mit 14 %
+  Akzentfarbe und Radius 8, und die Trennstriche liefen an beiden entlang.
+- Original gemessen, SwiftUI `List` mit `.sidebar` unter macOS 27.2, aktives
+  Fenster: keine Trennstriche; Auswahl neutral grau (hell 228 → 206, dunkel
+  73 → 99), 10 pt Einzug je Seite, volle Zeilenhoehe, Radius etwa 6 pt; Label
+  fett, Symbole in Akzentfarbe; kein Hover. Recherche: UIKit blendet die
+  Trennstriche um eine hervorgehobene Zelle aus; iPadOS-Sidebars haben keine;
+  macOS-`.inset`-Tabellen runden die Auswahl und ruecken die Trennstriche auf
+  die Textkante ein.
+- Entscheidung: `RowView.Selected`; Hover, Druck und Auswahl sind eine Form,
+  gerundet mit `RowCornerRadius` (8 bei 44-pt-Zeilen), neutral als Label-Farbe
+  mit Alpha (hell 5/10/16 %, dunkel 7/14/20 %), die Auswahl bleibt unter dem
+  Zeiger. `ListView` zeichnet keinen Trennstrich neben einer Zeile mit Flaeche
+  (`PaintContext.ChildInteraction`); der Platz bleibt. `Separators(false)`
+  nimmt sie samt Platz weg. Die Kitchensink-Sidebar zeichnet keine sichtbaren
+  Trennstriche, behaelt aber ihren Punkt Fuge, damit Hover und Auswahl
+  nebeneinander nicht verschmelzen; als Wurzel eines Navigationsstapels bleibt
+  sie eine Liste mit Trennstrichen.
+- Nicht uebernommen: das fette Label der Auswahl (die Standardschrift hat
+  keinen familienunabhaengigen fetten Schnitt) und Symbole in Akzentfarbe.
+  `VirtualList` zeichnet Hover und Auswahl noch randvoll mit Trennstrichen.
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb
