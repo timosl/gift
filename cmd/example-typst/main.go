@@ -3,10 +3,14 @@
 // be edited where they are set.
 //
 // The Typst compiler is a separate library, libgifttypst, built from the Rust
-// crate in typst/ffi and loaded at run time without cgo:
+// crate in typst/ffi and loaded at run time without cgo. The example imports
+// typst/embedded, which carries the library for macOS on arm64 and Linux on
+// amd64 and arm64, so that it runs as it is:
 //
-//	(cd typst/ffi && cargo build --release)
 //	go run ./cmd/example-typst
+//
+// -lib loads another build of the library instead, such as one just built
+// with (cd typst/ffi && cargo build --release).
 //
 // On the left is the source, on the right the pages. Typing in either one
 // edits the source and compiles it again; a click on a page puts the caret
@@ -19,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +35,7 @@ import (
 	"github.com/worldiety/gift/geom"
 	"github.com/worldiety/gift/internal/example"
 	"github.com/worldiety/gift/typst"
+	_ "github.com/worldiety/gift/typst/embedded"
 	"github.com/worldiety/gift/ui"
 	"github.com/worldiety/gift/ui/typstview"
 )
@@ -92,11 +96,7 @@ var (
 )
 
 func main() {
-	name := "libgifttypst.so"
-	if runtime.GOOS == "darwin" {
-		name = "libgifttypst.dylib"
-	}
-	lib := flag.String("lib", filepath.Join("typst", "ffi", "target", "release", name), "path of libgifttypst")
+	lib := flag.String("lib", "", "path of libgifttypst, instead of the embedded one")
 	fonts := flag.String("fonts", filepath.Join("font", "inter"), "directory with the .ttf fonts for Typst")
 	flag.Parse()
 
@@ -111,7 +111,7 @@ func run(lib, fonts string) error {
 		return err
 	}
 	if err := typst.Open(lib); err != nil {
-		return fmt.Errorf("%w (build it with: cd typst/ffi && cargo build --release)", err)
+		return fmt.Errorf("%w (build it with: cd typst/ffi && cargo build --release, and pass -lib)", err)
 	}
 	var err error
 	if engine, err = typst.New(); err != nil {

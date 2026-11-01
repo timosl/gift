@@ -3583,7 +3583,28 @@ cgo-freie Shared Library.
   Neusetzen p50 7,1 ms, p95 9,0 ms, einmal 48 ms; Frame-Intervall p50
   16,7 ms, p95 17,2 ms, p99 18,3 ms, ein Frame verpasst; Draw-CPU p95
   2,0 ms. Bereit 0,26 s nach dem Start, das erste Setzen 42 ms.
-- Offen: Build der Bibliothek fuer iOS und Linux in die Matrix.
+- Eingebettet (01.11.2026): `typst/embedded` traegt die Bibliothek fuer
+  macOS arm64 und Linux amd64 und arm64, gzip-komprimiert (13,6, 14,1 und
+  14,8 MB, zusammen 42,5 MB im Repository und in jedem Modul-Download).
+  Wer sie will, importiert das Paket fuer den Seiteneffekt; eingebettet wird
+  nur die Bibliothek der Zielplattform (das Beispiel waechst von 24 auf
+  38 MB), ohne den Import zahlt eine Anwendung nichts. Beim ersten Gebrauch
+  wird sie nach `os.UserCacheDir()/gift/typst/<Pruefsumme>/` entpackt
+  (M5 0,17 s, Pi 500 0,4 s), danach nur noch geladen. Reihenfolge der
+  Suche: `Open(path)`, `GIFT_TYPST_LIB`, eingebettet, neben dem Programm,
+  Suchpfad des Linkers.
+- `typst/ffi/build.sh` baut alle drei mit der in `rust-toolchain.toml`
+  gepinnten Toolchain (Rust 1.99.1 per rustup), Linux per cargo-zigbuild
+  gegen glibc 2.28 (Debian 10, Ubuntu 20.04, RHEL 8 und spaeter); auf dem
+  M5 dauert das gut 4 Minuten. Die Linux-Bibliotheken haengen nur an libc,
+  libm, libpthread und libdl. Cross- und nativ gebaute Bibliothek sind auf
+  dem Pi 500 gleich schnell (45 Seiten je 20 ms). Gzip statt zstd (10,5 MB)
+  oder xz (9,3 MB), weil beide eine neue Abhaengigkeit braeuchten.
+- Geprueft auf macOS arm64 und dem Pi 500 (Tests und Beispiel); linux/amd64
+  nur statisch (ELF, glibc-Versionen, Exporte), noch nicht ausgefuehrt.
+- Offen: linux/amd64 einmal ausfuehren; iOS braucht einen eigenen Weg
+  (Framework im App-Bundle oder statisch gelinkt); signierte macOS-Apps mit
+  Hardened Runtime muessen die Bibliothek signiert im Bundle mitbringen.
 
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 

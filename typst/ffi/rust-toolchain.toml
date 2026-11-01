@@ -1,0 +1,6 @@
+# The toolchain the libraries in typst/embedded are built with, by build.sh.
+# rustup reads this file; a cargo without rustup ignores it.
+[toolchain]
+channel = "1.99.1"
+profile = "minimal"
+targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]

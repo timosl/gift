@@ -23,13 +23,24 @@ var ErrClosed = errors.New("typst: engine is closed")
 // built from another revision of the encoding.
 var errBadBuffer = errors.New("typst: the library returned a malformed buffer")
 
-// Open loads the library from path before anything else would look for it.
-// It must be called before the first use of the package to have an effect;
-// afterwards it reports what that first use found.
+// Open loads the library from path before anything else would look for it,
+// or, with an empty path, from where the package looks by itself; see the
+// package documentation. It must be called before the first use of the
+// package to have an effect; afterwards it reports what that first use found.
 func Open(path string) error {
 	lib.path = path
 	return load()
 }
+
+// bundled writes the library package typst/embedded carries to disk and
+// returns its path; it is nil without that package.
+var bundled func() (string, error)
+
+// Provide is how package typst/embedded hands over the library it carries:
+// f writes it to disk and returns its path. f is called at most once, and
+// only if neither [Open] nor GIFT_TYPST_LIB names a library that loads. An
+// application imports typst/embedded rather than calling Provide.
+func Provide(f func() (path string, err error)) { bundled = f }
 
 // Available reports whether the library was found and bound.
 func Available() bool { return load() == nil }

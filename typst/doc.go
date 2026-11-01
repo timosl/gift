@@ -10,10 +10,21 @@
 // building with CGO_ENABLED=0; a system without the library reports
 // [ErrUnavailable] and nothing else changes.
 //
-//	(cd typst/ffi && cargo build --release)
+// The library is some 35 MB, so this package does not carry it. A program
+// that wants it carried imports typst/embedded for its side effect, which
+// embeds it for macOS on arm64 and Linux on amd64 and arm64:
+//
+//	import _ "github.com/worldiety/gift/typst/embedded"
 //
 // The library is looked for at the path given to [Open], in GIFT_TYPST_LIB,
-// next to the executable and on the dynamic linker's search path.
+// in typst/embedded if the program imports it, next to the executable and on
+// the dynamic linker's search path, in this order. A change to the crate is
+// built and tried with
+//
+//	(cd typst/ffi && cargo build --release)
+//	GIFT_TYPST_LIB=$PWD/typst/ffi/target/release/libgifttypst.dylib go run ./cmd/example-typst
+//
+// and embedded with typst/ffi/build.sh.
 //
 // # What crosses the boundary
 //

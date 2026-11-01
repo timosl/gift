@@ -12,33 +12,38 @@ import (
 	"time"
 
 	"github.com/worldiety/gift/typst"
+	_ "github.com/worldiety/gift/typst/embedded"
 )
 
-// engine opens the library built by `cargo build --release` in ffi/ and
-// skips the test without it: the library is an optional, separately built
-// dependency, like libturbojpeg.
-func engine(t *testing.T) *typst.Engine {
-	t.Helper()
+// engine opens the library built by `cargo build --release` in ffi/, if
+// there is one, so that a change to the crate is tested before it is
+// embedded, and otherwise the one typst/embedded carries. On a platform it
+// carries none for, and without a build, the test is skipped.
+func engine(tb testing.TB) *typst.Engine {
+	tb.Helper()
 	name := "libgifttypst.so"
 	if runtime.GOOS == "darwin" {
 		name = "libgifttypst.dylib"
 	}
 	path, _ := filepath.Abs(filepath.Join("ffi", "target", "release", name))
+	if _, err := os.Stat(path); err != nil {
+		path = ""
+	}
 	if err := typst.Open(path); err != nil {
-		t.Skipf("libgifttypst not built: %v", err)
+		tb.Skipf("libgifttypst is not available: %v", err)
 	}
 	e, err := typst.New()
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
-	t.Cleanup(func() { e.Close() })
+	tb.Cleanup(func() { e.Close() })
 	for _, f := range []string{"Inter-Regular.ttf", "Inter-Bold.ttf"} {
 		data, err := os.ReadFile(filepath.Join("..", "font", "inter", f))
 		if err != nil {
-			t.Fatal(err)
+			tb.Fatal(err)
 		}
 		if err := e.AddFont(data); err != nil {
-			t.Fatal(err)
+			tb.Fatal(err)
 		}
 	}
 	return e
@@ -206,7 +211,7 @@ func BenchmarkEdit(b *testing.B) {
 		src := s.String()
 		mid := strings.Index(src[len(src)/2:], "Absatz") + len(src)/2
 		b.Run(fmt.Sprintf("paragraphs=%d", paras), func(b *testing.B) {
-			e := benchEngine(b)
+			e := engine(b)
 			e.SetSource(src)
 			d, err := e.Compile()
 			if err != nil {
@@ -228,30 +233,4 @@ func BenchmarkEdit(b *testing.B) {
 			b.ReportMetric(float64(len(d.Pages)), "pages")
 		})
 	}
-}
-
-func benchEngine(b *testing.B) *typst.Engine {
-	name := "libgifttypst.so"
-	if runtime.GOOS == "darwin" {
-		name = "libgifttypst.dylib"
-	}
-	path, _ := filepath.Abs(filepath.Join("ffi", "target", "release", name))
-	if err := typst.Open(path); err != nil {
-		b.Skipf("libgifttypst not built: %v", err)
-	}
-	e, err := typst.New()
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Cleanup(func() { e.Close() })
-	for _, f := range []string{"Inter-Regular.ttf", "Inter-Bold.ttf"} {
-		data, err := os.ReadFile(filepath.Join("..", "font", "inter", f))
-		if err != nil {
-			b.Fatal(err)
-		}
-		if err := e.AddFont(data); err != nil {
-			b.Fatal(err)
-		}
-	}
-	return e
 }

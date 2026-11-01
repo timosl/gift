@@ -3,6 +3,7 @@
 package typst
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,24 +32,32 @@ var lib struct {
 }
 
 // candidates are the places libgifttypst is looked for, in order: the path
-// [Open] was given, the environment variable GIFT_TYPST_LIB, the directory of
-// the executable, and the dynamic linker's own search path.
-func candidates() []string {
+// [Open] was given, the environment variable GIFT_TYPST_LIB, the library
+// package typst/embedded carries, the directory of the executable, and the
+// dynamic linker's own search path. Each is a function, so that the carried
+// library is written to disk only when nothing before it loads.
+func candidates() []func() (string, error) {
 	name := "libgifttypst.so"
 	if runtime.GOOS == "darwin" {
 		name = "libgifttypst.dylib"
 	}
-	var c []string
+	at := func(p string) func() (string, error) {
+		return func() (string, error) { return p, nil }
+	}
+	var c []func() (string, error)
 	if lib.path != "" {
-		c = append(c, lib.path)
+		c = append(c, at(lib.path))
 	}
 	if p := os.Getenv("GIFT_TYPST_LIB"); p != "" {
-		c = append(c, p)
+		c = append(c, at(p))
+	}
+	if bundled != nil {
+		c = append(c, bundled)
 	}
 	if exe, err := os.Executable(); err == nil {
-		c = append(c, filepath.Join(filepath.Dir(exe), name))
+		c = append(c, at(filepath.Join(filepath.Dir(exe), name)))
 	}
-	return append(c, name)
+	return append(c, at(name))
 }
 
 func load() error {
@@ -58,13 +67,19 @@ func load() error {
 
 func bind() (err error) {
 	var h uintptr
-	for _, name := range candidates() {
-		if h, err = purego.Dlopen(name, purego.RTLD_NOW|purego.RTLD_LOCAL); err == nil {
+	var failed []error
+	for _, c := range candidates() {
+		name, cerr := c()
+		if cerr == nil {
+			h, cerr = purego.Dlopen(name, purego.RTLD_NOW|purego.RTLD_LOCAL)
+		}
+		if cerr == nil {
 			break
 		}
+		failed = append(failed, cerr)
 	}
 	if h == 0 {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrUnavailable, errors.Join(failed...))
 	}
 	defer func() {
 		if r := recover(); r != nil {
