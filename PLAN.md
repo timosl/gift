@@ -3536,6 +3536,37 @@ Hover, Auswahl und Trennstrichen zusammen nicht harmonisch aus.
   keinen familienunabhaengigen fetten Schnitt) und Symbole in Akzentfarbe.
   `VirtualList` zeichnet Hover und Auswahl noch randvoll mit Trennstrichen.
 
+## 40. Typst als Seiten-Engine (Durchstich)
+
+Anlass (01.11.2026): Recherche zu PDF, Richtext und Typst (Bericht unter
+`reports/`, nicht versioniert); gewuenscht war ein Durchstich mit Typst als
+cgo-freie Shared Library.
+
+- Aufbau: `typst/ffi` ist ein Rust-Crate (Typst 0.15.1, gepinnt) mit C-ABI,
+  gebaut als `libgifttypst`; `typst` laedt sie wie libturbojpeg per purego,
+  gift baut weiter mit `CGO_ENABLED=0`. Hinein gehen Schriftdateien und der
+  Quelltext, heraus pro Seite eine flache Display-Liste in Punkt
+  (Glyphenlaeufe, Rechtecke, Dreiecke, Bildflaechen) und auf Wunsch das PDF.
+  Die Engine behaelt `World` und Quelltext, Typsts Memoisierung macht das
+  Neusetzen inkrementell.
+- Gezeichnet wird mit gifts eigenem Renderer (`ui/typstview`): Typsts Glyphen
+  laufen durch gifts Glyphen-Atlas, weil `AddFont` dieselben Bytes auch in
+  `internal/text` laedt; Glyphenursprung und duenne Linien werden auf ganze
+  Geraetepixel gerastet, damit Tabellenlinien gleich stark bleiben.
+- Jede Glyphe traegt den Byte-Offset ihres Textes im Quelltext (-1 fuer
+  Erzeugtes wie Seitenzahlen). Daraus: Klick auf die Seite → Offset, Offset →
+  Cursor. `cmd/example-typst` editiert damit direkt auf der gesetzten Seite;
+  getippte Zeichen werden fuer Markup maskiert (`#` → `\#`), Enter erzeugt
+  einen neuen Absatz.
+- Gemessen (Apple M5, ein Zeichen in der Mitte, Neusetzen samt Uebergabe
+  aller Seiten an Go): 1 Seite 0,08 ms, 5 Seiten 0,5 ms, 45 Seiten 6,3 ms,
+  134 Seiten 34 ms. Die Bibliothek ist 34 MB gross (gestrippt).
+- Nicht im Durchstich: Bilder, Dateien und Pakete fuer Typst, Verlaeufe,
+  Clips, gedrehter Text, nicht-konvexe Fuellungen, nur geaenderte Seiten
+  uebergeben, IME, Auswahl, Undo, Bedienungshilfen, Bidi beim Cursor.
+- Offen: Messung auf dem Raspberry Pi 5 (braucht eine Rust-Toolchain fuer
+  aarch64-linux); Build der Bibliothek fuer iOS und Linux in die Matrix.
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb

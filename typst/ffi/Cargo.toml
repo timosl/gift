@@ -1,0 +1,19 @@
+[package]
+name = "gifttypst"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+typst = "=0.15.1"
+typst-layout = "=0.15.1"
+typst-pdf = "=0.15.1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+panic = "unwind"
