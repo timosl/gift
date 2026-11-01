@@ -1214,6 +1214,10 @@ func TestPoppingAScreenTakesTheOnScreenKeyboardAway(t *testing.T) {
 
 	pop()
 	h.Settle()
+	// The keyboard goes at once; the screen slides out first and is then
+	// unmounted with its field.
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
+	h.Settle()
 	h.AssertNone(gifttest.ByKey("field"))
 	if h.App().SoftKeyboardRequested() {
 		t.Fatal("the on-screen keyboard is still up after the field that asked for it was " +

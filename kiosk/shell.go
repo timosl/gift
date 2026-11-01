@@ -219,7 +219,9 @@ func (k *Kiosk) settings(ctx *gift.Context, n *navigator, sc SizeClass) gift.Vie
 	return ui.HStack(
 		sidebar,
 		ui.Box().Frame(1, geom.Unbounded()).Background(ui.ColorSeparator),
-		ui.NavigationStack(n.pop, screens...).BackIcon(outline.AngleLeft).Flex(1),
+		// Beside the list a page replaces the one before without moving, as
+		// in the settings of macOS; sliding would look like the list moves.
+		ui.NavigationStack(n.pop, screens...).BackIcon(outline.AngleLeft).Animated(false).Flex(1),
 	).Gap(0).Background(ui.ColorBackground)
 }
 

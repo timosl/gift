@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"slices"
 	"strconv"
+	"time"
 
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/geom"
@@ -147,6 +149,7 @@ type NavigationStackView struct {
 	onBack  func()
 	screens []ScreenSpec
 	backSym Symbol
+	still   bool
 }
 
 // NavigationStack returns a navigation stack showing the last of screens, with
@@ -174,22 +177,10 @@ func (v NavigationStackView) ViewType() gift.TypeID { return navigationStackType
 // A vertical stack of the bar and a flexible content area holding one [layer]
 // per screen, all hidden but the last. The NavigationStack node is that stack;
 // there is no wrapper node.
-func (v NavigationStackView) Build(bc *gift.BuildContext) gift.Element {
+func (v NavigationStackView) Build(*gift.BuildContext) gift.Element {
 	top := len(v.screens) - 1
-
-	layers := make([]gift.View, len(v.screens))
-	for i, s := range v.screens {
-		layers[i] = newLayer(s.identity(i), s.content).
-			Hidden(i != top).
-			Parked(geom.Pt(-1, 0)).
-			Entry(geom.Pt(1, 0)).
-			Return(geom.Pt(-navReturn, 0))
-	}
-
-	e := VStack(
-		v.bar(top),
-		ZStack(layers...).Flex(1).Key("content"),
-	).Key(v.key).Flex(v.flex).Build(bc)
+	e := gift.Element{Key: v.key, Flex: v.flex, Layouter: anchorLayout{},
+		Children: []gift.View{gift.Component("ui.navigation", v.body)}}
 	// The escape key. The stack node is an ancestor of every screen, so a key
 	// the focused node did not consume bubbles here; see [App.deliver].
 	// Declaring an interactor and not declaring Focusable is the same thing
@@ -214,6 +205,114 @@ func (v NavigationStackView) Build(bc *gift.BuildContext) gift.Element {
 	// trap's.
 	e.KeyFallback = true
 	return e
+}
+
+// navMemory is what a stack remembers of its last build: the screens it
+// showed, and the one a pop took away while it slides out.
+type navMemory struct {
+	ids     []string
+	screens []ScreenSpec
+	leaving *leavingScreen
+}
+
+// leavingScreen is a screen a pop took away, which stays mounted, hidden
+// and out of input, until it has slid out at the trailing edge.
+type leavingScreen struct {
+	id     string
+	screen ScreenSpec
+	until  time.Time
+}
+
+// body is the stack: the bar and the screens, the one on top shown.
+func (v NavigationStackView) body(ctx *gift.Context) gift.View {
+	mem := ctx.State("memory", (*navMemory)(nil))
+	rev := ctx.State("rev", 0)
+	ctx.Read(rev)
+	m := mem.Get()
+	if m == nil {
+		m = &navMemory{}
+		mem.Set(m)
+	}
+	top := len(v.screens) - 1
+	ids := make([]string, len(v.screens))
+	for i, s := range v.screens {
+		ids[i] = s.identity(i)
+	}
+	// A pop is the list of the last build cut short. Its top screen is kept
+	// for the length of its exit, so that it slides out while the screen it
+	// uncovers slides in beside it, as a push does the other way round.
+	if !v.still && len(m.ids) > len(ids) && slices.Equal(m.ids[:len(ids)], ids) {
+		last := len(m.ids) - 1
+		m.leaving = &leavingScreen{id: m.ids[last], screen: m.screens[last], until: time.Now().Add(ControlAnimation)}
+	}
+	if m.leaving != nil && (v.still || slices.Contains(ids, m.leaving.id)) {
+		m.leaving = nil
+	}
+	m.ids, m.screens = ids, slices.Clone(v.screens)
+
+	layers := make([]gift.View, 0, len(v.screens)+2)
+	for i, s := range v.screens {
+		l := newLayer(ids[i], s.content).
+			Hidden(i != top).
+			Parked(geom.Pt(-1, 0)).
+			Entry(geom.Pt(1, 0)).
+			Still(v.still)
+		if m.leaving == nil {
+			l = l.Return(geom.Pt(-navReturn, 0))
+		}
+		layers = append(layers, l)
+	}
+	if lv := m.leaving; lv != nil {
+		layers = append(layers,
+			newLayer(lv.id, lv.screen.content).Hidden(true).Parked(geom.Pt(1, 0)),
+			navSweep{after: max(time.Until(lv.until), time.Millisecond), done: func() {
+				m.leaving = nil
+				rev.Set(rev.Get() + 1)
+			}})
+	}
+	// The screens are cut at the edges of the stack, so that a screen that
+	// slides out does not slide over what is beside it, a sidebar say.
+	return VStack(
+		v.bar(top),
+		ZStack(layers...).Flex(1).Clip(true).Key("content"),
+	).Flex(1)
+}
+
+// navSweep takes the leaving screen away once it has slid out, from a timer
+// of its node; it lays out to nothing and draws nothing.
+type navSweep struct {
+	after time.Duration
+	done  func()
+}
+
+var navSweepType = gift.RegisterType("ui.navSweep")
+
+func (navSweep) ViewType() gift.TypeID { return navSweepType }
+
+func (s navSweep) Build(*gift.BuildContext) gift.Element {
+	n := &navSweepNode{s: s}
+	return gift.Element{Key: "sweep", Layouter: n, Interactor: n}
+}
+
+type navSweepNode struct {
+	s     navSweep
+	armed bool
+}
+
+func (n *navSweepNode) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
+	if !n.armed {
+		n.armed = true
+		ctx.After(n.s.after)
+	}
+	return c.Constrain(geom.Size{})
+}
+
+func (n *navSweepNode) HandleEvent(_ *gift.EventContext, e gift.Event) bool {
+	if e.Kind != gift.EventTimer {
+		return false
+	}
+	n.s.done()
+	return true
 }
 
 // navReturn is how far towards the leading edge a screen waits before it is
@@ -246,11 +345,12 @@ func (v NavigationStackView) Build(bc *gift.BuildContext) gift.Element {
 // waits is invisible, because a parked screen is not painted;
 // [gift.TransitionSpec.Return] is that move.
 //
-// The honest fix for both halves is a core that keeps an unmounted subtree
-// alive for the length of its exit — a "leaving" child list that is painted
-// but never laid out, hit tested or reconciled. That is a real feature with
-// real invariants and it is not this one; it is written down in the report
-// rather than implied by an animation that half works.
+// That was the whole story until the stack learned to keep the popped screen
+// itself: [NavigationStackView.body] remembers the screens of its last build
+// and, after a pop, keeps the one taken away as a hidden layer parked at the
+// trailing edge until it has slid there, so a pop is the mirror image of a
+// push after all. The short return is what remains for a screen uncovered
+// without such a layer, a stack that is popped by more than one screen.
 const navReturn = float32(0.08)
 
 // bar builds the title bar of the screen at index top.
@@ -339,6 +439,11 @@ func (n navBackKey) HandleEvent(_ *gift.EventContext, e gift.Event) bool {
 }
 
 // --- modifiers -------------------------------------------------------------
+
+// Animated turns the slide of a push and a pop on or off; it is on unless
+// turned off. A stack beside a sidebar turns it off, as the settings of macOS
+// do: a page there replaces the one beside the list without moving.
+func (v NavigationStackView) Animated(b bool) NavigationStackView { v.still = !b; return v }
 
 // BackIcon sets the symbol drawn before the previous screen's title in the
 // back affordance. The conventional choice is a leading chevron:

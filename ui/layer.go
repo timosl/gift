@@ -38,6 +38,9 @@ type layer struct {
 	// comes back from when it is uncovered; the zero values mean parked.
 	entry geom.Point
 	ret   geom.Point
+	// still turns the movement off: the layer appears and disappears at
+	// once, as a page beside a sidebar does on macOS.
+	still bool
 	// kids is a one element array rather than a slice literal so that
 	// building a layer allocates the node and nothing else; see
 	// [buttonNode.kids].
@@ -76,6 +79,9 @@ func (l layer) Parked(p geom.Point) layer { l.parked = p; return l }
 // same place [layer.Parked] names; see [gift.TransitionSpec].
 func (l layer) Entry(p geom.Point) layer { l.entry = p; return l }
 
+// Still makes the layer appear and disappear without moving.
+func (l layer) Still(v bool) layer { l.still = v; return l }
+
 // Return is where this layer comes back from when it is shown again after
 // having been hidden. The zero value means "from where it went"; see
 // [gift.TransitionSpec].
@@ -102,6 +108,9 @@ func (l layer) Build(*gift.BuildContext) gift.Element {
 		Entry:    l.entry,
 		Return:   l.ret,
 		Duration: ControlAnimation,
+	}
+	if l.still {
+		e.Transition = gift.TransitionSpec{}
 	}
 	return e
 }

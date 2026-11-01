@@ -94,8 +94,8 @@ Some details of the stack:
   with a nil action is.
 - **The bar is `ui.NavigationBarHeight` (52) pixels tall.** It is a constant, not a modifier.
 - **Push and pop animate.** A pushed screen slides in from the trailing edge while the covered one slides out to
-  the leading edge. On a pop, the popped screen disappears at once and the revealed screen slides back in over a
-  short distance, because a screen that you removed from the list is unmounted and has nothing left to animate.
+  the leading edge. A pop plays that backwards: the stack keeps the screen you removed from the list, hidden and out
+  of input, until it has slid out, and then unmounts it. `Animated(false)` turns the movement off.
 
 ### Screen identity
 
@@ -115,8 +115,8 @@ A screen below the top one stays mounted but is hidden: it is not painted, not h
 order. Its state, its scroll offset and half typed text survive, and when you pop back to it, it is exactly where
 the user left it. A fling that was still running when the screen was covered is stopped with its offset intact.
 
-A screen that you pop is gone. Its component scopes and every state inside them are dropped, and pushing it again
-starts from scratch. If a screen has to come back with its old values, keep those values in state above the
+A screen that you pop is gone once it has slid out. Its component scopes and every state inside them are dropped,
+and pushing it again starts from scratch. If a screen has to come back with its old values, keep those values in state above the
 navigation stack and pass them down.
 
 Every screen in the list costs memory for its whole subtree. Ten levels of drill-down are ten live subtrees.

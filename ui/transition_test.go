@@ -266,17 +266,16 @@ func TestAScreenPushedOntoTheNavigationStackArrivesFromTheTrailingEdge(t *testin
 	}
 }
 
-// TestAPoppedNavigationScreenComesBackFromTheSideItWentTo is the pop half, and
-// it is the one with a documented limitation attached: the screen being popped
-// is unmounted by the application's own state change and cannot be animated
-// out, so what moves is the screen that is revealed. It has to come back from
-// the *leading* edge, where it went when it was covered, and not from the
-// trailing one, where a freshly pushed screen arrives from.
+// TestAPopIsAPushPlayedBackwards: the screen a pop takes away slides out at
+// the trailing edge while the screen it uncovers comes back from the leading
+// edge, where it went when it was covered, the two in lockstep so that the
+// window is never empty and neither is drawn over the other.
 //
-// That distinction is the whole reason [gift.TransitionSpec] has both a Parked
-// and an Entry: without the memory of where a node actually went, a pop would
-// be animated exactly like a push and would read as going forwards.
-func TestAPoppedNavigationScreenComesBackFromTheSideItWentTo(t *testing.T) {
+// The screen taken away is unmounted by the application's own state change,
+// so the stack keeps it, hidden and out of input, until it has left; see
+// [ui.NavigationStackView]. Without that only the uncovered screen could move,
+// and a pop would look cut off.
+func TestAPopIsAPushPlayedBackwards(t *testing.T) {
 	var depth *gift.State[int]
 	h := gifttest.New(t, gifttest.Options{
 		Theme: ui.LightTheme(), Font: loadTestFont(t), Size: geom.Sz(400, 300),
@@ -296,29 +295,33 @@ func TestAPoppedNavigationScreenComesBackFromTheSideItWentTo(t *testing.T) {
 
 	depth.Set(0)
 	h.Settle()
-	back := mustMarkerRect(t, h, 0)
+	back, leaving := mustMarkerRect(t, h, 0), mustMarkerRect(t, h, 1)
 	if back.Min.X >= root.Min.X {
 		t.Fatalf("the revealed screen starts the pop at x=%v, where it will finish (x=%v); "+
 			"a pop with nothing moving is a cut", back.Min.X, root.Min.X)
 	}
-	// And it has to come back from *near* its place rather than from the full
-	// width it was parked at, because the screen that was covering it has
-	// already been unmounted: a revealed screen that started a whole width
-	// away would leave the window empty for the first frame of every pop.
-	// That is what [gift.TransitionSpec.Return] is for.
-	if back.Min.X < root.Min.X-root.Width()/4 {
-		t.Errorf("the revealed screen starts the pop at x=%v, more than a quarter of a "+
-			"window short of x=%v; for that frame the window is empty", back.Min.X, root.Min.X)
+	if leaving.Min.X < back.Max.X-1 {
+		t.Errorf("the screen taken away is at x=%v, over the revealed one, which ends at x=%v", leaving.Min.X, back.Max.X)
+	}
+	if back.Max.X < root.Min.X && leaving.Min.X > root.Max.X {
+		t.Errorf("neither screen is in the window at the start of the pop: %v and %v", back, leaving)
 	}
 	h.Advance(60 * time.Millisecond)
-	mid := mustMarkerRect(t, h, 0)
+	mid, out := mustMarkerRect(t, h, 0), mustMarkerRect(t, h, 1)
 	if !(mid.Min.X > back.Min.X && mid.Min.X < root.Min.X) {
 		t.Errorf("the revealed screen is at x=%v, which is not between where it came from "+
 			"(x=%v) and where it belongs (x=%v)", mid.Min.X, back.Min.X, root.Min.X)
 	}
+	if !(out.Min.X > leaving.Min.X) {
+		t.Errorf("the screen taken away did not move towards the trailing edge: %v, then %v", leaving.Min.X, out.Min.X)
+	}
 	h.Advance(ui.ControlAnimation)
+	h.Settle()
 	if got := mustMarkerRect(t, h, 0); got != root {
 		t.Errorf("the revealed screen came to rest at %v, want %v", got, root)
+	}
+	if _, ok := markerRect(t, h, 1); ok {
+		t.Error("the screen taken away is still drawn after it has left")
 	}
 }
 

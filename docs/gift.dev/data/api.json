@@ -7552,6 +7552,11 @@
         ],
         "methods": [
           {
+            "name": "Animated",
+            "signature": "Animated(b bool) NavigationStackView",
+            "synopsis": "Animated turns the slide of a push and a pop on or off; it is on unless turned off."
+          },
+          {
             "name": "BackIcon",
             "signature": "BackIcon(s Symbol) NavigationStackView",
             "synopsis": "BackIcon sets the symbol drawn before the previous screen's title in the back affordance."

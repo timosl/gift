@@ -90,14 +90,20 @@ scroll offset and any half typed text, and shows them again when it is uncovered
 when a screen is covered stops where it is. The cost is that every screen in your list stays alive, so a stack
 that grows without bound keeps every screen it ever pushed.
 
-A popped screen is removed from the tree and loses its state. Push it again and it starts fresh.
+A popped screen is removed from the tree and loses its state, once it has slid out. Push it again and it starts
+fresh.
 
 ### Transitions
 
 A push slides the new screen in from the trailing edge while the covered screen slides a full width out to the
-leading edge, so the two never overlap. A pop slides the revealed screen back in from a short distance on the leading
-side, 8 percent of its width, and the popped screen disappears at once: it is already unmounted and has nothing left to draw. Both
-take `ui.ControlAnimation` (180 ms). Screens draw no background of their own; the window and the cards on them do.
+leading edge, so the two never overlap. A pop is the same played backwards: the stack keeps the screen you dropped,
+hidden and out of input, until it has slid out at the trailing edge, while the revealed screen comes back from the
+leading one. Both take `ui.ControlAnimation` (180 ms). The screens are cut at the edges of the stack, so a stack
+beside a sidebar does not slide over it. Screens draw no background of their own; the window and the cards on them
+do.
+
+`Animated(false)` turns the movement off: a pushed screen replaces the one before at once. That is what a stack
+beside a sidebar wants, as the settings of macOS do.
 
 ### Keys
 

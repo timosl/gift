@@ -10,6 +10,7 @@ import (
 	"github.com/worldiety/gift/gifttest"
 	"github.com/worldiety/gift/render"
 	"github.com/worldiety/gift/ui"
+	"time"
 )
 
 // The tests of the four interaction defects a human found while driving the
@@ -127,6 +128,8 @@ func TestEscapePutsTheOnScreenKeyboardAwayBeforeItPopsAScreen(t *testing.T) {
 	h.AssertExists(gifttest.ByKey("field"))
 
 	h.Key(gift.KeyEscape)
+	h.Settle()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
 	h.Settle()
 	h.AssertNone(gifttest.ByKey("field"))
 }
@@ -288,6 +291,8 @@ func TestEscapePopsANavigationStackWithNothingFocused(t *testing.T) {
 	h.AssertExists(gifttest.ByKey("deep"))
 
 	h.Key(gift.KeyEscape)
+	h.Settle()
+	h.Advance(ui.ControlAnimation + 32*time.Millisecond)
 	h.Settle()
 
 	h.AssertNone(gifttest.ByKey("deep"))
