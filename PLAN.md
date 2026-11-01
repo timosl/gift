@@ -3600,9 +3600,11 @@ cgo-freie Shared Library.
   libm, libpthread und libdl. Cross- und nativ gebaute Bibliothek sind auf
   dem Pi 500 gleich schnell (45 Seiten je 20 ms). Gzip statt zstd (10,5 MB)
   oder xz (9,3 MB), weil beide eine neue Abhaengigkeit braeuchten.
-- Geprueft auf macOS arm64 und dem Pi 500 (Tests und Beispiel); linux/amd64
-  nur statisch (ELF, glibc-Versionen, Exporte), noch nicht ausgefuehrt.
-- Offen: linux/amd64 einmal ausfuehren; iOS braucht einen eigenen Weg
+- Geprueft auf macOS arm64 und dem Pi 500 (Tests und Beispiel) und in
+  Docker: Debian 10 (glibc 2.28) auf amd64 und arm64, Ubuntu 26.04
+  (glibc 2.43) auf amd64, jeweils alle Tests von `typst` und
+  `typst/embedded`; amd64 lief dabei unter Rosetta.
+- Offen: iOS braucht einen eigenen Weg
   (Framework im App-Bundle oder statisch gelinkt); signierte macOS-Apps mit
   Hardened Runtime muessen die Bibliothek signiert im Bundle mitbringen.
 
