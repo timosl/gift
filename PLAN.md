@@ -3564,8 +3564,21 @@ cgo-freie Shared Library.
 - Nicht im Durchstich: Bilder, Dateien und Pakete fuer Typst, Verlaeufe,
   Clips, gedrehter Text, nicht-konvexe Fuellungen, nur geaenderte Seiten
   uebergeben, IME, Auswahl, Undo, Bedienungshilfen, Bidi beim Cursor.
-- Offen: Messung auf dem Raspberry Pi 5 (braucht eine Rust-Toolchain fuer
-  aarch64-linux); Build der Bibliothek fuer iOS und Linux in die Matrix.
+- Gemessen auf dem Raspberry Pi 500 (BCM2712 wie der Pi 5, Trixie): Typst
+  verlangt Rust 1.92, Trixie bringt 1.85, gebaut wurde deshalb mit Rust 1.99
+  per rustup. Der Build dauert dort gut 7 Minuten, die Bibliothek ist 36 MB
+  gross, alle Tests laufen. Ein Zeichen in der Mitte kostet bei 1 Seite
+  0,2 ms, 5 Seiten 1,4 ms, 45 Seiten 20 ms, 134 Seiten rund 100 ms, das Drei-
+  bis Vierfache des M5. Bei 45 und 134 Seiten liegen rund 70 % der Zeit in
+  Rust (Typst samt Kodieren aller Seiten) und knapp 20 % im Dekodieren aller
+  Seiten in Go; nur geaenderte Seiten zu uebergeben spart also hoechstens
+  ein Viertel, der Rest ist Typsts Neusetzen.
+- Das Beispiel auf dem Pi 500 (Fenster 1280 x 860 unter labwc, 3 Seiten mit
+  zwei Tabellen, 48 Zeichen im Abstand von 110 ms auf der Seite getippt):
+  Neusetzen p50 7,1 ms, p95 9,0 ms, einmal 48 ms; Frame-Intervall p50
+  16,7 ms, p95 17,2 ms, p99 18,3 ms, ein Frame verpasst; Draw-CPU p95
+  2,0 ms. Bereit 0,26 s nach dem Start, das erste Setzen 42 ms.
+- Offen: Build der Bibliothek fuer iOS und Linux in die Matrix.
 
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
