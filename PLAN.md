@@ -3534,7 +3534,12 @@ Hover, Auswahl und Trennstrichen zusammen nicht harmonisch aus.
   sie eine Liste mit Trennstrichen.
 - Nicht uebernommen: das fette Label der Auswahl (die Standardschrift hat
   keinen familienunabhaengigen fetten Schnitt) und Symbole in Akzentfarbe.
-  `VirtualList` zeichnet Hover und Auswahl noch randvoll mit Trennstrichen.
+- Nachgezogen: `VirtualList` hat dieselben Flaechen (`rowFaces`,
+  `RowCornerRadius`). Eine Zeile zeichnet ihren Strich unten selbst; ob die
+  naechste Zeile eine Flaeche hat, sammelt die Liste vor dem Malen der Zeilen
+  per `ChildInteraction` je Slot ein (`ListState.lit`), weil die Slot-Reihenfolge
+  nicht die Reihenfolge der Eintraege ist. Die Flaeche laesst den Punkt des
+  Strichs frei, so bleibt zwischen zwei Flaechen eine Fuge wie in `ListView`.
 
 ## 40. Typst als Seiten-Engine (Durchstich)
 

@@ -24,6 +24,9 @@ const (
 	// vlistPoolSlack is how many rows the pool holds beyond the visible
 	// ones, so that a viewport that grows by a row does not rebuild.
 	vlistPoolSlack = 4
+	// vlistHairline is the thickness of the hairline along the bottom of a
+	// row, which the face of the row leaves free.
+	vlistHairline = float32(1)
 )
 
 // ListRow is one row of a [VirtualList], as data.
@@ -48,9 +51,9 @@ type ListRow struct {
 	Value string
 	// Chevron is the trailing symbol that says "this row leads somewhere".
 	Chevron Symbol
-	// Selected tints the row and, with [VirtualListView.SelectedIcon], shows
-	// a trailing mark. Which rows are selected is the application's model;
-	// the list only draws it.
+	// Selected gives the row the face of a selected [RowView] and, with
+	// [VirtualListView.SelectedIcon], a trailing mark. Which rows are
+	// selected is the application's model; the list only draws it.
 	Selected bool
 	// Disabled quietens the labels and refuses taps and activation.
 	Disabled bool
@@ -106,6 +109,11 @@ type ListState struct {
 	// focusVisible is the list's own focus ring state, copied during paint
 	// so that the row the cursor is on can draw it.
 	focusVisible bool
+	// lit[j] is whether the row of slot j shows a face, gathered by the
+	// list's paint before the rows paint, so that a row can leave out the
+	// hairline it shares with the next one; see [listRowNode.Paint]. Its
+	// capacity is the pool's, so gathering it allocates nothing.
+	lit []bool
 
 	// invalidate marks the list node for layout; see [ListState.SetCursor].
 	invalidate func()
@@ -271,6 +279,9 @@ func (v VirtualListView) ViewType() gift.TypeID { return virtualListType }
 func (v VirtualListView) Build(*gift.BuildContext) gift.Element {
 	s := v.s
 	s.count, s.row, s.onTap = v.count, v.row, v.onTap
+	// The faces of a [RowView], so that a virtual list and a list look the
+	// same; see [rowFaces].
+	hover, selected, pressed := rowFaces(CurrentTheme().IsDark())
 	s.look = listLook{
 		rowH:       v.rowH,
 		separators: !v.noSep,
@@ -280,9 +291,9 @@ func (v VirtualListView) Build(*gift.BuildContext) gift.Element {
 		secondary:  ResolveColor(ColorSecondaryLabel),
 		disabled:   ResolveColor(Fade(ColorSecondaryLabel, 0.6)),
 		accent:     ResolveColor(ColorAccent),
-		hover:      ResolveColor(ColorControlHover),
-		pressed:    ResolveColor(ColorControlPressed),
-		selected:   ResolveColor(Fade(ColorAccent, 0.14)),
+		hover:      ResolveColor(hover),
+		pressed:    ResolveColor(pressed),
+		selected:   ResolveColor(selected),
 		sep:        ResolveColor(ColorSeparator),
 		ring:       resolveBorder(defaultButtonFocusRing),
 	}
@@ -360,7 +371,7 @@ func (v VirtualListView) Separators(on bool) VirtualListView { v.noSep = !on; re
 
 // SelectedIcon sets the trailing mark a [ListRow.Selected] row shows, usually a
 // check mark. Room for it is kept on every row, so selecting a row does not
-// move its labels. The zero Symbol, the default, marks a selection by the tint
+// move its labels. The zero Symbol, the default, marks a selection by its face
 // alone; package ui cannot name a check mark itself, because the icon packages
 // import it.
 func (v VirtualListView) SelectedIcon(s Symbol) VirtualListView { v.checkSym = s; return v }
@@ -684,7 +695,16 @@ func symbolPixels(e, density float32) int {
 // Paint draws the viewport box, the rows and the indicator over them.
 func (n *virtualListNode) Paint(ctx *gift.PaintContext) {
 	b := ctx.Bounds()
-	n.s.focusVisible = ctx.Interaction().FocusVisible
+	s := n.s
+	s.focusVisible = ctx.Interaction().FocusVisible
+	// Which rows show a face, before any row paints: a row draws the hairline
+	// under it, and has to know whether the row below has one. Slot order is
+	// not item order, so the rows cannot tell each other as they paint.
+	s.lit = s.lit[:0]
+	for j := range min(ctx.ChildCount(), len(s.slots)) {
+		sl := &s.slots[j]
+		s.lit = append(s.lit, sl.bound && !s.look.face(&sl.data, ctx.ChildInteraction(j)).IsTransparent())
+	}
 	paintBackground(ctx, n.st, b)
 	ctx.PaintChildren()
 	paintBorder(ctx, n.st, b)
@@ -748,6 +768,18 @@ func (s *ListState) handleKey(ctx *gift.EventContext, e gift.Event) bool {
 	return true
 }
 
+// litItem reports whether item i is bound and showed a face when the list
+// last gathered them; item i sits in slot i mod k, see
+// [virtualListNode.Layout].
+func (s *ListState) litItem(i int) bool {
+	k := len(s.lit)
+	if i < 0 || i >= s.count || k == 0 {
+		return false
+	}
+	j := i % k
+	return s.slots[j].bound && s.slots[j].item == i && s.lit[j]
+}
+
 // activate calls OnTap for item i unless its row is disabled.
 func (s *ListState) activate(i int) {
 	if s.onTap == nil || i < 0 || i >= s.count || s.row(i).Disabled {
@@ -793,8 +825,34 @@ func (r *listRowNode) Layout(_ *gift.LayoutContext, c geom.Constraints) geom.Siz
 	return c.Constrain(c.Min)
 }
 
+// face is the fill a row of d shows in the state ia, or [ColorClear] for
+// none: the faces of a [RowView], pressed over selected over hovered, so that
+// the selected row keeps its face under the pointer and still answers a press.
+// A disabled row neither hovers nor presses, and keeps a selection it has.
+func (lk *listLook) face(d *ListRow, ia gift.Interaction) Color {
+	switch {
+	case ia.Pressed && !d.Disabled:
+		return lk.pressed
+	case d.Selected:
+		return lk.selected
+	case ia.Hover && !d.Disabled:
+		return lk.hover
+	}
+	return ColorClear
+}
+
 // Paint draws the row: its face, its parts, the cursor ring and the hairline
 // under it.
+//
+// # The face and the hairline
+//
+// As in a [ListView], whose rows are [RowView]s: the face is rounded by
+// [RowCornerRadius], and no hairline runs along it. A row leaves out the one
+// under it when it has a face itself or when the row below has one, which
+// the list gathered into [ListState.lit] before the rows painted. The hairline
+// keeps its point of space, and the face leaves it free, so that two faces
+// next to each other are two shapes with the gap a list puts between its rows
+// and not one shape with a notch at either end.
 func (r *listRowNode) Paint(ctx *gift.PaintContext) {
 	s := r.s
 	sl := &s.slots[r.slot]
@@ -806,17 +864,14 @@ func (r *listRowNode) Paint(ctx *gift.PaintContext) {
 	d := &sl.data
 	ia := ctx.Interaction()
 
-	face := ColorClear
-	switch {
-	case ia.Pressed && !d.Disabled:
-		face = lk.pressed
-	case ia.Hover && !d.Disabled:
-		face = lk.hover
-	case d.Selected:
-		face = lk.selected
+	ruled := lk.separators && sl.item < s.count-1 && !lk.sep.IsTransparent()
+	shape := b
+	if ruled {
+		shape.Max.Y = max(shape.Max.Y-vlistHairline, shape.Min.Y)
 	}
+	face := lk.face(d, ia)
 	if !face.IsTransparent() {
-		ctx.Add(render.Op{Kind: render.OpFillRect, Bounds: b, Color: face})
+		ctx.Add(render.Op{Kind: render.OpFillRoundRect, Bounds: shape, Color: face, CornerRadius: RowCornerRadius})
 	}
 
 	at := func(l geom.Rect) geom.Rect { return l.Translate(b.Min) }
@@ -842,11 +897,13 @@ func (r *listRowNode) Paint(ctx *gift.PaintContext) {
 	}
 
 	if s.focusVisible && s.cursor == sl.item && lk.ring.IsVisible() {
-		paintBorder(ctx, styleSpec{border: lk.ring}, focusRingRect(b))
+		// The shape of the face, as a [ButtonView] draws its ring inside its
+		// own corners.
+		paintBorder(ctx, styleSpec{border: lk.ring, radius: focusRingRadius(RowCornerRadius)}, focusRingRect(shape))
 	}
-	if lk.separators && sl.item < s.count-1 && !lk.sep.IsTransparent() {
+	if ruled && face.IsTransparent() && !s.litItem(sl.item+1) {
 		dev := ctx.DeviceBounds()
-		top, th := snapHairline(b.Max.Y-1, 1, b.Min.Y, dev.Min.Y, s.density)
+		top, th := snapHairline(b.Max.Y-vlistHairline, vlistHairline, b.Min.Y, dev.Min.Y, s.density)
 		ctx.Add(render.Op{
 			Kind: render.OpFillRect,
 			// From where the labels start, so that a list of rows with icons

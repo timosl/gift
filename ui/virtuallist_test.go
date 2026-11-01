@@ -7,6 +7,7 @@ import (
 	"github.com/worldiety/gift"
 	"github.com/worldiety/gift/geom"
 	"github.com/worldiety/gift/gifttest"
+	"github.com/worldiety/gift/render"
 	"github.com/worldiety/gift/ui"
 )
 
@@ -225,6 +226,110 @@ func TestEveryVirtualRowIsAtLeastTheTouchTargetTall(t *testing.T) {
 	})
 	if got := h.Find(gifttest.ByText("item 0")).Bounds().Height(); got < ui.RowHeight {
 		t.Fatalf("a row is %v tall, want at least %v", got, ui.RowHeight)
+	}
+}
+
+// --- faces and the hairlines around them --------------------------------------
+
+// faceList mounts a tappable list of n titles with item sel selected.
+func faceList(t testing.TB, s *ui.ListState, n, sel int) *gifttest.Harness {
+	t.Helper()
+	names := vlistNames(n)
+	return gifttest.New(t, gifttest.Options{
+		View: ui.VStack(ui.VirtualList(s, n, func(i int) ui.ListRow {
+			return ui.ListRow{Title: names[i], Selected: i == sel}
+		}).OnTap(func(int) {}).Flex(1).Key("list")),
+		Size: geom.Sz(400, 600), Theme: ui.LightTheme(), Font: loadTestFont(t),
+	})
+}
+
+// vlistFace returns the face the row of item i drew, if it drew one.
+func vlistFace(h *gifttest.Harness, i int) (render.Op, bool) {
+	b := h.Find(gifttest.ByText("item " + strconv.Itoa(i))).Bounds()
+	for _, op := range h.Ops() {
+		if op.Kind == render.OpFillRoundRect && op.Color.A > 0 && op.Bounds.Min == b.Min && op.Bounds.Max.X == b.Max.X {
+			return op, true
+		}
+	}
+	return render.Op{}, false
+}
+
+// TestNoHairlineRunsAlongAVirtualRowWithAFace is
+// TestNoHairlineRunsAlongARowWithAFace for the virtual list: the hairlines on
+// either side of the selected row and of the row under the mouse are not
+// drawn, and come back when the mouse leaves.
+func TestNoHairlineRunsAlongAVirtualRowWithAFace(t *testing.T) {
+	h := faceList(t, ui.NewListState(), 4, 1)
+	if got := separatorOps(t, h, sepColor()); len(got) != 1 {
+		t.Fatalf("four rows, the second selected, drew %d hairlines; want the one between the third and the fourth", len(got))
+	}
+	h.MoveTo(h.Find(gifttest.ByText("item 3")).Center())
+	if got := separatorOps(t, h, sepColor()); len(got) != 0 {
+		t.Errorf("with the mouse over the last row %d hairlines are drawn; want none, the rest run along a face", len(got))
+	}
+	h.MoveTo(geom.Pt(390, 590))
+	if got := separatorOps(t, h, sepColor()); len(got) != 1 {
+		t.Errorf("with the mouse gone %d hairlines are drawn, want the one again", len(got))
+	}
+}
+
+// TestRecycledRowsKnowTheFaceOfTheRowBelow: the row below a row is the next
+// item, which after scrolling sits in whatever slot of the pool it was bound
+// to, the first one included when the run of items wraps around the pool.
+// Under the mouse, every row takes out its own hairline and the one above it,
+// whichever slots the two are in.
+func TestRecycledRowsKnowTheFaceOfTheRowBelow(t *testing.T) {
+	s := ui.NewListState()
+	h := faceList(t, s, 1000, -1)
+	s.Reveal(437)
+	h.Settle()
+	first, end := s.VisibleRange()
+	all := len(separatorOps(t, h, sepColor()))
+	for i := first + 1; i < end-1; i++ {
+		row := h.Find(gifttest.ByText("item " + strconv.Itoa(i)))
+		if b := row.Bounds(); b.Min.Y < 0 || b.Max.Y > 600 {
+			continue
+		}
+		h.MoveTo(row.Center())
+		if got := len(separatorOps(t, h, sepColor())); got != all-2 {
+			t.Errorf("with the mouse over item %d of %d…%d, %d of %d hairlines are drawn; want two fewer", i, first, end, got, all)
+		}
+	}
+}
+
+// TestTheFacesOfAVirtualRowAreTheFacesOfARow: selected, hovered and pressed,
+// a row shows a neutral face rounded by RowCornerRadius, the selected one
+// keeps its face under the mouse, and two faces next to each other keep the
+// hairline's gap between them.
+func TestTheFacesOfAVirtualRowAreTheFacesOfARow(t *testing.T) {
+	h := faceList(t, ui.NewListState(), 4, 1)
+	sel, ok := vlistFace(h, 1)
+	if !ok || sel.CornerRadius != ui.RowCornerRadius {
+		t.Fatalf("the selected row has the face %+v (found %v); want one rounded by %v", sel, ok, ui.RowCornerRadius)
+	}
+	if want := ui.LightTheme().Color(ui.Fade(ui.ColorLabel, 0.10)); sel.Color != want {
+		t.Errorf("the selected face is %+v; want %+v, the selection of a ui.Row", sel.Color, want)
+	}
+	if _, ok := vlistFace(h, 2); ok {
+		t.Fatal("a row that is neither selected nor under the mouse has a face")
+	}
+
+	h.MoveTo(h.Find(gifttest.ByText("item 2")).Center())
+	hover, ok := vlistFace(h, 2)
+	if !ok || hover.CornerRadius != ui.RowCornerRadius || !(hover.Color.A < sel.Color.A) {
+		t.Errorf("the row under the mouse has the face %+v (found %v); want the selection's shape, fainter than %+v", hover, ok, sel.Color)
+	}
+	if sel, _ := vlistFace(h, 1); !(sel.Bounds.Max.Y < hover.Bounds.Min.Y) {
+		t.Errorf("the selected face ends at %v and the hovered one below it starts at %v; want a gap between them",
+			sel.Bounds.Max.Y, hover.Bounds.Min.Y)
+	}
+	h.MoveTo(h.Find(gifttest.ByText("item 1")).Center())
+	if got, _ := vlistFace(h, 1); got.Color != sel.Color {
+		t.Errorf("under the mouse the selected row turned %+v; want it to keep its face %+v", got.Color, sel.Color)
+	}
+	h.PressAt(h.Find(gifttest.ByText("item 1")).Center())
+	if got, _ := vlistFace(h, 1); !(got.Color.A > sel.Color.A) || got.CornerRadius != ui.RowCornerRadius {
+		t.Errorf("pressed, the selected row has the face %+v; want the same shape, stronger than its selection", got)
 	}
 }
 

@@ -70,9 +70,11 @@ A row that is too narrow cuts its labels and its value with an ellipsis. A list 
 `OnTap` sets the function that receives the index of a tapped row. A drag that starts on a row scrolls the list
 instead of tapping it. A disabled row does not call `OnTap`.
 
-Which rows are selected is your model. Set `Selected` in the row function, and the list tints the row with a light
-`ui.ColorAccent`. `SelectedIcon` adds a trailing mark, usually a check mark. The list keeps room for the mark on
-every row, so selecting a row does not move its labels.
+Which rows are selected is your model. Set `Selected` in the row function, and the row shows the face of a selected
+[Row](../row/): a neutral fill rounded by `ui.RowCornerRadius`. The pointer over a row and a press on it show the
+same shape, fainter and stronger, and the selected row keeps its face under the pointer. `SelectedIcon` adds a
+trailing mark, usually a check mark. The list keeps room for the mark on every row, so selecting a row does not move
+its labels.
 
 Read the selection with `ctx.Read` during the build, not with `Get` inside the row function. `Get` registers no
 dependency, so a tap would write the state without rebuilding the list, and the rows would keep their old binding:
@@ -113,7 +115,8 @@ or a `MaxHeight`.
 
 All rows have one height. The default fits a title over a subtitle. `RowHeight` sets another one, but never less
 than `ui.RowHeight` (44 points), because a row is a touch target. `Separators(false)` removes the hairlines between
-the rows. The hairlines start where the labels start, not under the icons.
+the rows. The hairlines start where the labels start, not under the icons, and as in a [List](../list/) they give
+way to a row's face: the list draws none on either side of a selected, hovered or pressed row.
 
 `Background`, `Border`, `CornerRadius` and `Shadow` style the viewport; the background does not scroll. `Padding`
 is inside the viewport, so the rows scroll through it. `ScrollBar` styles the indicator along the trailing edge,
