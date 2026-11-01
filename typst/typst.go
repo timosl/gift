@@ -109,9 +109,14 @@ func (e *Engine) AddFont(data []byte) error {
 	}
 	var id render.FontID
 	if n == 1 {
-		f, err := text.ParseFont(data)
-		if err != nil {
-			return err
+		// A font gift has loaded already, from these very bytes, keeps its
+		// id; see [text.Find].
+		f := text.Find(data)
+		if f == nil {
+			var err error
+			if f, err = text.ParseFont(data); err != nil {
+				return err
+			}
 		}
 		id = render.FontID(f.ID())
 	}

@@ -4856,6 +4856,394 @@
       }
     ]
   },
+  "syntax": {
+    "importPath": "github.com/worldiety/gift/ui/syntax",
+    "synopsis": "Package syntax colours source code for ui.CodeEditor.",
+    "types": {},
+    "funcs": []
+  },
+  "typst": {
+    "importPath": "github.com/worldiety/gift/typst",
+    "synopsis": "Package typst sets paged documents with Typst and hands the pages to gift to draw.",
+    "types": {
+      "Caret": {
+        "synopsis": "Caret is where a text cursor at a source offset is drawn.",
+        "decl": "type Caret struct {\n\tPage        int\n\tX, Top, Bot float32\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "CompileError": {
+        "synopsis": "CompileError is the error of a document that did not compile.",
+        "decl": "type CompileError struct{ Diagnostics []Diagnostic }",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Error",
+            "signature": "Error() string",
+            "synopsis": ""
+          }
+        ]
+      },
+      "Diagnostic": {
+        "synopsis": "Diagnostic is one error in the source.",
+        "decl": "type Diagnostic struct {\n\tStart, End int\n\tMessage    string\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Document": {
+        "synopsis": "Document is a laid out document: its pages, in points.",
+        "decl": "type Document struct{ Pages []Page }",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "CaretAt",
+            "signature": "CaretAt(off int) (Caret, bool)",
+            "synopsis": "CaretAt returns the caret for a byte offset in the source: at the left edge of the glyph that starts there, or at the right edge of the glyph that ends there."
+          }
+        ]
+      },
+      "Engine": {
+        "synopsis": "Engine is a Typst compiler with its fonts and one document.",
+        "decl": "type Engine struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "New",
+            "signature": "New() (*Engine, error)",
+            "synopsis": "New creates an engine without fonts."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AddFont",
+            "signature": "AddFont(data []byte) error",
+            "synopsis": "AddFont makes the faces of a TrueType or OpenType file available to documents, which select them by family, weight and style with Typst's own text function."
+          },
+          {
+            "name": "Close",
+            "signature": "Close() error",
+            "synopsis": "Close releases the engine."
+          },
+          {
+            "name": "Compile",
+            "signature": "Compile() (*Document, error)",
+            "synopsis": "Compile lays the document out."
+          },
+          {
+            "name": "PDF",
+            "signature": "PDF() ([]byte, error)",
+            "synopsis": "PDF exports the last document that compiled without errors."
+          },
+          {
+            "name": "SetSource",
+            "signature": "SetSource(src string) error",
+            "synopsis": "SetSource replaces the text of the document."
+          }
+        ]
+      },
+      "Glyph": {
+        "synopsis": "Glyph is one positioned glyph of a text run.",
+        "decl": "type Glyph struct {\n\tID            render.GlyphID\n\tX, Y, Advance float32\n\tSource, Len   int\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "Item": {
+        "synopsis": "Item is one entry of a page's display list.",
+        "decl": "type Item struct {\n\tKind         ItemKind\n\tFont         render.FontID\n\tSize         float32\n\tColor        render.Color\n\tBounds       geom.Rect\n\tFirst, Count int\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "ItemKind": {
+        "synopsis": "ItemKind says what an Item draws.",
+        "decl": "type ItemKind uint8",
+        "constructors": [],
+        "methods": []
+      },
+      "Page": {
+        "synopsis": "Page is one page as a flat display list, in points from its top left corner, painted in the order of Items.",
+        "decl": "type Page struct {\n\tWidth, Height float32\n\tItems         []Item\n\tGlyphs        []Glyph\n\tVertices      []geom.Point\n}",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "SourceAt",
+            "signature": "SourceAt(x, y float32) (int, bool)",
+            "synopsis": "SourceAt returns the byte offset in the source that a click at (x, y) on the page means: before the glyph under the point if its left half was hit, after it otherwise."
+          }
+        ]
+      }
+    },
+    "funcs": [
+      {
+        "name": "Available",
+        "signature": "Available() bool",
+        "synopsis": "Available reports whether the library was found and bound."
+      },
+      {
+        "name": "Open",
+        "signature": "Open(path string) error",
+        "synopsis": "Open loads the library from path before anything else would look for it, or, with an empty path, from where the package looks by itself; see the package documentation."
+      },
+      {
+        "name": "Provide",
+        "signature": "Provide(f func() (path string, err error))",
+        "synopsis": "Provide is how package typst/embedded hands over the library it carries: f writes it to disk and returns its path."
+      },
+      {
+        "name": "Version",
+        "signature": "Version() string",
+        "synopsis": "Version describes the loaded library, or is empty without one."
+      }
+    ]
+  },
+  "typstview": {
+    "importPath": "github.com/worldiety/gift/ui/typstview",
+    "synopsis": "Package typstview shows and edits documents that Typst sets, with gift's own renderer: Typst's glyphs through gift's glyph atlas, its rules as rectangles, its other shapes as triangles.",
+    "types": {
+      "Document": {
+        "synopsis": "Document is a Typst document that a program shows with Viewer and edits with Editor: its source, the engine that sets it, the pages it set last, and a caret and a selection in the source.",
+        "decl": "type Document struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "NewDocument",
+            "signature": "NewDocument(src string) *Document",
+            "synopsis": "NewDocument returns a document of src and starts setting it."
+          },
+          {
+            "name": "Use",
+            "signature": "Use(ctx *gift.Context, name, src string) *Document",
+            "synopsis": "Use returns the document called name of the component being built, making it of src the first time, and closes it when the component is unmounted; see ui.Editor for the pattern."
+          }
+        ],
+        "methods": [
+          {
+            "name": "AddFont",
+            "signature": "AddFont(data []byte) error",
+            "synopsis": "AddFont makes the faces of a TrueType or OpenType file available to the document, as typst.Engine.AddFont does, and sets the source again."
+          },
+          {
+            "name": "Busy",
+            "signature": "Busy() bool",
+            "synopsis": "Busy reports whether a source is being set, or waits to be."
+          },
+          {
+            "name": "Caret",
+            "signature": "Caret() int",
+            "synopsis": "Caret returns the byte offset of the caret in the source."
+          },
+          {
+            "name": "Close",
+            "signature": "Close()",
+            "synopsis": "Close stops the setting and releases the engine."
+          },
+          {
+            "name": "DeleteBackward",
+            "signature": "DeleteBackward()",
+            "synopsis": "DeleteBackward deletes what the selection shows, or the character the page shows before the caret, as backspace does on the page."
+          },
+          {
+            "name": "DeleteForward",
+            "signature": "DeleteForward()",
+            "synopsis": "DeleteForward deletes what the selection shows, or the character the page shows after the caret, as delete does on the page."
+          },
+          {
+            "name": "Diagnostics",
+            "signature": "Diagnostics() []typst.Diagnostic",
+            "synopsis": "Diagnostics returns the errors of the last source that was set, or nil if it was set without one."
+          },
+          {
+            "name": "Err",
+            "signature": "Err() error",
+            "synopsis": "Err returns why the document cannot be set at all, such as typst.ErrUnavailable, or nil."
+          },
+          {
+            "name": "Insert",
+            "signature": "Insert(s string)",
+            "synopsis": "Insert types s at the caret, replacing what the selection shows, as typing on the page does: characters Typst would read as markup are escaped, so that the page shows what was typed."
+          },
+          {
+            "name": "InsertTable",
+            "signature": "InsertTable(columns, rows int)",
+            "synopsis": "InsertTable inserts a table of the given number of columns and rows below the paragraph of the caret, with a header row, and puts the caret into its first cell."
+          },
+          {
+            "name": "NewParagraph",
+            "signature": "NewParagraph()",
+            "synopsis": "NewParagraph starts a new paragraph at the caret, as enter does on the page."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(f func(src string))",
+            "synopsis": "OnChange sets the function called with the source after every edit made through the document, on the pages or by its methods, but not after Document.SetSource."
+          },
+          {
+            "name": "PDF",
+            "signature": "PDF() ([]byte, error)",
+            "synopsis": "PDF waits for the source to be set and returns the pages of the last source that was set without an error as a PDF file."
+          },
+          {
+            "name": "Pages",
+            "signature": "Pages() *typst.Document",
+            "synopsis": "Pages returns the pages of the last source that was set without an error, or nil before the first."
+          },
+          {
+            "name": "SelectedText",
+            "signature": "SelectedText() string",
+            "synopsis": "SelectedText returns the text the selection shows, without the markup."
+          },
+          {
+            "name": "Selection",
+            "signature": "Selection() (int, int)",
+            "synopsis": "Selection returns the selected range of the source, lowest offset first; both are the caret without a selection."
+          },
+          {
+            "name": "SetHeading",
+            "signature": "SetHeading(level int)",
+            "synopsis": "SetHeading makes the line of the caret a heading of level 1 to 6, or a plain paragraph for level 0."
+          },
+          {
+            "name": "SetSelection",
+            "signature": "SetSelection(anchor, caret int)",
+            "synopsis": "SetSelection selects the source from anchor to caret, which may lie either way round; equal offsets put the caret there without a selection."
+          },
+          {
+            "name": "SetSource",
+            "signature": "SetSource(src string)",
+            "synopsis": "SetSource replaces the source and sets it."
+          },
+          {
+            "name": "Source",
+            "signature": "Source() string",
+            "synopsis": "Source returns the source."
+          },
+          {
+            "name": "ToggleEmphasis",
+            "signature": "ToggleEmphasis()",
+            "synopsis": "ToggleEmphasis makes the selection, or the word at the caret, emphasised, or plain again if it is emphasised already."
+          },
+          {
+            "name": "ToggleList",
+            "signature": "ToggleList(numbered bool)",
+            "synopsis": "ToggleList makes the line of the caret an item of a bulleted list, or of a numbered one, or a plain paragraph if it is one already."
+          },
+          {
+            "name": "ToggleStrong",
+            "signature": "ToggleStrong()",
+            "synopsis": "ToggleStrong makes the selection, or the word at the caret, strong, or plain again if it is strong already."
+          },
+          {
+            "name": "Took",
+            "signature": "Took() time.Duration",
+            "synopsis": "Took returns how long the last source took to set."
+          }
+        ]
+      },
+      "EditorView": {
+        "synopsis": "EditorView edits a Document where it is set: its pages, below a toolbar.",
+        "decl": "type EditorView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Editor",
+            "signature": "Editor(d *Document) EditorView",
+            "synopsis": "Editor returns the editor of d, with the toolbar."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) EditorView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(k string) EditorView",
+            "synopsis": "Key sets the reconciliation key among siblings."
+          },
+          {
+            "name": "Toolbar",
+            "signature": "Toolbar(b bool) EditorView",
+            "synopsis": "Toolbar shows or hides the toolbar, for a program that brings its own and calls the methods of Document from it."
+          },
+          {
+            "name": "Zoom",
+            "signature": "Zoom(z float32) EditorView",
+            "synopsis": "Zoom fixes the scale in logical pixels per point; zero fits the pages to the width."
+          }
+        ]
+      },
+      "PageView": {
+        "synopsis": "PageView is one page of a document.",
+        "decl": "type PageView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Page",
+            "signature": "Page(doc *typst.Document, i int) PageView",
+            "synopsis": "Page returns the view of page i of doc at one pixel per point."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Caret",
+            "signature": "Caret(off int) PageView",
+            "synopsis": "Caret draws a caret at a byte offset of the source, if the offset is shown on this page."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(k string) PageView",
+            "synopsis": "Key sets the reconciliation key among siblings."
+          },
+          {
+            "name": "OnCaret",
+            "signature": "OnCaret(f func(off int)) PageView",
+            "synopsis": "OnCaret is called with the source offset a click on the page means."
+          },
+          {
+            "name": "OnKey",
+            "signature": "OnKey(f func(e gift.Event) bool) PageView",
+            "synopsis": "OnKey is called with the key and rune events the page receives while it has the focus, and reports whether it handled them."
+          },
+          {
+            "name": "Zoom",
+            "signature": "Zoom(z float32) PageView",
+            "synopsis": "Zoom sets the scale in logical pixels per point."
+          }
+        ]
+      },
+      "ViewerView": {
+        "synopsis": "ViewerView shows the pages of a Document, scrolling.",
+        "decl": "type ViewerView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "Viewer",
+            "signature": "Viewer(d *Document) ViewerView",
+            "synopsis": "Viewer returns the viewer of d."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) ViewerView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(k string) ViewerView",
+            "synopsis": "Key sets the reconciliation key among siblings."
+          },
+          {
+            "name": "Zoom",
+            "signature": "Zoom(z float32) ViewerView",
+            "synopsis": "Zoom fixes the scale in logical pixels per point; zero fits the pages to the width."
+          }
+        ]
+      }
+    },
+    "funcs": [
+      {
+        "name": "Watch",
+        "signature": "Watch(ctx *gift.Context, d *Document)",
+        "synopsis": "Watch rebuilds the component being built whenever d changes: when a source has been set, and after an edit or a move of the caret."
+      }
+    ]
+  },
   "ui": {
     "importPath": "github.com/worldiety/gift/ui",
     "synopsis": "Package ui is the public view layer of gift.",
@@ -5364,6 +5752,160 @@
         ],
         "methods": []
       },
+      "CodeEditorView": {
+        "synopsis": "CodeEditorView edits source code.",
+        "decl": "type CodeEditorView struct {\n\t// Has unexported fields.\n}",
+        "constructors": [
+          {
+            "name": "CodeEditor",
+            "signature": "CodeEditor(ed *TextEditor) CodeEditorView",
+            "synopsis": "CodeEditor returns an editor of the source code in ed, with line numbers, without a highlighter and indenting by four spaces."
+          }
+        ],
+        "methods": [
+          {
+            "name": "Background",
+            "signature": "Background(b Background) CodeEditorView",
+            "synopsis": "Background sets the face."
+          },
+          {
+            "name": "Bind",
+            "signature": "Bind(b gift.Binding[string]) CodeEditorView",
+            "synopsis": "Bind reads the text from b and writes every edit back; see TextAreaView.Bind."
+          },
+          {
+            "name": "Border",
+            "signature": "Border(b Border) CodeEditorView",
+            "synopsis": "Border sets the outline."
+          },
+          {
+            "name": "Clip",
+            "signature": "Clip(b bool) CodeEditorView",
+            "synopsis": "Clip panics for false, as TextAreaView.Clip does: the lines scroll inside the editor and are cut at its edge."
+          },
+          {
+            "name": "CornerRadius",
+            "signature": "CornerRadius(f float32) CodeEditorView",
+            "synopsis": "CornerRadius sets the radius of the corners."
+          },
+          {
+            "name": "Disabled",
+            "signature": "Disabled(b bool) CodeEditorView",
+            "synopsis": "Disabled takes the editor out of input."
+          },
+          {
+            "name": "Flex",
+            "signature": "Flex(f float32) CodeEditorView",
+            "synopsis": "Flex sets the flex factor in a stack."
+          },
+          {
+            "name": "Font",
+            "signature": "Font(f Font) CodeEditorView",
+            "synopsis": "Font sets the font of the text, instead of the monospaced one."
+          },
+          {
+            "name": "FontSize",
+            "signature": "FontSize(s float32) CodeEditorView",
+            "synopsis": "FontSize sets the size of the text, 13 unless set."
+          },
+          {
+            "name": "Foreground",
+            "signature": "Foreground(c Color) CodeEditorView",
+            "synopsis": "Foreground sets the colour of plain text."
+          },
+          {
+            "name": "Frame",
+            "signature": "Frame(w, h float32) CodeEditorView",
+            "synopsis": "Frame fixes the size; see BoxView.Frame."
+          },
+          {
+            "name": "Highlighter",
+            "signature": "Highlighter(h Highlighter) CodeEditorView",
+            "synopsis": "Highlighter sets what colours the text; nil leaves it in one colour."
+          },
+          {
+            "name": "Indent",
+            "signature": "Indent(s string) CodeEditorView",
+            "synopsis": "Indent sets what tab inserts and shift-tab removes at the start of a line, four spaces unless set."
+          },
+          {
+            "name": "Key",
+            "signature": "Key(s string) CodeEditorView",
+            "synopsis": "Key sets the reconciliation key."
+          },
+          {
+            "name": "Label",
+            "signature": "Label(s string) CodeEditorView",
+            "synopsis": "Label sets the accessible name."
+          },
+          {
+            "name": "LineNumbers",
+            "signature": "LineNumbers(b bool) CodeEditorView",
+            "synopsis": "LineNumbers shows or hides the gutter with the numbers of the lines."
+          },
+          {
+            "name": "Lines",
+            "signature": "Lines(min, max int) CodeEditorView",
+            "synopsis": "Lines sets the height in lines; see TextAreaView.Lines."
+          },
+          {
+            "name": "Marks",
+            "signature": "Marks(m ...CodeMark) CodeEditorView",
+            "synopsis": "Marks sets the stretches of text that are marked; see CodeMark."
+          },
+          {
+            "name": "MaxHeight",
+            "signature": "MaxHeight(f float32) CodeEditorView",
+            "synopsis": "MaxHeight sets the largest height, past which the lines scroll."
+          },
+          {
+            "name": "MaxWidth",
+            "signature": "MaxWidth(f float32) CodeEditorView",
+            "synopsis": "MaxWidth sets the largest width."
+          },
+          {
+            "name": "MinHeight",
+            "signature": "MinHeight(f float32) CodeEditorView",
+            "synopsis": "MinHeight sets the smallest height."
+          },
+          {
+            "name": "MinWidth",
+            "signature": "MinWidth(f float32) CodeEditorView",
+            "synopsis": "MinWidth sets the smallest width."
+          },
+          {
+            "name": "OnChange",
+            "signature": "OnChange(f func(string)) CodeEditorView",
+            "synopsis": "OnChange sets the function called with the text after every edit."
+          },
+          {
+            "name": "Padding",
+            "signature": "Padding(f float32) CodeEditorView",
+            "synopsis": "Padding sets the room between the edge and the text on every side; the gutter comes on top of it on the left."
+          },
+          {
+            "name": "PaddingInsets",
+            "signature": "PaddingInsets(i geom.Insets) CodeEditorView",
+            "synopsis": "PaddingInsets sets the room between the edge and the text per side; the gutter comes on top of it on the left."
+          },
+          {
+            "name": "Placeholder",
+            "signature": "Placeholder(s string) CodeEditorView",
+            "synopsis": "Placeholder sets the text shown while the editor is empty."
+          },
+          {
+            "name": "Shadow",
+            "signature": "Shadow(sh Shadow) CodeEditorView",
+            "synopsis": "Shadow sets the shadow."
+          }
+        ]
+      },
+      "CodeMark": {
+        "synopsis": "CodeMark marks a stretch of the text of a CodeEditorView, such as where a parser found an error: the lines it touches are tinted and the stretch itself is underlined.",
+        "decl": "type CodeMark struct {\n\tStart, End int\n\tColor      Color\n}",
+        "constructors": [],
+        "methods": []
+      },
       "Color": {
         "synopsis": "Color is the colour type of gift.",
         "decl": "type Color = render.Color",
@@ -5855,6 +6397,11 @@
         ],
         "methods": [
           {
+            "name": "Data",
+            "signature": "Data() []byte",
+            "synopsis": "Data returns the file the font was loaded from, or nil for the zero Font."
+          },
+          {
             "name": "IsZero",
             "signature": "IsZero() bool",
             "synopsis": "IsZero reports whether f is the zero Font, that is no font at all."
@@ -6330,6 +6877,24 @@
           }
         ],
         "methods": []
+      },
+      "Highlighter": {
+        "synopsis": "Highlighter splits source code into tokens for a CodeEditorView.",
+        "decl": "type Highlighter interface {\n\tHighlight(src string, dst []Token) []Token\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "HighlighterFunc": {
+        "synopsis": "HighlighterFunc adapts a function to Highlighter.",
+        "decl": "type HighlighterFunc func(src string, dst []Token) []Token",
+        "constructors": [],
+        "methods": [
+          {
+            "name": "Highlight",
+            "signature": "Highlight(src string, dst []Token) []Token",
+            "synopsis": "Highlight implements Highlighter."
+          }
+        ]
       },
       "IconStats": {
         "synopsis": "IconStats are the counters of the icon mask cache.",
@@ -9196,6 +9761,18 @@
             "synopsis": "Tint sets the colour of the track while the switch is on, replacing ColorAccent."
           }
         ]
+      },
+      "Token": {
+        "synopsis": "Token is a stretch of source code of one kind, by byte offsets: Start is the first byte and End the one after the last.",
+        "decl": "type Token struct {\n\tStart, End int\n\tKind       TokenKind\n}",
+        "constructors": [],
+        "methods": []
+      },
+      "TokenKind": {
+        "synopsis": "TokenKind is what a stretch of source code is, which decides its colour in a CodeEditorView.",
+        "decl": "type TokenKind uint8",
+        "constructors": [],
+        "methods": []
       },
       "Truncation": {
         "synopsis": "Truncation is how a TextView shortens its last visible line when the text does not fit: when TextView.MaxLines cut lines off after it, or when the line itself is wider than the view.",

@@ -3608,6 +3608,54 @@ cgo-freie Shared Library.
   (Framework im App-Bundle oder statisch gelinkt); signierte macOS-Apps mit
   Hardened Runtime muessen die Bibliothek signiert im Bundle mitbringen.
 
+## 41. Typst-Dokumente auf der Seite editieren, Code-Editor
+
+Anlass (01.11.2026): gewuenscht waren eine einfach zu benutzende Richtext-
+Komponente zum Editieren und Anzeigen, die ganz auf Typst als Format beruht,
+die PDF-Erzeugung in der Kitchen Sink und ein Code-Editor mit Zeilennummern und
+Syntaxfarben, den das Typst-Beispiel nutzt und der Fehlerzeilen rot markiert.
+
+- `ui.CodeEditor` ist ein `TextArea` ueber demselben `TextEditor`; der Knoten
+  des Areas bekommt einen optionalen `codeState` (Gutter in der linken
+  Polsterung, Farben je Token, Marken), so dass Auswahl, Scrollen und Eingabe
+  dieselben bleiben. `ui.Highlighter` liefert `ui.Token`s von zwoelf Arten,
+  Farben nach Xcode hell und dunkel. `CodeMark` (Byte-Bereich) toent die
+  beruehrten Zeilen, unterstreicht den Text und faerbt die Zeilennummer.
+  Tab rueckt ein (Zeile oder Auswahl), Shift-Tab aus, Enter behaelt die
+  Einrueckung, Escape und dann Tab verlaesst den Editor. Keine Tabstopps: ein
+  Tab ist ein Zeichen breit und wird leer gezeichnet (der Shaper haette ein
+  Kaestchen).
+- `ui/syntax` (eigenes Paket, damit `ui` keinen Lexer traegt): `syntax.Typst`
+  (ein Durchlauf mit Modus-Stapel fuer Markup, Code und Mathe; 10 KB in
+  24 Mikrosekunden ohne Allokation) und `syntax.Go` (go/scanner). Gefuzzt.
+- `ui/typstview`: `Document` haelt Quelltext, Caret und Auswahl und setzt auf
+  einer eigenen Goroutine; Ergebnisse kommen ueber ein `gift.Token` der
+  beobachtenden Komponente zurueck (`Watch`). `Editor` (Werkzeugleiste und
+  editierbare Seiten) und `Viewer`. Jede Bearbeitung auf der Seite ist eine
+  Bearbeitung des Quelltexts: getippte Markup-Zeichen werden maskiert (in
+  Strings anders als im Markup), Loeschen entfernt nur Gezeigtes und laesst
+  Markup stehen, Fett/Kursiv mit `*`/`_` an Wortgrenzen und `#strong[]`/
+  `#emph[]` im Wort. Ein Index der Glyphen traegt Bearbeitungen seit dem
+  letzten Satz nach und zaehlt getippten, noch nicht gesetzten Text als
+  sichtbar, sonst loeschte Backspace kurz nach dem Tippen das falsche
+  Zeichen. Typst zeigt bei Escapes wie `\#` auf den Backslash; der Index nimmt
+  die ganze Sequenz.
+- Schriften: `text.Font` behaelt seine Bytes, `text.Find` findet eine schon
+  geladene Schrift an denselben Bytes wieder, `ui.Font.Data` gibt sie heraus.
+  Ein Dokument bekommt alle in gift registrierten Schriften, ohne zweite
+  Font-ID. Typst liest nur TTF/OTF; IBM Plex Mono (WOFF) sieht es nicht, und
+  `font/inter` bringt keine Kursive mit, deshalb bleibt `_kursiv_` aufrecht.
+- Kitchen Sink: `code-editor` (Basic, Go mit einem Tippfehler als Marke) und
+  die neue Gruppe Documents mit `typst-editor` und `typst-pdf` (Viewer, PDF
+  nach `os.TempDir()`, oeffnen mit open/xdg-open). Doku-Seiten, Screenshots
+  und eine Beispielseite fuer `example-typst`; apigen kennt `ui/typstview`,
+  `ui/syntax` und `typst`.
+- `example-typst`: links `CodeEditor` mit `syntax.Typst` und den
+  Diagnosen als Marken, rechts `typstview.Editor` auf demselben Dokument,
+  in beide Richtungen synchron.
+- Offen: Undo, Tabstopps, Bilder und Pakete fuer Typst, Caret im Viewer,
+  Hugo-Build der Seite nicht geprueft (hugo fehlt auf dem Mac).
+
 ## Vorgemerkt: Fokusring als Halo ausserhalb
 
 Zur spaeteren Diskussion (31.10.2026). Der Fokusring sitzt heute innerhalb

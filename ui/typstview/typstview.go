@@ -1,12 +1,19 @@
-// Package typstview draws the pages of a [typst.Document] with gift's own
-// renderer: Typst's glyphs through gift's glyph atlas, its rules as
-// rectangles, its other shapes as triangles. It is the drawing half of the
-// Typst spike; see package typst.
+// Package typstview shows and edits documents that Typst sets, with gift's
+// own renderer: Typst's glyphs through gift's glyph atlas, its rules as
+// rectangles, its other shapes as triangles.
 //
-// A page also takes input. A click puts a caret where it lands in the source,
-// and keys typed while the page has the focus are handed to the application,
-// which edits the source and compiles again: the page is edited where it is
-// set, without a source view in between.
+// A [Document] is the source of a document, a caret in it and an engine
+// that sets it on a goroutine of its own. [Editor] edits it on its pages,
+// below a toolbar, the way a word processor does, and [Viewer] shows the
+// pages; both follow the document as it changes. Every edit on a page is an
+// edit of the source, so a program can edit the same document as code, in a
+// ui.CodeEditor with syntax.Typst say, and the pages follow.
+//
+//	doc := typstview.Use(ctx, "letter", source)
+//	typstview.Editor(doc).Flex(1)
+//
+// [Page] is the drawing alone: one page of a document a program set itself
+// with package typst.
 package typstview
 
 import (
@@ -95,9 +102,25 @@ func (n *pageNode) Paint(ctx *gift.PaintContext) {
 	if p == nil {
 		return
 	}
+	paintPage(ctx, p, n.v.zoom, func(at func(geom.Rect) geom.Rect) {
+		if n.v.caret < 0 {
+			return
+		}
+		if c, ok := n.v.doc.CaretAt(n.v.caret); ok && c.Page == n.v.page {
+			r := at(geom.Rc(c.X, c.Top, c.X, c.Bot))
+			ctx.Add(render.Op{Kind: render.OpFillRect, Color: caret,
+				Bounds: geom.Rc(r.Min.X-0.75, r.Min.Y, r.Min.X+0.75, r.Max.Y)})
+		}
+	})
+}
+
+// paintPage draws page p at zoom z into the bounds of ctx: the paper, then
+// the items of the page, then whatever over draws on top, inside the clip
+// of the page. over is given the mapping from points of the page to the
+// bounds.
+func paintPage(ctx *gift.PaintContext, p *typst.Page, z float32, over func(at func(geom.Rect) geom.Rect)) {
 	b := ctx.Bounds()
 	db := ctx.DeviceBounds()
-	z := n.v.zoom
 	// d is device pixels per logical pixel, for snapping glyph origins to
 	// whole device pixels: the atlas rasterises a glyph once per size, and
 	// an origin between two pixels would be drawn half a pixel off.
@@ -134,6 +157,7 @@ func (n *pageNode) Paint(ctx *gift.PaintContext) {
 	ctx.Add(render.Op{Kind: render.OpFillRect, Bounds: b, Color: paper})
 	ctx.Add(render.Op{Kind: render.OpStrokeRoundRect, Bounds: b, Color: edge, StrokeWidth: 1})
 	ctx.PushClip(db)
+	defer ctx.PopClip()
 	for _, it := range p.Items {
 		switch it.Kind {
 		case typst.ItemRect:
@@ -163,14 +187,9 @@ func (n *pageNode) Paint(ctx *gift.PaintContext) {
 				Glyphs: first, GlyphCount: uint32(it.Count)})
 		}
 	}
-	if n.v.caret >= 0 {
-		if c, ok := n.v.doc.CaretAt(n.v.caret); ok && c.Page == n.v.page {
-			x := b.Min.X + c.X*z
-			ctx.Add(render.Op{Kind: render.OpFillRect, Color: caret,
-				Bounds: geom.Rc(x-0.75, b.Min.Y+c.Top*z, x+0.75, b.Min.Y+c.Bot*z)})
-		}
+	if over != nil {
+		over(at)
 	}
-	ctx.PopClip()
 }
 
 // HandleEvent implements gift.Interactor.

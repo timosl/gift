@@ -29,6 +29,17 @@ type Font struct{ f *text.Font }
 // IsZero reports whether f is the zero Font, that is no font at all.
 func (f Font) IsZero() bool { return f.f == nil }
 
+// Data returns the file the font was loaded from, or nil for the zero Font.
+// It is for a typesetter of its own, such as Typst in ui/typstview, which
+// has to read the same file for the glyphs it positions to be the ones gift
+// draws. The bytes must not be modified.
+func (f Font) Data() []byte {
+	if f.f == nil {
+		return nil
+	}
+	return f.f.Data()
+}
+
 // LoadFont parses a TrueType or OpenType font, bare or wrapped in WOFF 1.
 // WOFF2 is not understood; see font/ibmplexmono for why the one works and the
 // other does not.

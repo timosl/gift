@@ -203,6 +203,10 @@ type textAreaNode struct {
 	disabled           bool
 	minLines, maxLines int
 
+	// code is what a [CodeEditorView] adds: the gutter, the colours of the
+	// tokens and the marks. It is nil for a plain area.
+	code *codeState
+
 	// inner is the content rectangle of the last layout, in local space, and
 	// lines the number of lines the text had there. An edit that changes the
 	// number asks for a new layout, because the area grows with its text.
@@ -226,6 +230,9 @@ func lineCount(p *text.Paragraph) int { return max(len(p.Lines), 1) }
 // gets.
 func (n *textAreaNode) Layout(ctx *gift.LayoutContext, c geom.Constraints) geom.Size {
 	n.ed.checkSingleMount(ctx)
+	if n.code != nil {
+		n.code.layout(n)
+	}
 	cc := n.fr.apply(c)
 	w := cc.Max.W
 	if !isFinite(w) {
@@ -392,6 +399,9 @@ func (n *textAreaNode) Paint(ctx *gift.PaintContext) {
 	b := ctx.Bounds()
 	paintBackground(ctx, st, b)
 	box := n.inner.Translate(b.Min)
+	if n.code != nil {
+		n.code.paintUnder(ctx, n, b, box)
+	}
 	ctx.PushClip(deviceRect(ctx, box))
 	n.paintContent(ctx, b, ia)
 	ctx.PopClip()
@@ -450,7 +460,11 @@ func (n *textAreaNode) paintContent(ctx *gift.PaintContext, b geom.Rect, ia gift
 				ctx.Add(render.Op{Kind: render.OpFillRect, Bounds: geom.Rc(x+x0, top, x+x1, top+lh), Color: n.selectionBG})
 			}
 		}
-		if !fg.IsTransparent() {
+		switch {
+		case n.code != nil && !ia.Disabled:
+			n.code.paintText(ctx, n, b, p, fg, x, y)
+			n.code.paintOver(ctx, n, p, x, y)
+		case !fg.IsTransparent():
 			paintLines(ctx, b, p, fg, x, y)
 		}
 	}
@@ -726,6 +740,11 @@ func (n *textAreaNode) offsetOf(ctx *gift.EventContext, pos geom.Point) (int, bo
 
 // key is the keyboard half; see [textFieldNode.key] for the modifiers.
 func (n *textAreaNode) key(ctx *gift.EventContext, e gift.Event) bool {
+	if n.code != nil {
+		if decided, used := n.code.key(ctx, n, e); decided {
+			return used
+		}
+	}
 	ed := n.ed
 	extend := e.Mods.Has(gift.ModShift)
 	shortcut := e.Mods.Has(gift.ShortcutModifier)

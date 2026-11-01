@@ -47,6 +47,10 @@ type Font struct {
 	// with descent stored positive downwards. They are read once here so that
 	// [Font.Metrics] is a multiplication and not a table lookup.
 	ascent, descent, gap float32
+
+	// data is the file the font was parsed from, which the face reads from
+	// anyway; see [Font.Data].
+	data []byte
 }
 
 // ParseFont parses a single TrueType or OpenType font from data, bare or
@@ -103,6 +107,7 @@ func parseFont(data []byte) (*Font, error) {
 		face: face,
 		id:   FontID(fontSeq.Add(1)),
 		upem: upem,
+		data: data,
 	}
 	ext, ok := face.FontHExtents()
 	if !ok {
@@ -124,6 +129,28 @@ func parseFont(data []byte) (*Font, error) {
 
 // ID returns the identity of the loaded font.
 func (f *Font) ID() FontID { return f.id }
+
+// Data returns the file the font was parsed from. It is for a typesetter of
+// its own that has to read the same file, so that a glyph id it positions
+// names the same glyph here; it must not be modified.
+func (f *Font) Data() []byte { return f.data }
+
+// Find returns the font parsed from data, the very same bytes and not a
+// copy of them, or nil. A second parse of a file would register a second
+// font, whose glyphs the atlas would rasterise a second time.
+func Find(data []byte) *Font {
+	if len(data) == 0 {
+		return nil
+	}
+	registry.mu.RLock()
+	defer registry.mu.RUnlock()
+	for _, f := range registry.m {
+		if len(f.data) == len(data) && &f.data[0] == &data[0] {
+			return f
+		}
+	}
+	return nil
+}
 
 // registry maps a [FontID] back to the [Font] it names.
 //
