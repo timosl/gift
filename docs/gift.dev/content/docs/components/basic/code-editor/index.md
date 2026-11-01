@@ -61,11 +61,11 @@ lines wrap; a wrapped line has its number on its first row. There is no undo, an
 
 {{< api "CodeEditorView" >}}
 
-{{< api "CodeMark" decl="true" >}}
+{{< api type="CodeMark" decl="true" >}}
 
-{{< api "Token" decl="true" >}}
+{{< api type="Token" decl="true" >}}
 
-{{< api "TokenKind" decl="true" >}}
+{{< api type="TokenKind" decl="true" >}}
 
 ## Related
 

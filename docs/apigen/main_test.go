@@ -32,7 +32,9 @@ func TestAPIDataIsCurrent(t *testing.T) {
 // which the site build would otherwise only report on the build server. A
 // function that returns a type of its package is that type's constructor and
 // is listed with the type, not among the functions: SecureField, which
-// returns a TextFieldView, was named in api-funcs and broke the build.
+// returns a TextFieldView, was named in api-funcs and broke the build. So
+// did {{< api "CodeMark" decl="true" >}}: Hugo does not take a positional
+// parameter beside named ones, and the type has to be named with type= then.
 func TestTheShortcodesNameWhatTheAPIDataHas(t *testing.T) {
 	data, err := os.ReadFile("../gift.dev/data/api.json")
 	if err != nil {
@@ -60,6 +62,10 @@ func TestTheShortcodesNameWhatTheAPIDataHas(t *testing.T) {
 				args[a[1]] = a[2]
 			}
 			rest := strings.TrimSpace(named.ReplaceAllString(m[2], ""))
+			if rest != "" && len(args) > 1 {
+				t.Errorf("%s: %s mixes the positional parameter %s with named ones, which Hugo rejects; "+
+					"name it, as in type=%s", path, m[1], rest, rest)
+			}
 			pkg, ok := api[args["pkg"]]
 			if !ok {
 				t.Errorf("%s: %s names the package %q, which api.json does not have", path, m[1], args["pkg"])
